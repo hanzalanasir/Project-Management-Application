@@ -1,5 +1,10 @@
 <!--
-v1.0.0 — ratified 2026-07-20. Initial adoption: principles I–XI + Governance.
+v1.1.0 — ratified 2026-07-20, last amended 2026-07-22.
+  v1.0.0  Initial adoption: principles I–XI + Governance.
+  v1.1.0  VII.1/VII.2 amended — Angular feature areas are standalone + route-level lazy
+          loading instead of @NgModule. Rationale, alternatives, and backward-compatibility
+          note in docs/adr/0001-angular-standalone-components.md. MINOR: guidance materially
+          changed; no existing compliant work invalidated (no frontend code written yet).
 On amendment: bump the version (semver) and "Last Amended" date below, and re-check
 .specify/templates/{plan,spec,tasks}-template.md for consistency.
 -->
@@ -146,13 +151,17 @@ amendment to this constitution or an ADR.
 
 ### VII. Frontend Conventions
 
-1. Feature modules are lazy-loaded. The initial bundle contains only the app shell,
-   authentication, and the dashboard. Everything else loads on demand.
+1. Feature areas are lazy-loaded via route-level code splitting (`loadChildren` pointing at a
+   feature's route file). The initial bundle contains only the app shell, authentication, and
+   the dashboard. Everything else loads on demand.
 
-2. Modules required by the brief: DashboardModule, ProjectsModule (Project Management),
-   TasksModule (Task Management), TeamModule (Team Management), ReportsModule, AuthModule —
-   plus a SharedModule for reusable UI components and a CoreModule for singletons
-   (interceptors, guards, services registered once).
+2. Components are **standalone** (Angular 22's default); `@NgModule` MUST NOT be used for
+   feature organization. The feature areas required by the brief are Dashboard, Projects
+   (Project Management), Tasks (Task Management), Team (Team Management), Reports, and Auth —
+   each a lazy-loaded route group in its own directory. Reusable presentational components
+   live under `shared/`; application-wide singletons (interceptors, guards, services provided
+   once) are registered under `core/` through the application config providers.
+   See `docs/adr/0001-angular-standalone-components.md`.
 
 3. HTTP calls live in dedicated service classes, never in components. Components consume
    services; services use HttpClient.
@@ -264,4 +273,4 @@ amendment to this constitution or an ADR.
    Complexity that appears to conflict with a principle MUST be justified in the plan's
    Complexity Tracking section or corrected.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-07-20
+**Version**: 1.1.0 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-07-22
