@@ -38,8 +38,6 @@
 
 ## Notes
 
-- All open questions (OQ-003-01..08) have a working default and are **non-blocking** for `/speckit.plan`.
-- OQ-003-01 (the cross-project `GET /api/tasks` endpoint) is an **addition** beyond the routes named in the
-  request — included because "filterable by project" and a TeamMember's cross-project view require it.
-  Flagged explicitly for confirmation or removal.
-- Ready for `/speckit.clarify` (optional) or `/speckit.plan`.
+- All remaining open questions (OQ-003-02, 04–08) have a working default and are **non-blocking** for `/speckit.plan`.
+- OQ-003-01 (cross-project `GET /api/tasks` endpoint) and OQ-003-03 (status-workflow enforcement, incl. whether `Done` is terminal for the assignee) are **resolved** — see Clarifications, Session 2026-07-22.
+- Ready for `/speckit.plan`.

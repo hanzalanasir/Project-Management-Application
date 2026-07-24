@@ -10,7 +10,7 @@
 **Enables**: 002 Projects · 003 Tasks · 004 Team · 005 Dashboard · 006 Reports (every other feature consumes this feature's authentication and role checks)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.0 (Principles II Architecture, III Stack, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
+**Governed By**: Project Constitution v1.1.1 (Principles II Architecture, III Stack, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
 **Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `CurrentUser`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
 
@@ -95,6 +95,8 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **B. Quality validation**
 - **INVEST** — Independent ✔ (registration stands alone); Negotiable ✔ (required-field set, default role); Valuable ✔; Estimable ✔; Small ✔ (record create + audit only); Testable ✔ (account exists, password never returned, audit row written).
+- **3Cs** — Card ✔ (stands alone as a shippable slip: "register with email + password → always TeamMember"); Conversation ✔ (surfaced case-insensitive email uniqueness, oversized input, and self-signup role-elevation risk — see Edge cases and Clarifications); Confirmation ✔ (the four Given/When/Then scenarios cover the happy path, duplicate email, weak password, and password-never-returned — sufficient to call this story done).
+- **7Cs** — Clear ✔ (the always-`TeamMember` rule is stated once, unambiguously); Concise ✔; Concrete ✔ (exact codes 201/400/409, exact fields hashed/never returned); Correct ✔ (matches FR-001 and Constitution V.3); Coherent ✔ (consistent with US-001-06's role-seeding dependency and the Clarifications registration-model decision); Complete ✔ (required fields, validation, and audit all named); Courteous n/a (no user-facing copy is specified in this story — copy lives in the UI component, not the spec).
 - **Given/When/Then**
   1. **Given** a unique email and a policy-valid password, **When** the visitor registers, **Then** a `users` row is created with a hashed password, the **`TeamMember`** role, and an `activity_logs` entry (actor, action `UserRegistered`, entity `User`, entity id, timestamp, summary) is written.
   2. **Given** an email that already exists, **When** registering, **Then** the request is rejected with **409 Conflict** (RFC 7807 Problem Details) and no row is created.
@@ -126,6 +128,8 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **B. Quality validation**
 - **INVEST** — all ✔ (credential exchange only).
+- **3Cs** — Card ✔ (stands alone: "authenticate with email/password → token pair"); Conversation ✔ (surfaced lockout thresholds, case-insensitive email, clock skew, and re-login while already holding a token — see Edge cases); Confirmation ✔ (the four Given/When/Then scenarios cover success, wrong credentials, a deactivated account, and the token's claim shape — sufficient to call this story done).
+- **7Cs** — Clear ✔ (the no-enumeration requirement is stated explicitly, not implied); Concise ✔; Concrete ✔ (exact claims `sub`/`email`/`role`, exact cookie attributes); Correct ✔ (matches FR-003 and Identity's hashed verification); Coherent ✔ (aligns with the Clarifications refresh-token-transport decision referenced in this same story); Complete ✔ (success plus two distinct failure modes and the claim shape are all covered); Courteous ✔ ("Invalid credentials" is deliberately generic and non-blaming — this story is where the user-facing failure copy is actually specified).
 - **Given/When/Then**
   1. **Given** valid credentials, **When** the user logs in, **Then** the API returns **200** with a short-lived **access token** (JWT with `sub`, `email`, `role` claims) and a **refresh token delivered as an httpOnly cookie**, and writes an `activity_logs` entry (`UserLoggedIn`).
   2. **Given** an incorrect password or unknown email, **When** logging in, **Then** **401** with a **generic** message ("Invalid credentials") that does not reveal which field was wrong (no user enumeration).
@@ -157,6 +161,8 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **B. Quality validation**
 - **INVEST** — all ✔.
+- **3Cs** — Card ✔ (stands alone: "log out → revoke refresh token, clear session"); Conversation ✔ (surfaced idempotent logout and the accepted trade-off that the access token remains valid until its short `exp` — see Edge cases); Confirmation ✔ (the three Given/When/Then scenarios cover revocation, reuse-rejection, and client-state clearing — sufficient to call this story done).
+- **7Cs** — Clear ✔; Concise ✔ (the shortest story in the file, proportionate to its scope); Concrete ✔ (exact 204 code, exact `revoked_at` field); Correct ✔ (matches FR-005); Coherent ✔ (explicitly cross-references US-001-05 for the reuse-rejection behavior rather than restating it); Complete ✔ (server-side revoke, client-state clearing, and audit are all covered); Courteous n/a (no user-facing copy in this story).
 - **Given/When/Then**
   1. **Given** a valid session, **When** the user logs out, **Then** the refresh token presented via the cookie is marked revoked (`revoked_at` set), the cookie is cleared, the API returns **204**, and an `activity_logs` entry (`UserLoggedOut`) is written.
   2. **Given** a revoked refresh token, **When** it is later used to refresh, **Then** the refresh is rejected with **401** (see US-001-05).
@@ -187,6 +193,8 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **B. Quality validation**
 - **INVEST** — all ✔ (cross-cutting but independently testable with sample protected endpoints).
+- **3Cs** — Card ✔ (stands alone: "protect every route/endpoint by authentication and role"); Conversation ✔ (surfaced missing/renamed role claims, endpoints permitting several roles, and guard-vs-API disagreement — see Edge cases); Confirmation ✔ (the four Given/When/Then scenarios form the complete 401/403/anonymous matrix — sufficient to call this story done).
+- **7Cs** — Clear ✔ (the "API always wins over the guard" rule is stated plainly); Concise ✔; Concrete ✔ (exact attribute syntax, exact status code per case); Correct ✔ (matches Constitution V.1/V.2 and FR-007/FR-008); Coherent ✔ (directly restates, rather than contradicts, Access Logic steps 1–3 defined earlier in this file); Complete ✔ (unauthenticated, wrong-role, guard-block, and anonymous-allow are all covered); Courteous n/a (a cross-cutting/system story with no user-facing copy of its own).
 - **Given/When/Then**
   1. **Given** an endpoint with no attribute, **When** any request arrives, **Then** it is authenticated-by-default (the global fallback policy requires an authenticated user) — an unauthenticated call → **401**.
   2. **Given** `[Authorize(Roles = "Admin")]`, **When** a TeamMember token calls it, **Then** **403**; **When** an Admin token calls it, **Then** it proceeds.
@@ -218,6 +226,8 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **B. Quality validation**
 - **INVEST** — all ✔.
+- **3Cs** — Card ✔ (stands alone: "expired access token → transparent refresh or forced re-login"); Conversation ✔ (surfaced concurrent-401 racing, the expiry-boundary timing question, and a deactivated user mid-refresh — see Edge cases); Confirmation ✔ (the four Given/When/Then scenarios cover expiry, successful refresh, an invalid refresh token, and replay — sufficient to call this story done).
+- **7Cs** — Clear ✔; Concise ✔; Concrete ✔ (single-flight refresh, single-use rotation, and exact 401/200 outcomes are all named, not just described); Correct ✔ (matches FR-006); Coherent ✔ (directly extends US-001-02's cookie delivery and US-001-03's revocation rather than re-deriving them); Complete ✔ (expiry, successful rotation, invalid tokens, and replay are all covered); Courteous n/a (transparent to the user by design — no copy surfaces unless refresh fails, at which point the story routes to login).
 - **Given/When/Then**
   1. **Given** an expired access token, **When** a request is made, **Then** the API returns **401**; the frontend's 401 interceptor attempts a refresh once.
   2. **Given** a valid, non-revoked, non-expired refresh token, **When** refresh is called, **Then** the API returns a **new access token + new refresh token**, revokes/rotates the old refresh token, and the original request is retried.
@@ -249,6 +259,8 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **B. Quality validation**
 - **INVEST** — Independent ✔; Valuable ✔; Testable ✔ (run twice → identical state, no duplicates).
+- **3Cs** — Card ✔ (stands alone: "seed one Admin/ProjectManager/TeamMember on an empty database, idempotently"); Conversation ✔ (surfaced concurrent-startup racing and the no-hardcoded-secrets constraint — see Edge cases); Confirmation ✔ (the three Given/When/Then scenarios cover first-run, re-run, and partial-repair — sufficient to call this story done).
+- **7Cs** — Clear ✔ ("idempotent" is defined operationally here, not left as a buzzword); Concise ✔; Concrete ✔ (exact role/user counts, exact system-actor audit convention); Correct ✔ (matches Constitution IV.5 verbatim); Coherent ✔ (explicitly the story every other US-001 story depends on for accounts to exist); Complete ✔ (first-run, re-run, and partial-state repair are all covered); Courteous n/a (a system/non-actor story — no user-facing copy).
 - **Given/When/Then**
   1. **Given** an empty database (post-migration), **When** the app starts, **Then** the three roles (Admin, ProjectManager, TeamMember) and one user per role are created, each with a hashed password, and a seed `activity_logs` entry is written (actor = system).
   2. **Given** an already-seeded database, **When** the app starts again, **Then** seeding detects existing roles/users and **creates nothing new** (idempotent — no duplicates).

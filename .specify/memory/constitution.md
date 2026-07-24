@@ -1,10 +1,16 @@
 <!--
-v1.1.0 — ratified 2026-07-20, last amended 2026-07-22.
+v1.1.1 — ratified 2026-07-20, last amended 2026-07-22.
   v1.0.0  Initial adoption: principles I–XI + Governance.
   v1.1.0  VII.1/VII.2 amended — Angular feature areas are standalone + route-level lazy
           loading instead of @NgModule. Rationale, alternatives, and backward-compatibility
           note in docs/adr/0001-angular-standalone-components.md. MINOR: guidance materially
           changed; no existing compliant work invalidated (no frontend code written yet).
+  v1.1.1  PATCH — two wording fixes, no principle redefined: (a) V.1 exempts token refresh
+          from the JWT requirement alongside registration/login/health checks, since refresh
+          issues a new token after the old one has expired and cannot itself require a valid
+          one; (b) VI.2 adds 409 for conflict (duplicate resource or a stale concurrency
+          token), already implied by IV.3's "explicit and intentional" cascade/concurrency
+          handling and used by specs 001–003. No existing compliant work invalidated.
 On amendment: bump the version (semver) and "Last Amended" date below, and re-check
 .specify/templates/{plan,spec,tasks}-template.md for consistency.
 -->
@@ -101,9 +107,11 @@ amendment to this constitution or an ADR.
 
 ### V. Security and Authorization
 
-1. Every API endpoint except registration, login, and health checks REQUIRES a valid JWT.
-   Anonymous endpoints are explicitly marked with `[AllowAnonymous]`. The default is
-   authenticated.
+1. Every API endpoint except registration, login, token refresh, and health checks REQUIRES
+   a valid JWT. Anonymous endpoints are explicitly marked with `[AllowAnonymous]`. The
+   default is authenticated. (Token refresh is necessarily anonymous: its purpose is to
+   issue a new token once the caller's current one has expired, so it cannot itself demand
+   a valid one — the refresh token, not the JWT, is what it validates.)
 
 2. Authorization is role-based with at minimum three roles: Admin, ProjectManager,
    TeamMember. Endpoint role requirements are declared with `[Authorize(Roles = "...")]`
@@ -134,6 +142,7 @@ amendment to this constitution or an ADR.
 2. Standard REST verbs and status codes: GET returns 200 or 404; POST returns 201 with a
    `Location` header; PUT returns 200 or 204; DELETE returns 204; validation failures
    return 400; auth failures return 401; forbidden returns 403; server errors return 500.
+   Conflict (duplicate resource, or a stale concurrency token) returns 409.
 
 3. Errors are returned as RFC 7807 Problem Details JSON, never as plain strings or HTML
    fragments.
@@ -273,4 +282,4 @@ amendment to this constitution or an ADR.
    Complexity that appears to conflict with a principle MUST be justified in the plan's
    Complexity Tracking section or corrected.
 
-**Version**: 1.1.0 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-07-22
+**Version**: 1.1.1 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-07-22

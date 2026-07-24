@@ -10,7 +10,7 @@
 **Enables**: 005 Dashboard · 006 Reports (both aggregate Tasks)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.0 (Principles II Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
+**Governed By**: Project Constitution v1.1.1 (Principles II Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
 **Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision`, `PagedResult<T>`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
 
@@ -74,7 +74,11 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Clarifications
 
-*(Populated by `/speckit.clarify`. No clarification session has run for this feature yet.)*
+### Session 2026-07-22
+
+- Q: Should the cross-project `GET /api/tasks` endpoint be kept alongside the nested `GET /api/projects/{projectId}/tasks`, given only the nested route was named explicitly? → A: **Keep both.** The nested route serves a single project's task list; the cross-project route (`GET /api/tasks?projectId=&status=&assigneeId=`) is required for a TeamMember's "my work across all my projects" view and will be reused as-is by 005 Dashboard. Both use the identical `ApplyScope` predicate and `PagedResult<T>` envelope — no divergent scoping logic.
+- Q: When a task is reassigned, what happens to the previous assignee's access on their next read attempt? → A: **No special handling — scope is re-evaluated fresh on every read.** The moment reassignment commits, the previous assignee's next `GET /api/tasks/{id}` returns **403**, exactly like any other out-of-scope task. No grace period, no cached access, no notification (a notification mechanism is bonus scope, Constitution I.2). This is simply `CanReadAsync` behaving as already specified — no new rule was added, only made explicit.
+- Q: May the assignee's `StatusChange` right move a task's status *out of* `Done` (or is `Done` terminal for that right)? → A: **No restriction — `Done` is not terminal for the assignee.** `CanMutateAsync(StatusChange)` applies uniformly regardless of the task's current status, consistent with the "any status → any status" decision (OQ-003-03, no workflow enforcement in v1). Correcting a mis-set `Done` status is a legitimate assignee action and does not require escalation to `FullEdit`.
 
 ---
 
@@ -96,6 +100,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — Independent ✔; Negotiable ✔ (field set, default status/priority); Valuable ✔; Estimable ✔; Small ✔ (one row + audit); Testable ✔ (row created under the right project, TeamMember blocked, audit written).
+- **3Cs** — Card ✔ (stands alone: "create a task inside a project I own"); Conversation ✔ (surfaced an outside-pool assignee, a due date outside the project's window, and writes to a terminal-status project — see Edge cases); Confirmation ✔ (the six Given/When/Then scenarios cover PM-owns, cross-project denial, TeamMember denial, invalid-assignee, date-window, and the 201 shape — sufficient to call this story done).
+- **7Cs** — Clear ✔; Concise ✔; Concrete ✔ (exact 201/403/400/404 codes, exact route-not-body rule for `project_id`); Correct ✔ (matches FR-003/FR-004/FR-005); Coherent ✔ (consistently defers ownership resolution to 002 rather than redefining it); Complete ✔ (creation, ownership, assignee validation, and date validation are all covered); Courteous n/a (no user-facing copy in this story).
 - **Given/When/Then**
   1. **Given** a ProjectManager and a project **they own**, **When** they create a task with a valid payload, **Then** a `tasks` row is created with `project_id` from the route, `status` defaulting to `ToDo`, and an `activity_logs` entry (`TaskCreated`) is written **in the same transaction**.
   2. **Given** a ProjectManager and a project **owned by someone else**, **When** they create a task in it, **Then** **403** and nothing is written.
@@ -129,6 +135,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — Independent ✔; Negotiable ✔ (filter set); Valuable ✔; Estimable ✔; Small ✔ (read path); Testable ✔ (scope per role directly assertable).
+- **3Cs** — Card ✔ (stands alone: "role-scoped, filterable, paginated task list"); Conversation ✔ (surfaced the filter-cannot-widen-scope rule and an `assigneeId`-spoofing attempt — see Edge cases; and resolved via Clarifications whether the cross-project endpoint should even exist); Confirmation ✔ (the five Given/When/Then scenarios form the three-role scope matrix plus filtering and paging — the primary acceptance test, sufficient to call this story done).
+- **7Cs** — Clear ✔ ("a filter can only narrow, never widen" is stated explicitly, twice); Concise ✔; Concrete ✔ (exact query parameters, exact `PagedResult<T>` semantics); Correct ✔ (matches FR-009/FR-010/FR-011); Coherent ✔ (both endpoints reuse the identical `ApplyScope` and envelope, per the Clarifications decision); Complete ✔ (three roles, four filter types, and paging metadata are all covered); Courteous n/a (a list view with no story-specific user-facing copy).
 - **Given/When/Then**
   1. **Given** tasks across several projects, **When** an **Admin** lists, **Then** all tasks are returned (subject to paging).
   2. **Given** the same data, **When** a **ProjectManager** lists, **Then** only tasks whose **parent project they own** are returned — including tasks assigned to nobody.
@@ -161,6 +169,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — all ✔ (single read).
+- **3Cs** — Card ✔ (stands alone: "open one task → full detail, scope-checked"); Conversation ✔ (surfaced malformed-id handling and displaying a task whose assignee was deactivated — see Edge cases); Confirmation ✔ (the four Given/When/Then scenarios cover success, an unknown id, out-of-scope, and the TeamMember status-only indicator — sufficient to call this story done).
+- **7Cs** — Clear ✔; Concise ✔; Concrete ✔ (exact fields returned, exact 200/403/404 codes); Correct ✔ (matches FR-013); Coherent ✔ (explicitly states which control is enabled for a TeamMember, foreshadowing US-003-05's narrower right rather than leaving it implicit); Complete ✔ (success, two denial modes, and the role-specific UI hint are all covered); Courteous n/a (a read-only view with no story-specific copy).
 - **Given/When/Then**
   1. **Given** a task they may see, **When** a user opens it, **Then** **200** with title, description, status, priority, due date, parent project, assignee, and timestamps.
   2. **Given** a task id that **does not exist**, **When** requested, **Then** **404**.
@@ -192,6 +202,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — all ✔ (field update only).
+- **3Cs** — Card ✔ (stands alone: "full-edit a task in a project I own"); Conversation ✔ (surfaced the project-immutability rule and, centrally, whether the assignee may use this endpoint at all — see Edge cases and T.2); Confirmation ✔ (the five Given/When/Then scenarios include, in scenario 3, the defining test of the graduated model itself — confirmation here is stronger than in a typical edit story).
+- **7Cs** — Clear ✔ (explicitly calls its own scenario 3 "the graduated model's defining test" rather than leaving the reader to infer it); Concise ✔; Concrete ✔ (exact 409/`xmin` mechanism, exact refusal distinct from the narrower right the same user retains); Correct ✔ (matches FR-006/FR-012); Coherent ✔ (deliberately separated from US-003-05/US-003-07 with the reason stated in Dependencies, not left implicit); Complete ✔ (update, ownership, the graduated refusal, validation, and concurrency are all covered); Courteous n/a (no story-specific copy beyond the generic conflict message).
 - **Given/When/Then**
   1. **Given** a task in a project they own, **When** a ProjectManager updates it, **Then** the row is updated, `updated_at` refreshed, and an `activity_logs` entry (`TaskUpdated`, summary of changed fields) is written.
   2. **Given** a task in **someone else's** project, **When** a ProjectManager updates it, **Then** **403**.
@@ -224,13 +236,15 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — Independent ✔ (narrow, self-contained write); Valuable ✔; Testable ✔ (the permitted/refused pair on one row is directly assertable).
+- **3Cs** — Card ✔ (stands alone: "the assignee moves their own task's status, nothing else"); Conversation ✔ (surfaced payload-widening attempts and, via Clarifications, whether `Done` is terminal for this right — see Edge cases); Confirmation ✔ (the five Given/When/Then scenarios include the assignee-allowed/non-assignee-refused pair on the same row plus the extra-fields-ignored proof — the strongest confirmation in either file, since this is the acceptance test for the feature's central claim).
+- **7Cs** — Clear ✔ (states outright that this is "the single most frequent write in the product"); Concise ✔; Concrete ✔ (exact status-only DTO shape, exact from→to audit); Correct ✔ (matches FR-007/FR-008); Coherent ✔ (explicitly cross-referenced from US-003-04 as its counterpart, not a duplicate); Complete ✔ (assignee-allowed, non-assignee-refused, payload-widening, PM-override, and invalid-status are all covered); Courteous n/a (a status control with no story-specific copy).
 - **Given/When/Then**
   1. **Given** a task assigned to them, **When** a TeamMember changes its status, **Then** the status is updated, `updated_at` refreshed, and an `activity_logs` entry (`TaskStatusChanged`, from→to) is written.
   2. **Given** a task assigned to **someone else**, **When** a TeamMember changes its status, **Then** **403** (scope gate).
   3. **Given** the same task, **When** the same TeamMember sends a payload also containing a new title or assignee, **Then** those fields are **ignored** — this endpoint accepts **status only**, so privilege cannot be widened by payload.
   4. **Given** a ProjectManager and a task in a project they own, **When** they change its status, **Then** it succeeds (their `FullEdit` right subsumes `StatusChange`).
   5. **Given** an invalid status value, **When** submitted, **Then** **400**.
-- **Edge cases**: setting the status to its current value (no-op — still audited); an unassigned task (no TeamMember can reach it); transition rules between statuses — **not enforced in v1**, any status may move to any other (see OQ-003-03); concurrent status change → **409**.
+- **Edge cases**: setting the status to its current value (no-op — still audited); an unassigned task (no TeamMember can reach it); transition rules between statuses — **not enforced in v1**, any status may move to any other, **including out of `Done`** — the assignee's `StatusChange` right is not lifecycle-restricted (see OQ-003-03; Clarifications 2026-07-22); concurrent status change → **409**.
 - **Audit/security**: the narrow endpoint is the enforcement mechanism — it binds a **status-only DTO**, so extra fields are structurally impossible to apply, not merely rejected. `CanMutateAsync(StatusChange)` still runs.
 - **Configurability**: the permitted status set; whether a status workflow (allowed transitions) is enforced.
 
@@ -256,6 +270,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — all ✔.
+- **3Cs** — Card ✔ (stands alone: "delete a task in a project I own"); Conversation ✔ (surfaced deleting a `Done` task and the concurrent delete/update race — see Edge cases); Confirmation ✔ (the four Given/When/Then scenarios cover owner-delete, cross-project denial, TeamMember denial (including the assignee), and double-delete — sufficient to call this story done).
+- **7Cs** — Clear ✔; Concise ✔; Concrete ✔ (exact 204 code, exact audit-before-removal ordering); Correct ✔ (matches FR-014); Coherent ✔ (consistent with 002's audit-survives-cascade pattern rather than inventing a new one); Complete ✔ (delete, scope, mutation-kind, and audit-survival are all covered); Courteous ✔ (the confirmation dialog names the specific task before deleting).
 - **Given/When/Then**
   1. **Given** a task in a project they own, **When** a ProjectManager deletes it, **Then** the row is removed, **204 No Content** returned, and an `activity_logs` entry (`TaskDeleted`, snapshot summary) is written **before** removal so the audit survives.
   2. **Given** a task in someone else's project, **When** a ProjectManager deletes it, **Then** **403**.
@@ -287,13 +303,15 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — all ✔ (single-field write with its own rule).
+- **3Cs** — Card ✔ (stands alone: "assign or reassign a task to a valid team member"); Conversation ✔ (surfaced outside-pool candidates, deactivated-user assignment, and, via Clarifications, what happens to the previous assignee's access — see Edge cases); Confirmation ✔ (the five Given/When/Then scenarios cover successful reassignment, outside-pool denial, TeamMember denial, unassignment, and cross-project denial — sufficient to call this story done).
+- **7Cs** — Clear ✔; Concise ✔; Concrete ✔ (exact from→to audit, exact 400-vs-403 distinction); Correct ✔ (matches FR-004); Coherent ✔ (validates against, but never mutates, feature 004's pool — stated consistently in Scope Summary, Dependencies, and here); Complete ✔ (assign, reassign, unassign, and the previous-assignee edge case are all covered); Courteous n/a (a picker control with no story-specific copy).
 - **Given/When/Then**
   1. **Given** a task in a project they own and a candidate who **is** a team member on that project, **When** a ProjectManager reassigns it, **Then** `assignee_id` is updated and an `activity_logs` entry (`TaskReassigned`, from→to) is written.
   2. **Given** a candidate who is **not** a team member on that project, **When** reassigning, **Then** **400** (`ErrorKind.Validation`) — assignment outside the project's pool is refused.
   3. **Given** a **TeamMember**, **When** they attempt to reassign their own task (to themselves or anyone else), **Then** **403** from `CanMutateAsync(Reassign)`.
   4. **Given** a null assignee, **When** submitted, **Then** the task becomes **unassigned** (permitted) and consequently invisible to all TeamMembers.
   5. **Given** a task in someone else's project, **When** a ProjectManager reassigns it, **Then** **403**.
-- **Edge cases**: reassigning to the current assignee (no-op — still audited); assigning to a **deactivated** user (**refused, 400**); the previous assignee immediately loses read access to the task; concurrent reassignment → **409**.
+- **Edge cases**: reassigning to the current assignee (no-op — still audited); assigning to a **deactivated** user (**refused, 400**); concurrent reassignment → **409**. **The previous assignee's access is not cached or grace-windowed** — their very next `GET /api/tasks/{id}` re-evaluates scope fresh and returns **403**, the same as any other out-of-scope task (Clarifications 2026-07-22); no notification is sent.
 - **Audit/security**: reassignment is audited from→to as a distinct action, so the transfer of access is traceable; validated against 004's pool without mutating it.
 - **Configurability**: whether unassigning is permitted; whether assigning to a deactivated user is permitted (default **no**).
 
@@ -328,7 +346,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Consolidated API Catalog
 
-> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** produced by the shared `ErrorKind` mapper ([shared-contracts §1](../../docs/shared-contracts.md)); documented via **Swagger/OpenAPI**. Authenticated by default (001). Sub-resource routes use **nouns** (`/status`, `/assignee`), never verbs, per Constitution VI.3.
+> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** produced by the shared `ErrorKind` mapper ([shared-contracts §1](../../docs/shared-contracts.md)); documented via **Swagger/OpenAPI**. Authenticated by default (001). Sub-resource routes use **nouns** (`/status`, `/assignee`), never verbs, per Constitution II.3.
 
 | Method · Route | Purpose | Role gate | Service gate | Success | Failure |
 |---|---|---|---|---|---|
@@ -595,9 +613,9 @@ Emit `(actor_id, action, entity_type='Task', entity_id, timestamp, change_summar
 ### B.9 Open questions for review
 | # | Question | Recommendation | Blocks build? |
 |---|---|---|---|
-| OQ-003-01 | Is the cross-project `GET /api/tasks` endpoint wanted, in addition to the nested project route? | **Yes** — a TeamMember's "my work" view and the Dashboard both need a cross-project list; it uses the same `ApplyScope` and envelope. Drop it only if the nested route is deemed sufficient | No |
+| OQ-003-01 | Is the cross-project `GET /api/tasks` endpoint wanted, in addition to the nested project route? | **Resolved (Clarifications 2026-07-22):** yes — both endpoints are kept; see Clarifications for rationale | — |
 | OQ-003-02 | Should `TaskItem` carry a separate `progress_percent` alongside `status`? | **No for v1** — `status` is the progress signal; add `progress_percent` only if the Dashboard needs finer granularity | No |
-| OQ-003-03 | Enforce a status workflow (allowed transitions), or allow any status → any status? | **Any → any** for v1, behind `Tasks:EnforceStatusWorkflow`; revisit if the demo needs a strict board | No |
+| OQ-003-03 | Enforce a status workflow (allowed transitions), or allow any status → any status? | **Resolved (Clarifications 2026-07-22): any → any** for v1, behind `Tasks:EnforceStatusWorkflow`, applying uniformly to Admin/ProjectManager/assignee — `Done` is not terminal for anyone; revisit if the demo needs a strict board | — |
 | OQ-003-04 | Is the `TaskStatus` set right (`ToDo/InProgress/InReview/Done/Blocked`)? | Adopt as listed; confirm against the demo script and the Dashboard's chart buckets | No |
 | OQ-003-05 | May a task move between projects? | **No** — `project_id` is immutable after creation; delete and recreate instead. Revisit if users ask | No |
 | OQ-003-06 | Hard delete, or soft delete/archive? | **Hard delete**, consistent with 002; `activity_logs` preserves history | No |

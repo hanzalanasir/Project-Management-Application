@@ -10,7 +10,7 @@
 **Enables**: 003 Tasks · 004 Team · 005 Dashboard · 006 Reports (all anchor on the Project entity)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.0 (Principles II Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
+**Governed By**: Project Constitution v1.1.1 (Principles II Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
 **Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `CurrentUser`, `AccessDecision`, `PagedResult<T>`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
 
@@ -88,6 +88,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — Independent ✔ (creation stands alone); Negotiable ✔ (field set, default status); Valuable ✔; Estimable ✔; Small ✔ (single record + audit); Testable ✔ (row created, owner correct, audit written, TeamMember blocked).
+- **3Cs** — Card ✔ (stands alone: "create a project → owner = caller"); Conversation ✔ (surfaced owner-spoofing attempts, an Admin assigning a non-ProjectManager owner, and duplicate-name permissiveness — see Edge cases); Confirmation ✔ (the five Given/When/Then scenarios cover PM-owns, Admin-sets-owner, TeamMember-blocked, validation, and the 201 shape — sufficient to call this story done).
+- **7Cs** — Clear ✔ (the owner-resolution rule is stated once, unambiguously); Concise ✔; Concrete ✔ (exact 201/403/400 codes, exact `Location` header); Correct ✔ (matches FR-003); Coherent ✔ (consistent with the two-layer authorization model stated in Access Logic); Complete ✔ (creation, ownership, validation, and audit are all covered); Courteous n/a (no user-facing copy in this story).
 - **Given/When/Then**
   1. **Given** an authenticated ProjectManager and a valid payload, **When** they create a project, **Then** a `projects` row is created with `owner_id` = **the caller** (taken from the token, not the body), and an `activity_logs` entry (actor, action `ProjectCreated`, entity `Project`, entity id, timestamp, summary) is written.
   2. **Given** an Admin supplying an explicit `ownerId`, **When** they create a project, **Then** the project is created with that owner; if `ownerId` is omitted the Admin becomes the owner.
@@ -120,6 +122,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — Independent ✔; Negotiable ✔ (filter/sort set); Valuable ✔; Estimable ✔; Small ✔ (read path); Testable ✔ (scope per role is directly assertable).
+- **3Cs** — Card ✔ (stands alone: "role-scoped, paginated, searchable project list"); Conversation ✔ (surfaced clamped `pageSize`, non-numeric paging, and the feature-004-not-yet-built empty-list case — see Edge cases); Confirmation ✔ (the five Given/When/Then scenarios form the three-role scope matrix plus paging and search — the primary acceptance test, sufficient to call this story done).
+- **7Cs** — Clear ✔; Concise ✔; Concrete ✔ (the exact scope-per-role table is reused here, plus exact paging semantics); Correct ✔ (matches Constitution VI.4 and FR-006/FR-007); Coherent ✔ (directly implements the Role & Permission Model table stated earlier in this file); Complete ✔ (all three roles, filtering, and paging metadata are all covered); Courteous n/a (a list view with only standard empty/loading states, none specific to this story).
 - **Given/When/Then**
   1. **Given** projects owned by several managers, **When** an **Admin** lists, **Then** **all** projects are returned (subject to paging).
   2. **Given** the same data, **When** a **ProjectManager** lists, **Then** **only projects they own** are returned — another manager's projects never appear.
@@ -152,6 +156,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — all ✔ (single read).
+- **3Cs** — Card ✔ (stands alone: "open one project → full detail, scope-checked"); Conversation ✔ (surfaced malformed-id handling and the deliberate 403-vs-404 trade-off — see Edge cases and OQ-002-03); Confirmation ✔ (the four Given/When/Then scenarios cover success, an unknown id, out-of-scope, and Admin override — sufficient to call this story done).
+- **7Cs** — Clear ✔ (the 403-vs-404 choice is stated as deliberate, not accidental); Concise ✔; Concrete ✔ (exact fields returned, exact 200/403/404 codes); Correct ✔ (matches FR-011); Coherent ✔ (explicitly named as "the anchor screen" reused by 003/004/005/006); Complete ✔ (success plus two distinct denial modes are all covered); Courteous n/a (a read-only view with no user-facing copy specific to this story).
 - **Given/When/Then**
   1. **Given** a project they may see, **When** a user opens it, **Then** **200** with name, description, start/end dates, status, owner, and created/updated timestamps.
   2. **Given** a project id that **does not exist**, **When** requested, **Then** **404**.
@@ -183,6 +189,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — all ✔ (field update only).
+- **3Cs** — Card ✔ (stands alone: "update a project I own"); Conversation ✔ (surfaced the ownership-transfer restriction and concurrent-edit conflict — see Edge cases); Confirmation ✔ (the five Given/When/Then scenarios cover owner-update, cross-owner denial, Admin override, TeamMember denial, and validation — sufficient to call this story done, with the 409 concurrency path made explicit per ADR-0004).
+- **7Cs** — Clear ✔; Concise ✔; Concrete ✔ (the exact `xmin`/409 mechanism is named, not just "handle conflicts"); Correct ✔ (matches FR-010 and FR-017); Coherent ✔ (this story's full-edit scope is explicitly distinguished from the narrower writes later features add, the same pattern 003 builds on); Complete ✔ (update, ownership rule, validation, and concurrency are all covered); Courteous n/a (no story-specific user-facing copy beyond the generic conflict message defined in B.5).
 - **Given/When/Then**
   1. **Given** a project they own, **When** a ProjectManager updates it with a valid payload, **Then** the row is updated, `updated_at` is refreshed, and an `activity_logs` entry (`ProjectUpdated`) records the change summary.
   2. **Given** a project owned by **someone else**, **When** a ProjectManager updates it, **Then** **403** and nothing changes.
@@ -215,6 +223,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **B. Quality validation**
 - **INVEST** — all ✔.
+- **3Cs** — Card ✔ (stands alone: "delete a project I own, cascading its dependents"); Conversation ✔ (surfaced the cascade-to-Tasks/TeamMembers question and the double-delete race — see Edge cases); Confirmation ✔ (the five Given/When/Then scenarios cover owner-delete, cross-owner denial, Admin override, TeamMember denial, and an unknown id — sufficient to call this story done).
+- **7Cs** — Clear ✔ (cascade behavior is stated as explicit and intentional, per Constitution IV.3); Concise ✔; Concrete ✔ (exact 204 code, exact audit-before-removal ordering); Correct ✔ (matches FR-013); Coherent ✔ (the cascade decision made here is exactly what 003 later cites and builds on); Complete ✔ (delete, cascade, and audit-survival are all covered); Courteous ✔ (the confirmation dialog explicitly names the project and warns about cascading removal — genuine user-facing courtesy, not just a generic prompt).
 - **Given/When/Then**
   1. **Given** a project they own, **When** a ProjectManager deletes it, **Then** the row is removed, **204 No Content** is returned, and an `activity_logs` entry (`ProjectDeleted`) is written **before** the row disappears (audit survives the delete).
   2. **Given** a project owned by someone else, **When** a ProjectManager deletes it, **Then** **403** and nothing is removed.
