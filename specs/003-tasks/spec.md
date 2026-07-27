@@ -244,7 +244,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   3. **Given** the same task, **When** the same TeamMember sends a payload also containing a new title or assignee, **Then** those fields are **ignored** — this endpoint accepts **status only**, so privilege cannot be widened by payload.
   4. **Given** a ProjectManager and a task in a project they own, **When** they change its status, **Then** it succeeds (their `FullEdit` right subsumes `StatusChange`).
   5. **Given** an invalid status value, **When** submitted, **Then** **400**.
-- **Edge cases**: setting the status to its current value (no-op — still audited); an unassigned task (no TeamMember can reach it); transition rules between statuses — **not enforced in v1**, any status may move to any other, **including out of `Done`** — the assignee's `StatusChange` right is not lifecycle-restricted (see OQ-003-03; Clarifications 2026-07-22); concurrent status change → **409**.
+  6. **Given** a task moving **to** `Done`, **When** the status change commits, **Then** `closed_at` is set to the current time; **Given** a `Done` task moving **away** from `Done` (re-opened to any other status), **When** committed, **Then** `closed_at` is cleared to null. `closed_at` is a side effect of this mutation and is **never** accepted from the request body.
+- **Edge cases**: setting the status to its current value (no-op — still audited; a `Done`→`Done` no-op leaves `closed_at` unchanged); an unassigned task (no TeamMember can reach it); transition rules between statuses — **not enforced in v1**, any status may move to any other, **including out of `Done`** — the assignee's `StatusChange` right is not lifecycle-restricted (see OQ-003-03; Clarifications 2026-07-22); **re-opening a `Done` task clears its `closed_at`, and moving a task to `Done` sets `closed_at` to now — a system-derived side effect, not a user field**; concurrent status change → **409**.
 - **Audit/security**: the narrow endpoint is the enforcement mechanism — it binds a **status-only DTO**, so extra fields are structurally impossible to apply, not merely rejected. `CanMutateAsync(StatusChange)` still runs.
 - **Configurability**: the permitted status set; whether a status workflow (allowed transitions) is enforced.
 
@@ -252,9 +253,9 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **D. API** — `PUT /api/tasks/{id}/status` · `[Authorize]` (all three roles) · body `{ "status": "InProgress" }` · **200** with the updated task · **400** / **403** / **404** / **409**.
 
-**E. DB** — updates **`tasks.status`** only; writes **`activity_logs`**.
+**E. DB** — updates **`tasks.status`** and, as a system side effect when crossing the `Done` boundary, **`tasks.closed_at`** (set on entry to `Done`, cleared on re-open); writes **`activity_logs`**. The bound DTO remains **status-only** — `closed_at` is derived, not accepted.
 
-**F. Separation** — UI: status control only. Backend: `ITaskService.UpdateStatusAsync` → `CanMutateAsync(StatusChange)`; a dedicated status-only DTO. DB: single-column update + audit. QA: **assignee-allowed vs. non-assignee-refused on the same row**, extra-fields-ignored, invalid status 400, concurrency 409.
+**F. Separation** — UI: status control only. Backend: `ITaskService.UpdateStatusAsync` → `CanMutateAsync(StatusChange)`; a dedicated status-only DTO, with `closed_at` set/cleared server-side as a derived effect. DB: status update + derived `closed_at` side effect + audit. QA: **assignee-allowed vs. non-assignee-refused on the same row**, extra-fields-ignored, invalid status 400, concurrency 409, **`closed_at` set-on-`Done` / cleared-on-re-open**.
 
 ---
 
@@ -333,7 +334,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 | Entity | Table | Purpose | Key fields (type · req/null) | Relationships |
 |---|---|---|---|---|
-| **TaskItem** (this feature) | `tasks` | The unit of work | `id` uuid PK; `project_id` uuid FK (req); `title` varchar(200) (req); `description` varchar(2000) (null); `status` (req · enum, default `ToDo`); `priority` (req · enum, default `Medium`); `due_date` date (null); `assignee_id` uuid FK (null); `created_at`/`updated_at` (req) | *→1 `projects` (**cascade**); *→1 `users` (assignee, **restrict**) |
+| **TaskItem** (this feature) | `tasks` | The unit of work | `id` uuid PK; `project_id` uuid FK (req); `title` varchar(200) (req); `description` varchar(2000) (null); `status` (req · enum, default `ToDo`); `priority` (req · enum, default `Medium`); `due_date` date (null); `assignee_id` uuid FK (null); `closed_at` timestamptz (null · set to now when `status`→`Done`, cleared to null on re-open; **not user-settable** — a side effect of the status-change mutation); `created_at`/`updated_at` (req) | *→1 `projects` (**cascade**); *→1 `users` (assignee, **restrict**) |
 | **Project** (from 002) | `projects` | Parent + ownership source for the ProjectManager scope | `id`, `owner_id`, `start_date`, `end_date` (referenced) | 1→* `tasks` |
 | **User** (from 001) | `users` | Assignee reference | `id`, `is_active` (referenced) | 1→* `tasks` as assignee |
 | **TeamMember** (from 004) | `team_members` | Read-only here — validates that an assignee belongs to the project | `project_id`, `user_id` | validation join only |
@@ -529,6 +530,7 @@ DELETE /api/tasks/9ac41f02-…-e5      Authorization: Bearer eyJ…  (role=Proje
 - `priority` varchar(20) **NOT NULL DEFAULT 'Medium'** (see B.2)
 - `due_date` date **NULL** — application-level rule: within the parent project's `start_date`…`end_date` window when both are set
 - `assignee_id` uuid **NULL** FK→`users(id)` **ON DELETE RESTRICT**
+- `closed_at` timestamptz **NULL** — completion timestamp; **set to now when `status` transitions to `Done`, cleared to null when the task is re-opened** (status moves away from `Done`). **Not user-settable** — it is a side effect of the status-change mutation (US-003-05), never accepted from a request body. Included in the `AddTasksTable` migration.
 - `created_at` timestamptz **NOT NULL** · `updated_at` timestamptz **NOT NULL**
 - **Concurrency**: PostgreSQL `xmin` mapped as an EF Core row-version token (ADR-0004); stale write → **409**
 - **INDEX** (`project_id`), (`assignee_id`), (`status`), (`project_id`,`status`), (`assignee_id`,`status`); text index on `title` for search
@@ -593,7 +595,7 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 - **Testability (Constitution IX):** every `ITaskAccessPolicy` branch unit-tested — the full `TaskMutation` × role matrix (15 cells) is a table-driven xUnit test; each controller happy path + one error path via `WebApplicationFactory`; frontend `TasksService`, guards, and form validators via Jasmine+Karma.
 
 ### B.7 Audit event catalog (→ `activity_logs`, defined in 001)
-Emit `(actor_id, action, entity_type='Task', entity_id, timestamp, change_summary)` for: **create** (`TaskCreated`), **full edit** (`TaskUpdated`, changed-field summary), **status change** (`TaskStatusChanged`, from→to), **reassignment** (`TaskReassigned`, from→to), **delete** (`TaskDeleted`, snapshot, written before removal). Reads are not audited. Append-only; audit rows are never cascaded away.
+Emit `(actor_id, action, entity_type='Task', entity_id, timestamp, change_summary)` for: **create** (`TaskCreated`), **full edit** (`TaskUpdated`, changed-field summary), **status change** (`TaskStatusChanged`, from→to — its `change_summary` also reflects `closed_at` being set on entry to `Done` or cleared on re-open; **no new audit event type is introduced**), **reassignment** (`TaskReassigned`, from→to), **delete** (`TaskDeleted`, snapshot, written before removal). Reads are not audited. Append-only; audit rows are never cascaded away.
 
 ### B.8 Definition of Done
 1. All eight routes exist and behave per the API-catalog status-code table; sub-resources use nouns, not verbs.
@@ -684,6 +686,7 @@ Audit every write to Tasks — create, full edit, status change, reassignment, d
 - **Depends on**: [001 Auth & RBAC](../001-auth-rbac/spec.md) — Users, role model, JWT claims, `CurrentUser`, `IActivityLogService`. · [002 Projects](../002-projects/spec.md) — the `Project` entity and the ownership rule that defines a ProjectManager's scope.
 - **Reads (does not mutate)**: feature 004's `team_members` pool, to validate assignees.
 - **Consumed by**: 005 Dashboard (task counts/aggregates by status, assignee, project) · 006 Reports (task exports). Both inherit this feature's scoping rules.
+- **`closed_at` supports 006 Reports:** the nullable `closed_at` timestamp on `tasks` exists specifically so 006 Reports can compute **Task Completion** trends and **Project Progress** "closed" counts from an accurate completion time — one that, unlike `updated_at`, a later edit to a done task will not move.
 - **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; Serilog; Swagger/OpenAPI.
 
 ## Out of Scope
