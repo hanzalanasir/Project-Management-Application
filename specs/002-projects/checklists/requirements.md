@@ -37,5 +37,6 @@
 
 ## Notes
 
-- All open questions (OQ-002-01..07) have a working default and are **non-blocking** for `/speckit.plan`.
-- Ready for `/speckit.clarify` (optional) or `/speckit.plan`.
+- **Clarify session complete** (Session 2026-07-22): OQ-002-01 (**hard delete + cascade**), OQ-002-03 (**403 by default**, `MaskOutOfScopeAs404` flag — app-wide convention), and OQ-002-05 (**owner must be ProjectManager or Admin**) are resolved and integrated.
+- Remaining OQ-002-02/04/06/07 have working defaults and are **non-blocking** for `/speckit.plan`.
+- Ready for `/speckit.plan`.

@@ -68,7 +68,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 | `POST /api/projects/{projectId}/team` (add member) | ✔ any project | ✔ owned projects | ✘ **403** |
 | `DELETE /api/projects/{projectId}/team/{userId}` (remove member) | ✔ any project | ✔ owned projects | ✘ **403** |
 
-**Membership** is the basis of a TeamMember's project visibility, exactly as **ownership** is a ProjectManager's. The two concepts stay separate: a ProjectManager may (subject to the eligibility rule under clarification) also appear as a *member* of a project they do not own — in which case they can view that project and its team as a member, but still cannot manage its team.
+**Membership** is the basis of a TeamMember's project visibility, exactly as **ownership** is a ProjectManager's. The two concepts stay separate: a ProjectManager may (since any active user is eligible for membership — Clarifications 2026-07-22) also appear as a *member* of a project they do not own — in which case they can view that project and its team as a member, but still cannot manage its team.
 
 ---
 
@@ -77,7 +77,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 ### Session 2026-07-22
 
 - Q: Which users are eligible to be added to a project's team — any user regardless of global role, or TeamMembers only? → A: **Any active user, regardless of global role.** Membership records visibility, not permission, so a ProjectManager or an Admin may be added as a *contributor* on a project they do not own without it changing what they are. The only add-time gate is that the user is **active** (a deactivated user is refused, 400). This keeps membership orthogonal to role — the coupling this feature exists to avoid.
-- Q: Removing a member who still has open tasks assigned to them in that project — block the removal, or auto-unassign their tasks first? → A: **Block with 409 Conflict** and a dependency message listing the blocking tasks. Removal is refused while the member has any open assigned task in the project; the manager must reassign or close those tasks first, then remove the person. This is a **fixed invariant, not configurable** — it preserves the guarantee that a task's assignee is always a current team member (backing 003), mirrors 002's dependency-aware delete, and never silently drops assigned work to unassigned.
+- Q: Removing a member who still has open tasks assigned to them in that project — block the removal, or auto-unassign their tasks first? → A: **Block with 409 Conflict** and a dependency message listing the blocking tasks. Removal is refused while the member has any open assigned task in the project; the manager must reassign or close those tasks first, then remove the person. This is a **fixed invariant, not configurable** — it preserves the guarantee that a task's assignee is always a current team member (backing 003), mirrors 003's pattern of restricting deletion of a user who is a task's assignee until their tasks are reassigned — applied here to removing a team member with open assigned tasks — and never silently drops assigned work to unassigned.
 
 ---
 

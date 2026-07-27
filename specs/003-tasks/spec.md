@@ -488,7 +488,7 @@ DELETE /api/tasks/9ac41f02-…-e5      Authorization: Bearer eyJ…  (role=Proje
 
 ### T.6 API behaviour rules
 - **Resource-oriented, plural nouns**; sub-resources (`/status`, `/assignee`) are **nouns**, not verbs (Constitution VI.3). Creation and project-scoped listing are nested under the parent project; single-task operations are flat under `/api/tasks/{id}`.
-- **Status codes** (Constitution VI.2): 201 + `Location` on create; 200 on read/update; 204 on delete; 400 validation/bad paging; 401 unauthenticated; 403 role, scope, or mutation denial; 404 unknown id; **409** stale row version; 500 server. All errors are Problem Details from the shared `ErrorKind` mapper (ADR-0003).
+- **Status codes** (Constitution II.2): 201 + `Location` on create; 200 on read/update; 204 on delete; 400 validation/bad paging; 401 unauthenticated; 403 role, scope, or mutation denial; 404 unknown id; **409** stale row version; 500 server. All errors are Problem Details from the shared `ErrorKind` mapper (ADR-0003).
 - **Pagination** (Constitution VI.4): both collection endpoints return `PagedResult<T>` with `?page`/`?pageSize`, default 20, maximum 100, **clamped** not rejected.
 - **Versionable** — routes are designed so a future `/api/v1` prefix can be added without breaking clients (Constitution VI.1); not adopted now.
 

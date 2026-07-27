@@ -70,6 +70,16 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ---
 
+## Clarifications
+
+### Session 2026-07-22
+
+- Q: Delete semantics — hard delete with cascade, or soft delete/archive? → A: **Hard delete with explicit cascade.** `DELETE /api/projects/{id}` removes the row and cascades to the project's tasks (003) and team members (004); the `activity_logs` trail preserves the history of what was removed, so soft-delete's recoverability is not needed for v1. Soft delete would add an `is_deleted` filter to every project/task/team/dashboard query — a cross-cutting cost deferred unless Reports (006) later needs to surface deleted projects.
+- Q: Out-of-scope read — 403 Forbidden or masked as 404 Not Found? → A: **403 by default, with a `MaskOutOfScopeAs404` config flag to harden to 404.** Within a single-organization workspace, confirming a project exists to an authenticated colleague is acceptable, and 403 is the clearer client experience ("you can't see this") versus a truly unknown id (404). This is the **app-wide convention** inherited by 003/004; the flag preserves the option to mask existence if enumeration ever becomes a concern. **005 Dashboard is a deliberate exception** — it uses content-scoping (200 with zeroed/empty results) rather than 403, since for a read-only aggregation scope shapes *what is returned* rather than gating access.
+- Q: May a project owner be any user, or only a management-capable role? → A: **The owner MUST hold the ProjectManager or Admin role.** Assigning ownership to a TeamMember (on create or transfer) is rejected with **400**, because the role gate blocks a TeamMember from editing/deleting regardless of ownership — so a TeamMember owner would own a project they could never manage. Owner-role is validated on both create (Admin-specified `ownerId`) and ownership transfer (Admin-only).
+
+---
+
 ## User Stories
 
 > Story IDs `US-002-01..05`. Each story: **A** Summary · **B** Quality Validation (INVEST · Given-When-Then · edge cases · audit/security · configurability) · **C** UI · **D** API · **E** DB · **F** Separation of concerns. Consolidated schema, API catalog, technical design, and implementation blueprint follow the stories.
@@ -96,9 +106,9 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   3. **Given** a **TeamMember**, **When** they attempt to create a project, **Then** the request is rejected with **403** and nothing is written.
   4. **Given** a payload where `endDate` precedes `startDate`, or `name` is missing/blank, **When** creating, **Then** **400** with field-level validation errors (RFC 7807); nothing is stored.
   5. **Given** a successful creation, **When** the response is returned, **Then** it is **201 Created** with a `Location: /api/projects/{id}` header and the created project.
-- **Edge cases**: a ProjectManager attempting to set `ownerId` to another user (**ignored — always self**); `ownerId` referencing a non-existent or non-ProjectManager user (Admin path → **400**); omitted `status` → defaults to `Planning`; omitted `endDate` (allowed — open-ended project); oversized `name`/`description`; duplicate project names (**permitted** — names are not unique).
+- **Edge cases**: a ProjectManager attempting to set `ownerId` to another user (**ignored — always self**); `ownerId` referencing a non-existent user, or a user who is **neither a ProjectManager nor an Admin** (Admin path → **400**; Clarifications 2026-07-22); omitted `status` → defaults to `Planning`; omitted `endDate` (allowed — open-ended project); oversized `name`/`description`; duplicate project names (**permitted** — names are not unique).
 - **Audit/security**: creation audited; `owner_id` derived from the token for ProjectManager (privilege escalation impossible); role gate `[Authorize(Roles = "Admin,ProjectManager")]`.
-- **Configurability**: default status on create; max lengths for `name`/`description`; whether an Admin may assign ownership to a non-ProjectManager user.
+- **Configurability**: default status on create; max lengths for `name`/`description`. (Owner eligibility is resolved — the owner MUST be a ProjectManager or Admin, not configurable; Clarifications 2026-07-22.)
 
 **C. UI** — **F002-S02 Create Project** (standalone component in the lazy-loaded `projects` route group). Reactive form: `name`, `description`, `startDate`, `endDate`, `status`; explicit validators (required name, date-order cross-field validator, max lengths); errors surfaced via the shared error-display component; the owner field is shown only to Admin; submit disabled while pending; on success routes to the new project's detail view.
 
@@ -197,7 +207,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   3. **Given** any project, **When** an **Admin** updates it, **Then** it succeeds regardless of owner.
   4. **Given** a **TeamMember**, **When** they attempt an update, **Then** **403** (blocked at the role gate).
   5. **Given** an invalid payload (blank name, `endDate` before `startDate`), **When** updating, **Then** **400** with field errors; nothing changes.
-- **Edge cases**: updating a project to a terminal status (`Completed`/`Cancelled`) — permitted, no cascade in this feature; changing `owner_id` — **Admin only** (a ProjectManager cannot transfer away or claim ownership); no-op update (identical values) still refreshes `updated_at` and audits; unknown id → **404**; **two users editing the same project — the second write is rejected with 409** (stale `xmin` row version, ADR-0004) rather than silently overwriting.
+- **Edge cases**: updating a project to a terminal status (`Completed`/`Cancelled`) — permitted, no cascade in this feature; changing `owner_id` — **Admin only** (a ProjectManager cannot transfer away or claim ownership), **and the new owner must be a ProjectManager or Admin** else **400** (Clarifications 2026-07-22); no-op update (identical values) still refreshes `updated_at` and audits; unknown id → **404**; **two users editing the same project — the second write is rejected with 409** (stale `xmin` row version, ADR-0004) rather than silently overwriting.
 - **Audit/security**: every update audited with a change summary; ownership re-checked **at write time** in the service (not trusted from the earlier read); `owner_id` changes rejected for non-Admin.
 - **Configurability**: which fields are editable after a terminal status; whether ownership transfer is permitted (Admin-only by default).
 
@@ -233,7 +243,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   5. **Given** an unknown id, **When** deleting, **Then** **404**.
 - **Edge cases**: deleting a project that has dependent Tasks (003) and TeamMembers (004) rows — **cascade is explicit and intentional** (Constitution IV.3): dependents are removed with the project; deleting twice (second call → **404**); concurrent delete/update race (last writer observes **404**).
 - **Audit/security**: deletion audited with a summary snapshot of the project **before** removal; ownership re-checked at write time; `activity_logs` rows are **retained** (they are not cascaded away) so the history of a deleted project survives.
-- **Configurability**: hard delete vs. soft delete/archive (default **hard delete with cascade** — see OQ-002-01); whether delete is blocked when dependent tasks exist.
+- **Configurability**: whether delete is blocked when dependent tasks exist (default: not blocked). (Delete semantics are resolved — **hard delete with cascade**, not configurable; Clarifications 2026-07-22.)
 
 **C. UI** — delete action on **F002-S03 Project Detail** and in the list row menu, behind a confirmation dialog naming the project and warning that its tasks and assignments will be removed. Rendered only for permitted roles (UX only).
 
@@ -484,11 +494,11 @@ Emit `(actor_id, action, entity_type='Project', entity_id, timestamp, change_sum
 ### B.9 Open questions for review
 | # | Question | Recommendation | Blocks build? |
 |---|---|---|---|
-| OQ-002-01 | Hard delete with cascade, or soft delete/archive? | **Hard delete with explicit cascade** for v1; `activity_logs` preserves history. Revisit if Reports need deleted projects | No |
+| OQ-002-01 | Hard delete with cascade, or soft delete/archive? | **Resolved (Clarifications 2026-07-22): hard delete with explicit cascade** — row + tasks + team members removed; `activity_logs` preserves history. Revisit only if Reports (006) needs deleted projects surfaced. | **Resolved** |
 | OQ-002-02 | Scope gate as `IProjectAccessPolicy` in the service vs. ASP.NET resource-based authorization handlers? | Service-layer policy (scope must fold into the `IQueryable` for correct paging); record as an ADR | No |
-| OQ-002-03 | Out-of-scope read → **403** or masked **404**? | **403** (single-org workspace; existence disclosure is acceptable); config flag to mask as 404 | No |
+| OQ-002-03 | Out-of-scope read → **403** or masked **404**? | **Resolved (Clarifications 2026-07-22): 403 by default**, with a `MaskOutOfScopeAs404` flag to harden to 404; single-org workspace makes existence disclosure acceptable. App-wide convention inherited by 003/004; 005 Dashboard is a deliberate exception (content-scoping — 200 with zeroed/empty results — rather than 403). | **Resolved** |
 | OQ-002-04 | Is the `ProjectStatus` set correct (`Planning/Active/OnHold/Completed/Cancelled`)? | Adopt as listed; confirm with the demo script's needs | No |
-| OQ-002-05 | May an Admin assign ownership to a non-ProjectManager (e.g. a TeamMember) user? | No — owner must hold the ProjectManager or Admin role; validate on create/transfer | No |
+| OQ-002-05 | May an Admin assign ownership to a non-ProjectManager (e.g. a TeamMember) user? | **Resolved (Clarifications 2026-07-22): no** — the owner MUST hold the ProjectManager or Admin role; a TeamMember owner is rejected with 400 on create and transfer. | **Resolved** |
 | OQ-002-06 | Must project names be unique (globally or per owner)? | **Not unique** — duplicates permitted; disambiguated by id and owner | No |
 | OQ-002-07 | Should delete be blocked when a project has open tasks? | Not blocked for v1 (cascade + confirmation dialog); revisit once Tasks (003) lands | No |
 
@@ -498,7 +508,7 @@ Emit `(actor_id, action, entity_type='Project', entity_id, timestamp, change_sum
 
 - **FR-001**: The system MUST expose exactly `GET /api/projects`, `GET /api/projects/{id}`, `POST /api/projects`, `PUT /api/projects/{id}`, and `DELETE /api/projects/{id}` (Constitution VI.6).
 - **FR-002**: A Project MUST have a name, description, start date, end date, and status; `name`, `start_date`, `status`, and `owner_id` are required; `end_date` is optional and, when present, MUST NOT precede `start_date`.
-- **FR-003**: Creating a project MUST set `owner_id` from the authenticated caller for a ProjectManager, ignoring any client-supplied owner; an Admin MAY specify the owner.
+- **FR-003**: Creating a project MUST set `owner_id` from the authenticated caller for a ProjectManager, ignoring any client-supplied owner; an Admin MAY specify the owner. A specified or transferred owner MUST hold the **ProjectManager or Admin** role (a TeamMember MUST NOT be an owner); a violation MUST return **400** (Clarifications 2026-07-22).
 - **FR-004**: `POST /api/projects` MUST return **201** with a `Location` header; `PUT` MUST return **200**; `DELETE` MUST return **204**.
 - **FR-005**: TeamMember MUST be denied create, update, and delete with **403**.
 - **FR-006**: Listing MUST be role-scoped server-side: Admin → all projects; ProjectManager → only owned; TeamMember → only projects they are assigned to via TeamMembers.
