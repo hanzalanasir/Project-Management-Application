@@ -10,9 +10,10 @@
 **Enables**: 006 Reports (shares this feature's read-only, role-scoped aggregation posture; adds export and historical windows)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.1 (Principles I Scope, II Architecture, III Stack, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
-**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision` (**`ApplyScope` + `CanReadAsync` only — `CanMutateAsync` is not used; this feature performs no writes**), `PagedResult<T>` (activity feed only), error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency (**not applicable — no mutations**) · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
+**Governed By**: Project Constitution v1.3.0 (Principles I Scope, II Architecture — vertical slice / Clean Architecture, III Stack, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing, X Documentation — API-first)
+**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision` (**`ApplyScope` + `CanReadAsync` only — `CanMutateAsync` is not used; this feature performs no writes**), `PagedResult<T>` (activity feed only), error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency (**not applicable — no mutations**) · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation · [0006](../../docs/adr/0006-vertical-slice-clean-architecture-api-first.md) vertical slice + Clean Architecture + API-first
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
+**Revised**: 2026-07-29 — re-organized against Constitution v1.3.0 (vertical slice / Clean Architecture / API-first; II.2/IV.1/X.2/VII.3). Business rules, roles, endpoints, status codes, read model, and clarifications are unchanged — only the code-organization framing was updated. Satisfies the Governance §5 revision gate.
 
 ---
 
@@ -50,7 +51,7 @@ Enforced **server-side**, in this order:
 
 1. **Authenticated by default** — every endpoint requires a valid JWT (inherited from 001). No/invalid/expired token → **401**.
 2. **Role gate (controller, attribute-only)** — `[Authorize]`; the dashboard endpoints permit **all three roles** (every authenticated user gets *their own scoped view*). There is no role that is refused outright — role shapes **content**, not access. Ad-hoc role checks in method bodies remain prohibited (Constitution V.2).
-3. **Scope gate (service, at the query source)** — the caller's **visible-project set** is computed by folding the existing `ApplyScope` predicate into the query: Admin → all projects; ProjectManager → `owner_id == caller`; TeamMember → projects where the caller has a `team_members` row. Every task, team, and activity aggregate is then computed **within that set, in SQL** — never fetched then filtered. A caller with an empty visible set gets **zeroes and empty lists (200)**, not a 403.
+3. **Scope gate (slice handler, at the query source)** — the caller's **visible-project set** is computed by the handler folding the existing shared `ApplyScope` predicate into the query: Admin → all projects; ProjectManager → `owner_id == caller`; TeamMember → projects where the caller has a `team_members` row. Every task, team, and activity aggregate is then computed **within that set, in SQL** — never fetched then filtered. A caller with an empty visible set gets **zeroes and empty lists (200)**, not a 403.
 4. **No mutation gate** — `CanMutateAsync` is deliberately absent because this feature has no write path. There is nothing to authorize a mutation for.
 5. **Identity from the token** — the acting user comes from `ICurrentUserService` reading the validated JWT, never from the request body or query string.
 
@@ -74,7 +75,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 ### Session 2026-07-22
 
 - Q: For a TeamMember, does the summary's "tasks by status" mean every task in their member-of projects (project-view) or only tasks assigned to them (personal-view)? → A: **Personal-view.** A TeamMember's task-by-status tile counts **only tasks assigned to them** (identical to US-005-03's personal slice), so there is one number to compute and test, it matches the "my work" mental model, and it never surfaces colleagues' work a TeamMember cannot act on. A project-wide breakdown may be added later as a secondary view but is not part of v1.
-- Q: Are dashboard values computed live per request or served from a cached/materialized view? → A: **Live per request for v1.** Each metric is a single indexed grouped query over a small dataset, so live keeps values always-fresh with no staleness window and no invalidation logic to design or test. The read model stays behind `IDashboardService`, so introducing a cache (fixed-cadence or event-driven) later is an internal change that does not alter the API contract — revisited only if real load demands it.
+- Q: Are dashboard values computed live per request or served from a cached/materialized view? → A: **Live per request for v1.** Each metric is a single indexed grouped query over a small dataset, so live keeps values always-fresh with no staleness window and no invalidation logic to design or test. The read model stays inside the dashboard query handlers, so introducing a cache (fixed-cadence or event-driven) later is an internal change that does not alter the API contract — revisited only if real load demands it.
 - Q: Which metrics beyond the baseline ship in v1? → A: **Baseline + completion rate + blocked-task count.** In addition to the baseline (projects-by-status, tasks-by-status, overdue, team size, activity feed, personal slice), v1 adds a **completion rate** (Done ÷ total tasks in the caller's scope, 0 when there are no tasks) and a **blocked-task count** (a headline tile derived from `tasksByStatus[Blocked]`, no extra query). Both reuse data already aggregated and need no field 002/003 did not commit to. Time-to-close and most-active-member need a completion timestamp / heavier aggregation and are deferred to **006 Reports**.
 - Q: Activity-feed default page size, and all visible entries vs a filtered subset? → A: **Default `pageSize` 20, max 100, and show all visible entries** (no mutation-only filter). The paging bounds match 002–004's convention for one consistent rule across the app; showing all visible entries is the simplest correct behaviour since 001–004 audit only meaningful writes (there is no read/noise to exclude). The feed is scoped to activity on the caller's **visible projects and their tasks/team changes**; a subset filter can be added later if the feed ever proves busy.
 
@@ -118,7 +119,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **reads only** — `projects` (002), `tasks` (003), `team_members` (004), `users` (001), aggregated with `GROUP BY` inside the scope predicate. **No writes, no migration.** Relies on indexes 002/003/004 already declare (`owner_id`, `project_id`, `assignee_id`, `status`, and a `due_date` filter).
 
-**F. Separation** — UI: read-only tiles + charts + states. Backend: `IDashboardService.GetSummaryAsync` composes 002's/003's `ApplyScope` into grouped-count queries and assembles the typed DTO. DB: scoped aggregate reads. QA: three-role scope matrix (**primary acceptance test**), zero-scope → zeroes, filter-at-source (no in-memory filtering), stable-contract keys.
+**F. Separation** — UI: read-only tiles + charts + states. Backend: `Features/Dashboard/GetSummary/` slice — `GetDashboardSummaryQueryHandler` composes 002's/003's `ApplyScope` into grouped-count queries and assembles the typed DTO; the controller only `Send`s the query. DB: scoped aggregate reads (handler → `DbContext` directly). QA: three-role scope matrix (**primary acceptance test**), zero-scope → zeroes, filter-at-source (no in-memory filtering), stable-contract keys.
 
 ---
 
@@ -152,7 +153,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **reads only**, through `IActivityLogService` (001), scoped to the caller's visible entities. **No writes, no migration.**
 
-**F. Separation** — UI: paginated feed widget + states. Backend: `IDashboardService.GetActivityAsync` calls the 001 audit-log **read** method with the caller's visible-scope filter and paging. DB: scoped, paginated audit read via the service. QA: per-role scope, clamped `pageSize`, empty feed, service-not-direct-table, invisible-project exclusion for non-Admins.
+**F. Separation** — UI: paginated feed widget + states. Backend: `GetDashboardActivityQueryHandler` calls the 001 audit-log **read** method (`IActivityLogService`) with the caller's visible-scope filter and paging; the controller only `Send`s the query. DB: scoped, paginated audit read via the service. QA: per-role scope, clamped `pageSize`, empty feed, service-not-direct-table, invisible-project exclusion for non-Admins.
 
 ---
 
@@ -185,7 +186,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **reads only** — `tasks` (003) filtered by `assignee_id == caller` within the member-of project set (004). **No writes, no migration.**
 
-**F. Separation** — UI: "My Work" panel. Backend: `IDashboardService.GetSummaryAsync` includes the personal slice, computed by an assignee-filtered grouped count within the visible scope. DB: scoped assignee aggregate. QA: assignee-only inclusion, member-of scoping, empty slice, overdue-personal count.
+**F. Separation** — UI: "My Work" panel. Backend: `GetDashboardSummaryQueryHandler` includes the personal slice, computed by an assignee-filtered grouped count within the visible scope; the controller only `Send`s the query. DB: scoped assignee aggregate. QA: assignee-only inclusion, member-of scoping, empty slice, overdue-personal count.
 
 ---
 
@@ -207,9 +208,9 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Consolidated API Catalog
 
-> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** via the shared `ErrorKind` mapper ([shared-contracts §1](../../docs/shared-contracts.md)); documented via **Swagger/OpenAPI**. Authenticated by default (001). **All endpoints are `GET` — there are no write endpoints** (see T.6). Resource-oriented under `/api/dashboard` (Constitution VI.6).
+> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** via the shared `ErrorKind` mapper ([shared-contracts §1](../../docs/shared-contracts.md)). Per Constitution **X.2 (API-first)**, the OpenAPI contract for these routes is authored and reviewed under `/docs/contracts/` **before** the handlers are implemented, and the code is validated against it; **Swagger UI** is enabled in development for local exploration only. Authenticated by default (001). **All endpoints are `GET` — there are no write endpoints** (see T.6). Resource-oriented under `/api/dashboard` (Constitution VI.6).
 
-| Method · Route | Purpose | Role gate | Service gate | Success | Failure |
+| Method · Route | Purpose | Role gate | Access gate (in handler) | Success | Failure |
 |---|---|---|---|---|---|
 | `GET /api/dashboard/summary` | Typed summary contract (tiles + personal slice) | `[Authorize]` (all 3) | `ApplyScope` (read-only) | **200** `DashboardSummaryDto` | 401 |
 | `GET /api/dashboard/activity` | Paginated, scoped recent-activity feed | `[Authorize]` (all 3) | `ApplyScope` (read-only) | **200** `PagedResult<ActivityEntryDto>` | 400 (bad paging), 401 |
@@ -221,7 +222,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 > The detailed solution: the read-only posture, the endpoint-shape decision and why, how scope is folded into aggregate queries, the step-by-step flows, failure handling, and the security guarantees. Written so a developer can implement it directly.
 
 ### T.1 The read-only posture (what this feature deliberately does *not* have)
-- **The .NET API is the authority**; the **service layer** owns the aggregation and scope. Controllers do binding and delegation only (Constitution II.2).
+- **The .NET API is the authority**; the **slice handler** owns the aggregation and scope. The **thin controller** does nothing but `MediatR.Send(...)` (Constitution II.2).
 - **No writes, ever.** There is no create/update/delete path, so: `CanMutateAsync` is **not** implemented (nothing to authorize a mutation for); `xmin`/optimistic concurrency (ADR-0004) is **not applicable** (nothing is updated); and the feature emits **no `activity_logs` entries** — Constitution IV.4's audit requirement is about *writes*, and there are none. These absences are intentional and are called out again in B.7 so a reviewer does not read them as omissions.
 - **The Angular frontend is convenience.** Read-only widgets; a functional guard gates the route; the API re-checks scope on every request.
 
@@ -232,7 +233,7 @@ Every number is computed **within the caller's visible-project set**, and that s
 - **Team count** = distinct `user_id` over `team_members` whose `project_id ∈ visibleProjectIds`.
 - **Activity feed** = `IActivityLogService`'s scoped read over entities in the visible set.
 
-**Filter at the source, never in memory.** Each aggregate is expressed so EF Core translates the scope predicate **into the SQL** (`WHERE project_id IN (scoped subquery) GROUP BY status`). The service never loads all rows and filters afterward — that would both leak effort and risk a scoping mistake. This is the single most important implementation rule of the feature (NFR-002, DoD).
+**Filter at the source, never in memory.** Each aggregate is expressed so EF Core translates the scope predicate **into the SQL** (`WHERE project_id IN (scoped subquery) GROUP BY status`). The handler never loads all rows and filters afterward — that would both leak effort and risk a scoping mistake. This is the single most important implementation rule of the feature (NFR-002, DoD).
 
 ### T.3 The endpoints, with concrete examples
 
@@ -275,12 +276,12 @@ The brief allows either one aggregated endpoint or split widgets. The chosen sha
 
 ### T.5 How a role-scoped summary is computed (step by step)
 1. The JWT is validated; `ICurrentUserService` materializes `CurrentUser(UserId, Email, Role)` — never from the body.
-2. The service builds the **visible-project subquery** via `IProjectAccessPolicy.ApplyScope(projects, caller)` (002) — an `IQueryable<Guid>` of project ids, not a materialized list.
+2. The handler builds the **visible-project subquery** via `IProjectAccessPolicy.ApplyScope(projects, caller)` (002) — an `IQueryable<Guid>` of project ids, not a materialized list.
 3. **Projects-by-status**: `GROUP BY status` over the scoped project query → the `projectsByStatus` map (all enum keys seeded to 0 first).
 4. **Tasks-by-status / overdue**: `GROUP BY status` over `tasks WHERE project_id IN (visible subquery)`; overdue = `due_date < today AND status <> 'Done'` within the same scope.
 5. **Team count**: `COUNT(DISTINCT user_id)` over `team_members WHERE project_id IN (visible subquery)`.
 6. **Personal slice**: the task aggregate re-run with the extra predicate `assignee_id == caller`.
-7. Assemble the typed `DashboardSummaryDto` and return it. All steps push scope into SQL; nothing is fetched then filtered. These run **live per request** in v1 (Clarifications 2026-07-22); the `IDashboardService` seam lets a cache be introduced later without a contract change.
+7. Assemble the typed `DashboardSummaryDto` and return it. All steps push scope into SQL; nothing is fetched then filtered. These run **live per request** in v1 (Clarifications 2026-07-22); a cache can be introduced **inside the query handler** later without a contract change.
 
 ### T.6 API behaviour rules
 - **All `GET`, no writes** — there is no POST/PUT/DELETE in this feature; a "mark read" or any write is explicitly out of scope.
@@ -318,15 +319,28 @@ The brief allows either one aggregated endpoint or split widgets. The chosen sha
 - **TaskStatus** — reused from 003 (`ToDo, InProgress, InReview, Done, Blocked`); drives `tasksByStatus`; `Done` is the terminal state for the overdue rule.
 - *(No new enum. `scope` in the DTO reuses the global `Role` values from 001.)*
 
-### B.3 Service interfaces & method signatures (C#; nullable reference types on)
-```csharp
-// Read-only. No Create/Update/Delete/Mutate methods exist — by design (T.1).
-public interface IDashboardService {
-    Task<Result<DashboardSummaryDto>>          GetSummaryAsync(CurrentUser caller, CancellationToken ct);
-    Task<Result<PagedResult<ActivityEntryDto>>> GetActivityAsync(ActivityQuery query, CurrentUser caller, CancellationToken ct);
-}
+### B.3 Vertical slices, handlers & shared abstractions (C#; nullable reference types on)
 
-// Reused, not redefined:
+Per Constitution **II.2**, each read use-case is a self-contained **vertical slice** under
+`Features/Dashboard/<UseCase>/`, holding its Query and handler. There are **no commands, no validators
+beyond paging, and no write path** (T.1). Controllers are **thin**: one endpoint maps one HTTP verb to a
+single `MediatR.Send(...)`. Per **IV.1**, each query handler reads via the EF Core `DbContext` **directly**
+(grouped aggregates), reusing the shared scope abstractions below — **no Repository is introduced**.
+
+```text
+Features/Dashboard/GetSummary/    GET /api/dashboard/summary       [Authorize] (all 3)
+  GetDashboardSummaryQuery() : IRequest<Result<DashboardSummaryDto>>   // scope derived from the caller, not the body
+  GetDashboardSummaryQueryHandler // reuses IProjectAccessPolicy/ITaskAccessPolicy.ApplyScope; grouped counts; personal slice; live per request
+  → Response: DashboardSummaryDto
+
+Features/Dashboard/GetActivity/   GET /api/dashboard/activity      [Authorize] (all 3)
+  GetDashboardActivityQuery(Page, PageSize) : IRequest<Result<PagedResult<ActivityEntryDto>>>
+  GetDashboardActivityQueryHandler // reads through IActivityLogService's scoped read — never the audit table directly
+  → Response: PagedResult<ActivityEntryDto>
+```
+
+**Shared cross-cutting abstractions the handlers depend on** (reused, **not** redefined; these are **shared-kernel** abstractions declared in [docs/shared-contracts.md §3](../../docs/shared-contracts.md) (`IProjectAccessPolicy`/`ITaskAccessPolicy`) and §6 (`IActivityLogService`), so the handler depends on shared-kernel contracts — it does **not** call 002's/003's/001's slice handlers):
+```csharp
 //  IProjectAccessPolicy.ApplyScope(IQueryable<Project>, CurrentUser)  — 002 (visible-project scope)
 //  ITaskAccessPolicy.ApplyScope(IQueryable<TaskItem>, CurrentUser)    — 003 (task scope, for the personal slice)
 //  IActivityLogService  — 001 (audit-log owner): this feature consumes a SCOPED READ method on it
@@ -334,8 +348,9 @@ public interface IDashboardService {
 //    Reading the audit log through its owning service — never a direct activity_logs query — is a
 //    deliberate constraint; exposing a read on the 001-owned service is within 001's ownership of the
 //    audit log and is NOT a change to 002/003 (see Assumptions).
-
-// ActivityQuery { int Page; int PageSize; }   // scope is derived from the caller, not passed in the body
+```
+```text
+// GetDashboardActivityQuery carries { Page, PageSize }; scope is derived from the caller, not passed in the body.
 // DashboardSummaryDto { DateTimeOffset GeneratedAt; string Scope; int VisibleProjectCount;
 //   IReadOnlyDictionary<ProjectStatus,int> ProjectsByStatus;   // one entry per enum value, zeros included
 //   IReadOnlyDictionary<TaskStatus,int> TasksByStatus; int OverdueTaskCount;
@@ -347,12 +362,12 @@ public interface IDashboardService {
 // Result<T>, ErrorKind, CurrentUser, AccessDecision, PagedResult<T> — docs/shared-contracts.md (ADR-0003), reused.
 // The enum-keyed maps are a fixed, typed shape (one key per enum value), not a free-form string dictionary.
 ```
-`IActivityLogService` is **reused from 001**; scope predicates come from **002/003**; nothing is redefined here.
+`IActivityLogService` is **reused from 001**; scope predicates come from **002/003**; nothing is redefined here. A future cache can be introduced **inside** the query handlers without changing the API contract.
 
 ### B.4 Configuration (never hardcoded)
 - `Dashboard:Activity:{DefaultPageSize,MaxPageSize}` — **20 / 100** (Clarifications 2026-07-22), clamped not rejected
 - *(No `Activity:Filter`: the feed shows **all visible** entries in v1 — a subset filter would be a later addition, not a v1 config; Clarifications 2026-07-22.)*
-- *(No `Computation` toggle: values are computed **live per request** in v1 — a fixed decision, not configurable; Clarifications 2026-07-22. A cache would be introduced behind `IDashboardService` in a later iteration, not via config.)*
+- *(No `Computation` toggle: values are computed **live per request** in v1 — a fixed decision, not configurable; Clarifications 2026-07-22. A cache would be introduced inside the query handlers in a later iteration, not via config.)*
 - `Dashboard:Metrics` — the v1 set is **baseline + completion rate + blocked-task count** (Clarifications 2026-07-22); this flag gates only any *future* optional metrics, not the fixed v1 set
 - `Dashboard:OverdueBoundary` / timezone assumption for "before today" (see Assumptions)
 - *(No `TeamMemberTaskTile` toggle: the TeamMember task tile is **personal-view** — assigned-to-them only — a fixed v1 decision, not configurable; Clarifications 2026-07-22.)*
@@ -362,9 +377,9 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 
 ### B.6 Non-functional requirements
 - **Security:** deny-by-default authentication; scope enforced in the query source; no write path.
-- **Performance:** each metric is a single grouped aggregate pushed to the database within the scope predicate; **no N+1**, **no fetch-then-filter**; the summary is a small fixed number of aggregate queries. Values are computed **live per request** in v1 (Clarifications 2026-07-22); the read model behind `IDashboardService` makes swapping to a cached/materialized source a service-internal change (not a contract change) if real load ever demands it.
+- **Performance:** each metric is a single grouped aggregate pushed to the database within the scope predicate; **no N+1**, **no fetch-then-filter**; the summary is a small fixed number of aggregate queries. Values are computed **live per request** in v1 (Clarifications 2026-07-22); the read model inside the query handlers makes swapping to a cached/materialized source a handler-internal change (not a contract change) if real load ever demands it.
 - **Observability:** structured logging via **Serilog**; slow-aggregate timings logged for the caching decision (OQ-005-02).
-- **Testability (Constitution IX):** the three-role scope matrix is table-driven (each metric × each role against seeded data); filter-at-source is asserted (a project outside scope contributes to no count); the activity read is asserted to go **through the service**; paging bounds tested; **a test asserts no write/audit occurs**. Frontend `DashboardService`, guard, and widget rendering via Jasmine+Karma.
+- **Testability (Constitution IX):** each query handler is unit-tested; the three-role scope matrix is table-driven (each metric × each role against seeded data); filter-at-source is asserted (a project outside scope contributes to no count); the activity read is asserted to go **through `IActivityLogService`**; paging bounds tested; **a test asserts no write/audit occurs**. Frontend `DashboardService`, guard, and widget rendering via Jasmine+Karma.
 
 ### B.7 Audit event catalog — **intentionally empty**
 > **This feature performs no write operations and therefore emits no `activity_logs` entries.** Constitution IV.4 requires an audit entry for every *write* to a domain entity; the Dashboard writes nothing, so it has nothing to audit, and its own reads are not audited (consistent with 001–004, which audit writes only). **This empty catalog is deliberate and is stated here so a reviewer does not flag a missing audit trail as an omission.** The activity the dashboard *displays* was audited by the features that performed those writes (001–004); the dashboard only reads it back.
@@ -379,7 +394,7 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 7. The overdue count uses "due before today AND status ≠ `Done`" over the visible scope, with the date boundary and timezone assumption documented.
 8. **No migration is added** by this feature; **no `xmin`**; and **no `activity_logs` entry is produced** by any dashboard call (asserted) — and this absence is documented (B.7) so it is not read as a defect.
 9. The Angular `dashboard` route group is lazy-loaded with standalone components (no `@NgModule`); all HTTP lives in `DashboardService`; charts use Chart.js; a functional route guard is the only navigation block; the module refetches on navigation (SignalR-ready but not implemented).
-10. Errors are RFC 7807 via the shared mapper; both endpoints appear in Swagger; backend compiles warnings-as-errors with nullable enabled; frontend compiles in strict mode.
+10. Errors are RFC 7807 via the shared mapper; the OpenAPI contract for both endpoints is authored/reviewed under `/docs/contracts/` **before** the handlers and the code is validated against it (API-first, X.2), with Swagger UI enabled in development; backend compiles warnings-as-errors with nullable enabled; frontend compiles in strict mode.
 11. The four clarified decisions (Clarifications 2026-07-22) are covered by tests: a TeamMember's task/overdue tiles are **personal-view** (assigned-to-them only); values are **live-computed** per request; the summary includes **completion rate** and **blocked-task count**; the activity feed defaults to **20** (max **100**) and shows **all visible entries**. OQ-005-05 (endpoint granularity) remains a low-priority refinement with no v1 action required.
 12. Unit + integration tests pass (Constitution IX.3 — no merge on failing tests).
 
@@ -387,7 +402,7 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 | # | Question | Recommendation (not yet a decision) | Status |
 |---|---|---|---|
 | OQ-005-01 | **Which additional metrics** beyond the baseline (completion rate, average time-to-close, most-active team member, blocked-task count, …) belong in the initial release, and their exact numeric bounds? | **Resolved (Clarifications 2026-07-22): baseline + completion rate + blocked-task count.** Both are cheap (derived from data already aggregated) and need no field 002/003 did not commit to; time-to-close and most-active-member are deferred to 006 Reports. | **Resolved** |
-| OQ-005-02 | **Live-computed vs cached/materialized** values (freshness vs query cost as data grows); if cached, the refresh cadence and invalidation strategy? | **Resolved (Clarifications 2026-07-22): live per request for v1** — small dataset, always-fresh, no invalidation to design. A cache (fixed-cadence or event-driven) can be introduced later behind the `IDashboardService` seam without a contract change; revisit under real load. | **Resolved** |
+| OQ-005-02 | **Live-computed vs cached/materialized** values (freshness vs query cost as data grows); if cached, the refresh cadence and invalidation strategy? | **Resolved (Clarifications 2026-07-22): live per request for v1** — small dataset, always-fresh, no invalidation to design. A cache (fixed-cadence or event-driven) can be introduced later inside the query handlers without a contract change; revisit under real load. | **Resolved** |
 | OQ-005-03 | **Activity feed** default page size, and whether it shows all visible audit entries or a filtered subset (e.g. mutation events only)? | **Resolved (Clarifications 2026-07-22): default 20, max 100, show all visible entries** (no subset filter; matches 002–004 paging). A filter can be added later if the feed proves noisy. | **Resolved** |
 | OQ-005-04 | **TeamMember "tasks by status"** in the summary — the **whole visible project** (project-view) or **only their own assigned tasks** (personal-view)? | **Resolved (Clarifications 2026-07-22): personal-view** — the TeamMember task-by-status/overdue tiles count only tasks assigned to them (identical to US-005-03's slice); project-view may be a later secondary breakdown. | **Resolved** |
 | OQ-005-05 | **Endpoint granularity** — keep summary as one typed payload, or later split into per-widget endpoints for independent lazy-load/caching? | Keep the committed shape (single typed summary + separate paginated activity). Because OQ-005-02 chose **live per request** (no caching), the main motivation to split the summary is gone — **no split planned for v1**; revisit only if a future cache makes per-widget invalidation worthwhile. | **Deferred (low priority — no v1 action)** |
@@ -404,9 +419,9 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 - **FR-006**: The activity feed MUST be read **through 001's `IActivityLogService`** (never by a direct `activity_logs` query), MUST be scoped to the caller's visible entities, MUST show all visible entries (no subset filter in v1), and MUST be paginated via `PagedResult<T>` with `?page`/`?pageSize` (default **20**, max **100**, clamped not rejected) per Constitution VI.4.
 - **FR-007**: A caller with an empty visible scope MUST receive **200** with zero counts and empty lists — never **403** or **404**.
 - **FR-008**: The summary tiles and the personal slice MUST NOT be paginated (fixed-N scalar/enum metrics); only the activity feed is paginated.
-- **FR-009**: Role checks MUST be declared with `[Authorize]` attributes only; scope MUST be enforced in the service layer via the reused `ApplyScope`, never in the controller; `CanMutateAsync` MUST NOT be used (there is no write path).
+- **FR-009**: Role checks MUST be declared with `[Authorize]` attributes only; scope MUST be enforced in the slice handler via the reused `ApplyScope`, never in the controller; `CanMutateAsync` MUST NOT be used (there is no write path).
 - **FR-010**: The feature MUST produce **no `activity_logs` entries** (it performs no writes); this absence MUST be documented so it is not mistaken for a missing audit trail (Constitution IV.4 applies to writes only).
-- **FR-011**: Errors MUST be RFC 7807 Problem Details via the shared `ErrorKind` mapper; both endpoints MUST be documented via Swagger/OpenAPI. The only error statuses are 400 (bad paging) and 401 (unauthenticated); there is no 403/404/409.
+- **FR-011**: Errors MUST be RFC 7807 Problem Details via the shared `ErrorKind` mapper; the OpenAPI contract for both endpoints MUST be authored and reviewed under `/docs/contracts/` **before** the handlers are implemented (API-first, Constitution X.2), with the code validated against the contract and Swagger UI enabled in development. The only error statuses are 400 (bad paging) and 401 (unauthenticated); there is no 403/404/409.
 - **FR-012**: The Angular `dashboard` feature area MUST be lazy-loaded via route-level code splitting with standalone components (ADR-0001); all HTTP MUST live in a dedicated `DashboardService` (never in components); a functional route guard MUST be the only mechanism blocking navigation; charts MUST use Chart.js (Constitution III).
 - **FR-013**: The architecture MUST NOT preclude adding real-time push (SignalR) later (Constitution II.4); the initial release refetches on navigation/poll.
 - **FR-014**: All data access MUST go through EF Core (Constitution IV.1); aggregates are LINQ grouped queries with the scope predicate translated to SQL.
@@ -416,7 +431,7 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 - **NFR-002**: Every aggregate is computed in a single grouped query with the scope predicate pushed into SQL — **no N+1, no fetch-then-filter**; out-of-scope rows are never materialized.
 - **NFR-003**: Structured logging (Serilog); slow-aggregate timings recorded to inform the live-vs-cached decision (OQ-005-02).
 - **NFR-004**: Nullable reference types + warnings-as-errors (backend); TypeScript strict mode (frontend).
-- **NFR-005**: The read model sits behind `IDashboardService`, so switching from live computation to a cached/materialized source (OQ-005-02) is an internal change that does not alter the API contract.
+- **NFR-005**: The read model sits inside the dashboard query handlers, so switching from live computation to a cached/materialized source (OQ-005-02) is an internal change that does not alter the API contract.
 
 ## Security Rules
 - Authenticated by default; role gate via attributes only; scope enforced in the query source.
@@ -432,13 +447,13 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 - **The audit log is readable through its owning service.** 001's `IActivityLogService` exposes (or is extended with) a **scoped read** method returning audit entries filtered to a set of entity scopes and paginated. Because 001 owns `activity_logs` and its service, exposing a read is within 001's contract and is **not** a retroactive change to 002/003 (per the feature request's retroactive-note guidance, recorded here as an assumption rather than a cross-spec edit).
 - **Overdue** uses 003's `due_date` and treats `Done` as the only terminal/completion status; "before today" is evaluated against a documented timezone assumption (server/UTC unless configured). Any additional field a richer metric might need (e.g. a task completion timestamp for time-to-close) that 002/003 did not commit to is an **assumption**, and such a metric is deferred to OQ-005-01 / 006 rather than forcing a schema change.
 - **Team size** is reported as a **distinct visible-team-member headcount** across the caller's visible projects (a user on several visible projects counts once) rather than per-project rosters — the dashboard is a summary, and per-project rosters live on 004's team screen. (Stated as the chosen interpretation of the brief's "team size".)
-- A project team and the metric set are small; the summary is computed **live per request** for v1 (resolved, Clarifications 2026-07-22), which keeps it always-fresh and simplest; a cache is deferred behind the `IDashboardService` seam.
+- A project team and the metric set are small; the summary is computed **live per request** for v1 (resolved, Clarifications 2026-07-22), which keeps it always-fresh and simplest; a cache is deferred inside the query handlers.
 
 ## Dependencies
 - **Depends on**: [001 Auth & RBAC](../001-auth-rbac/spec.md) (Users, role model, JWT, `ICurrentUserService`, `IActivityLogService`) · [002 Projects](../002-projects/spec.md) (Project entity, ownership scope via `ApplyScope`, project status enum) · [003 Tasks](../003-tasks/spec.md) (Task entity, status enum, due date, assignee) · [004 Team](../004-team/spec.md) (membership records — a TeamMember's visible projects are exactly those 004's rows place them on). All four are **referenced, not redefined**.
 - **Consumed by**: 006 Reports inherits this read-only, role-scoped aggregation posture and adds export + historical windows.
 - **No retroactive changes**: 001–004 are not modified to support the dashboard. The one cross-feature need — a scoped **read** on the 001-owned audit service — is recorded as an Assumption within 001's ownership, not as an edit to 002/003.
-- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; Serilog; Swagger/OpenAPI; Chart.js.
+- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; MediatR (query dispatch for vertical slices); Serilog; OpenAPI contract under `/docs/contracts/` + Swagger UI (dev); Chart.js.
 
 ## Out of Scope
 Any write operation, including a "mark activity as read" affordance (a separate spec if ever needed); user-customizable dashboards (widget layout, pinning, saving, rearranging); real-time push via SignalR (must remain possible — Constitution II.4 — but not built now); export to PDF/CSV (owned by 006 Reports, Constitution VII.8); historical time-series and long-window trend analytics (006); notifications and threshold alerts (bonus, brief); any new entity, table, or migration.

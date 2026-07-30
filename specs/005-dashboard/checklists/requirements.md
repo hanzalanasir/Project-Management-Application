@@ -41,7 +41,7 @@
 
 - **Four decisions RESOLVED** (Clarifications, Session 2026-07-22):
   - **OQ-005-04** — TeamMember "tasks by status" = **personal-view** (assigned-to-them only). FR-002/role model.
-  - **OQ-005-02** — **live per request** for v1 (cache deferred behind the `IDashboardService` seam). NFR/B.6.
+  - **OQ-005-02** — **live per request** for v1 (cache deferred inside the query handlers). NFR/B.6.
   - **OQ-005-01** — v1 metric set = **baseline + completion rate + blocked-task count** (time-to-close/most-active → 006). FR-002.
   - **OQ-005-03** — activity feed **default 20, max 100, all visible entries** (no subset filter). FR-006.
 - **OQ-005-05** (endpoint granularity) is **deferred, low priority** — its caching motivation vanished when OQ-005-02

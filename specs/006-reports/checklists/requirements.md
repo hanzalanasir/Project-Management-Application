@@ -43,7 +43,7 @@
 - **Two decisions resolved in-spec (T.4):** resource-per-report-type endpoints; client-side export (jsPDF for PDF, papaparse for CSV, JSON-only API).
 - **Three decisions RESOLVED** (Clarifications, Session 2026-07-22): **OQ-006-05** timezone → **UTC** (fixed, reproducible); **OQ-006-02** large-Activity threshold → **~10,000 rows, forced narrowing (422)**, export fully client-side; the **task-completion-timestamp** Assumption (not a numbered OQ) → 003 gains a **`closed_at`** column (a lightweight, agreed plan-time follow-up to 003; not made by this spec).
 - **Cross-spec follow-up recorded:** 003 adds a nullable `closed_at` (set on →Done, cleared on re-open) — see Dependencies. 006 does not edit 003; the change is actioned when 003 is planned/built.
-- **Remaining OPEN (non-blocking, sound defaults):** OQ-006-01 scheduled/emailed, OQ-006-03 transient vs persisted artifacts, OQ-006-04 exact report columns, OQ-006-06 additional report types.
+- **Remaining OQ items RESOLVED** (subsequent edit, Clarifications 2026-07-22): **OQ-006-04** report field tables finalized (with the projected-completion formula + uniform closed/re-open counting rule); **OQ-006-06** four reports for v1; **OQ-006-01** scheduled/emailed out of scope; **OQ-006-03** transient artifacts. **All six OQ-006 items are now Resolved** — no open clarifications remain.
 - **Audit exception is intentional and documented (B.7):** unlike 005 (writes nothing), Reports writes exactly one `ReportGenerated` audit entry per generation — the sole write, touching no domain entity.
 - **Brief-coverage confirmation** in Purpose/Scope shows all six modules now map 001–006 with no uncovered brief requirement.
 - Recommended next command: **`/speckit.plan`**.

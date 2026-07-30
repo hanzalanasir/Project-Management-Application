@@ -1,5 +1,5 @@
 <!--
-v1.1.1 — ratified 2026-07-20, last amended 2026-07-22.
+v1.3.0 — ratified 2026-07-20, last amended 2026-07-29.
   v1.0.0  Initial adoption: principles I–XI + Governance.
   v1.1.0  VII.1/VII.2 amended — Angular feature areas are standalone + route-level lazy
           loading instead of @NgModule. Rationale, alternatives, and backward-compatibility
@@ -11,6 +11,37 @@ v1.1.1 — ratified 2026-07-20, last amended 2026-07-22.
           one; (b) VI.2 adds 409 for conflict (duplicate resource or a stale concurrency
           token), already implied by IV.3's "explicit and intentional" cascade/concurrency
           handling and used by specs 001–003. No existing compliant work invalidated.
+  v1.2.0  MINOR — three architecture principles added/redefined to adopt Vertical Slice
+          Architecture, Clean Architecture, and an API-first workflow. (a) II.2 REPLACED:
+          the layered Controllers/Services/Repositories description → self-contained vertical
+          slices under Features/<Area>/<UseCase>/ with Clean Architecture inward-pointing
+          dependencies; controllers become thin MediatR.Send() endpoint mappings. (b) IV.1
+          amended: a slice's handler MAY use the DbContext directly; a Repository is optional,
+          not required. (c) X.2 REPLACED: the OpenAPI contract is authored and reviewed
+          before its handler (API-first), versioned under /docs/contracts/; code is validated
+          against the contract. (d) VII.3 amended: frontend HTTP service classes MAY be
+          generated from the contract via openapi-generator. (e) III gains MediatR in the
+          backend stack. Rationale, alternatives, and backward-compatibility note in
+          docs/adr/0006-vertical-slice-clean-architecture-api-first.md. MINOR (not MAJOR):
+          II.2 is redefined, but the Governance §3 MAJOR trigger also requires that the change
+          "invalidates existing compliant work" — none exists yet (specs 001–006 are designs,
+          not implemented code; no backend code written), consistent with the v1.1.0 precedent.
+  OUTSTANDING (v1.2.0): specs 001–006 were drafted under the prior layered II.2 wording
+          (Controllers/Services/Repositories) and MUST get a revision pass against the new
+          vertical-slice / Clean Architecture / API-first principle BEFORE /speckit.plan is run
+          against them. This amendment does NOT rewrite those specs; the follow-up is open.
+          (v1.3.0 promoted this from a comment note to enforceable Governance §5.)
+  v1.3.0  MINOR — testing wording realigned + the pre-v1.2.0 spec-revision follow-up made
+          enforceable. (a) IX.1 reworded: backend unit tests now target Handlers (and shared
+          cross-cutting services such as ITokenService/IActivityLogService) rather than
+          "Services and business logic", tracking the v1.2.0 II.2 move of business logic into
+          vertical-slice handlers; the WebApplicationFactory integration-test sentence is
+          unchanged (a thin controller is still the tested entry point). (b) New Governance §5
+          adds a blocking compliance-gate rule: specs 001–006 MUST be revised against the
+          vertical-slice/Clean/API-first wording (II.2/IV.1/X.2/VII.3) — or waived in writing —
+          before /speckit.plan runs against them. MINOR: a new Governance sub-item is added
+          (§3's own definition of MINOR); IX.1 alone is a clarification, but the higher bump
+          governs. No existing compliant work invalidated (no code written).
 On amendment: bump the version (semver) and "Last Amended" date below, and re-check
 .specify/templates/{plan,spec,tasks}-template.md for consistency.
 -->
@@ -46,10 +77,15 @@ the assignment brief governs **what** it does.
    The frontend MUST NOT talk to the database directly. No business rules live in the
    frontend.
 
-2. The backend follows a layered architecture: Controllers handle HTTP; Services hold
-   business logic; DbContext / repositories handle data access; Entities represent the
-   domain. Controllers MUST NOT contain business logic beyond model validation and calling
-   services.
+2. Each feature/use-case is a self-contained **vertical slice** under
+   `Features/<Area>/<UseCase>/`, holding its request, handler, validator, and response shape
+   — not split horizontally across shared Controllers/Services/Repositories folders.
+   Controllers are thin endpoint mappings only, routing one HTTP verb to a `MediatR.Send()`
+   call, and MUST NOT contain business logic. Within and across slices, dependencies point
+   inward per **Clean Architecture**: Domain depends on nothing; a slice's handler
+   (Application) depends only on Domain and on abstractions it defines; Infrastructure
+   implements those abstractions. See
+   `docs/adr/0006-vertical-slice-clean-architecture-api-first.md`.
 
 3. All communication between frontend and backend is JSON over HTTPS. The API is RESTful
    with predictable resource-oriented URLs (`/api/projects`, `/api/projects/{id}/tasks`).
@@ -75,6 +111,7 @@ amendment to this constitution or an ADR.
 - **Export**: jsPDF for PDF export; a lightweight CSV utility (papaparse or hand-rolled)
   for CSV.
 - **Backend**: .NET 10 SDK, ASP.NET Core Web API, C# with nullable reference types enabled.
+- **Mediation**: MediatR, for the command/query + handler pattern used by vertical slices.
 - **ORM**: Entity Framework Core 10 with the Npgsql provider; Code-First workflow with
   migrations.
 - **Authentication**: JWT bearer tokens issued by the API; ASP.NET Core Identity for user
@@ -86,7 +123,9 @@ amendment to this constitution or an ADR.
 
 1. All database access goes through the EF Core DbContext. Raw SQL is PROHIBITED except
    for reporting queries where LINQ is demonstrably insufficient; in that case the SQL MUST
-   be parameterized and reviewed.
+   be parameterized and reviewed. A slice's handler MAY call the DbContext directly as its
+   default persistence path; a separate Repository is optional, not required, and this
+   supersedes any contrary reading of III/II.2's prior wording.
 
 2. Every schema change is expressed as an EF Core migration. Manual DDL (`ALTER TABLE`,
    `CREATE TABLE` run by hand against the DB) is PROHIBITED. Migration names are descriptive
@@ -173,7 +212,8 @@ amendment to this constitution or an ADR.
    See `docs/adr/0001-angular-standalone-components.md`.
 
 3. HTTP calls live in dedicated service classes, never in components. Components consume
-   services; services use HttpClient.
+   services; services use HttpClient. These service classes MAY now be generated from the
+   OpenAPI contract via openapi-generator rather than hand-written.
 
 4. An HTTP interceptor attaches the JWT to outgoing requests automatically. A second
    interceptor handles 401 responses by clearing the session and redirecting to login.
@@ -212,9 +252,11 @@ amendment to this constitution or an ADR.
 
 ### IX. Testing Standards
 
-1. **Backend**: xUnit for unit tests targeting Services and business logic. Every service
-   method with a conditional branch has at least one test per branch. Integration tests
-   using `WebApplicationFactory` cover each controller's happy path and one error path.
+1. **Backend**: xUnit for unit tests targeting Handlers (and any shared cross-cutting
+   services, e.g. `ITokenService` / `IActivityLogService`) — every Handler with a conditional
+   branch has at least one test per branch. Integration tests using `WebApplicationFactory`
+   cover each controller's happy path and one error path (a controller is still the tested
+   entry point even though it is now a thin `MediatR.Send()` wrapper).
 
 2. **Frontend**: Jasmine + Karma unit tests for services, guards, and reactive form
    validators. Component tests are required for any component with logic beyond template
@@ -231,7 +273,10 @@ amendment to this constitution or an ADR.
    for backend and frontend, migration commands, test commands, and end-to-end run
    instructions.
 
-2. API documentation is generated from Swagger/OpenAPI, not maintained by hand.
+2. The OpenAPI contract is authored and reviewed as part of a feature's spec/plan, **before**
+   its handler is implemented, versioned under `/docs/contracts/`. Code is validated against
+   the contract, not the other way around. (VI.5's Swagger UI requirement is unaffected — it
+   still applies for local exploration; only the authoring direction changes.)
 
 3. A technical/architecture document under `/docs` describes the overall architecture (as
    the brief's deliverables require). Significant architectural decisions (choice of state
@@ -282,4 +327,13 @@ amendment to this constitution or an ADR.
    Complexity that appears to conflict with a principle MUST be justified in the plan's
    Complexity Tracking section or corrected.
 
-**Version**: 1.1.1 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-07-22
+5. **Pre-v1.2.0 spec revision gate** — specs 001–006 were drafted under the pre-v1.2.0
+   layered wording of II.2 (Controllers / Services / Repositories) and code-first Swagger
+   (old X.2). Each such spec MUST get a revision pass reconciling it with the vertical-slice
+   II.2, the direct-DbContext IV.1, the API-first X.2, and the contract-generated-services
+   VII.3 wording **before** `/speckit.plan` may run against it. Until a spec is either revised
+   or explicitly waived in writing (rationale recorded in the plan's Complexity Tracking
+   section), running `/speckit.plan` against it is a **blocking MUST violation** under the §4
+   compliance gate.
+
+**Version**: 1.3.0 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-07-29

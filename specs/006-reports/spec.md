@@ -10,9 +10,10 @@
 **Enables**: — (final module of the initial delivery)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.1 (Principles I Scope, II Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend incl. VII.8 export, VIII Code Quality, IX Testing, X Documentation)
-**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision` (**`ApplyScope` + `CanReadAsync` only — `CanMutateAsync` is not used; Reports never mutates a domain entity**), `PagedResult<T>` (Activity Report preview only — see T.4), error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency (**not applicable — no mutations to domain entities**) · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
+**Governed By**: Project Constitution v1.3.0 (Principles I Scope, II Architecture — vertical slice / Clean Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend incl. VII.8 export, VIII Code Quality, IX Testing, X Documentation — API-first)
+**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision` (**`ApplyScope` + `CanReadAsync` only — `CanMutateAsync` is not used; Reports never mutates a domain entity**), `PagedResult<T>` (Activity Report preview only — see T.4), error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency (**not applicable — no mutations to domain entities**) · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation · [0006](../../docs/adr/0006-vertical-slice-clean-architecture-api-first.md) vertical slice + Clean Architecture + API-first
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
+**Revised**: 2026-07-29 — re-organized against Constitution v1.3.0 (vertical slice / Clean Architecture / API-first; II.2/IV.1/X.2/VII.3). Business rules, roles, endpoints, status codes, read model, and clarifications are unchanged — only the code-organization framing was updated. Satisfies the Governance §5 revision gate.
 
 ---
 
@@ -70,7 +71,7 @@ Enforced **server-side**, in this order:
 
 1. **Authenticated by default** — every endpoint requires a valid JWT (001). No/invalid/expired token → **401**.
 2. **Role gate (controller, attribute-only)** — `[Authorize]`; every report endpoint permits **all three roles** (each gets *their own scoped report*). Ad-hoc role checks in method bodies remain prohibited (Constitution V.2).
-3. **Scope gate (service, at the query source)** — reports reuse `ApplyScope` (002/003): Admin unscoped; ProjectManager scoped to owned projects; TeamMember scoped to member-of projects (and, for Team Performance, to **their own row**). Aggregates are computed **within scope, in SQL** — never fetched then filtered.
+3. **Scope gate (slice handler, at the query source)** — reports' handlers reuse `ApplyScope` (002/003): Admin unscoped; ProjectManager scoped to owned projects; TeamMember scoped to member-of projects (and, for Team Performance, to **their own row**). Aggregates are computed **within scope, in SQL** — never fetched then filtered.
 4. **Parameter scope-check** — because reports are **parameterized** (unlike Dashboard), a caller can *name* a specific `projectId`/`userId`. A **named resource outside the caller's scope → 403** (inheriting 002/003/004's convention, maskable to 404 by config). A `projectScope=all` request is auto-narrowed to the caller's visible set (no 403). *(This is why Reports surfaces 403 where Dashboard, which is parameter-free, does not.)*
 5. **No mutation gate** — `CanMutateAsync` is deliberately absent; the feature has no domain write path.
 6. **Identity from the token** — the acting user comes from `ICurrentUserService`, never the request body.
@@ -97,6 +98,10 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 - Q: Timezone for date-range parameters and bucketed/displayed timestamps — UTC or caller-local? → A: **UTC (server zone), fixed.** `from`/`to` and all bucket boundaries (Task Completion day/week/month) are evaluated in UTC, so a report is **reproducible across viewers** — the same parameters yield the same numbers and the same exported PDF/CSV regardless of who runs it or where they are. The applied timezone (UTC) is shown in the report header. Caller-local display is a possible later option, not a v1 configurable.
 - Q: Large-Activity threshold — the row limit, and forced-narrowing vs server-side streaming fallback? → A: **~10,000 rows (configurable), forced narrowing via 422.** A report/export whose result set would exceed the threshold returns **422** with a "narrow the date range" prompt; the **entire export pipeline stays client-side** (jsPDF/papaparse), so no server-side CSV streaming path is built for v1. Server-side streaming can be added later behind the same threshold config without changing the JSON contract.
 - Q: How is "task completed" determined for Task Completion / Project Progress, given 003's Task has no completion timestamp? → A: **Add a dedicated `closed_at` timestamp to 003's Task** (set when status → `Done`, cleared on re-open) via a **lightweight additive migration** — a small follow-up to 003 actioned at plan time, **not a redesign**. Reports reads `closed_at` for completion buckets and closed counts; a re-opened task (its `closed_at` cleared) drops from completed counts until re-completed. This spec records the decision; it does not edit 003.
+- Q: (OQ-006-04) Exact fields of each report DTO, the "projected completion" formula, and how a re-opened task is counted? → A: **Field tables finalized** in the Consolidated Read Model (below). A task is **"closed" iff `status = Done`** (`closed_at` not null); a **re-opened** task (`closed_at` cleared) is **excluded** from both Project Progress's `closedTasks` count **and** Task Completion's buckets — the identical rule in both, consistent with 003's `closed_at`-cleared-on-reopen. **Projected completion** = a linear throughput extrapolation: `avgClosedPerDay = closedTasksInWindow ÷ windowDays`, `projectedCompletion = today(UTC) + ceil(openTasks ÷ avgClosedPerDay)`; **`null`** when there is no throughput or no open tasks.
+- Q: (OQ-006-06) Does v1 ship more than the four baseline reports? → A: **Four only for v1** — Project Progress, Task Completion, Team Performance, Activity. The brief names three explicitly, and the `ActivityLogs` table's stated purpose ("for auditing and reporting") covers the fourth (Activity). More types can be added later via the catalog without a contract change.
+- Q: (OQ-006-01) Scheduled/emailed reports in v1? → A: **No — out of scope for v1** (brief bonus, Slack/email). The model does not preclude a later `ReportSchedule` concept, but no schema is committed now.
+- Q: (OQ-006-03) Are generated PDFs/CSVs persisted server-side? → A: **No — transient for v1**, re-generated on demand. A "recent reports" history would be a separate `ReportArtifact` spec; the model leaves room but commits no persistence now.
 
 ---
 
@@ -126,7 +131,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   3. **Given** a role with a narrower surface (TeamMember), **When** they read the catalog, **Then** report descriptors reflect their constraints (e.g. Team Performance is annotated "self only").
 - **Edge cases**: the catalog is a **small fixed set** (four types) — returned as a **plain array, not paginated** (see T.4); role-annotation of descriptors (what a role may run) vs a flat list for all — default annotate; adding a fifth report type later (OQ-006-06) extends the catalog without a contract change.
 - **Audit/security**: reading the catalog is **not** audited (it exposes no data, only metadata); it returns nothing about projects/tasks the caller cannot see.
-- **Configurability**: which report types are enabled (OQ-006-06); per-report default parameter values.
+- **Configurability**: per-report default parameter values. (v1 exposes exactly the **four** baseline report types — Clarifications 2026-07-22, OQ-006-06 — extensible later via the catalog.)
 
 **C. UI** — **F006-S01 Report Picker** (standalone component in the lazy-loaded `reports` route group): renders the parameter form **dynamically from the catalog** (Reactive Forms built from the descriptor), so a new report type needs no new form code. Loading/error states explicit.
 
@@ -134,7 +139,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **no reads of domain data** (descriptors are static/config-derived); **no writes**.
 
-**F. Separation** — UI: catalog-driven dynamic form. Backend: `IReportService.GetCatalogAsync` returns descriptors (role-annotated). DB: none. QA: descriptor completeness, role annotation, plain-array shape.
+**F. Separation** — UI: catalog-driven dynamic form. Backend: `GetReportCatalogQueryHandler` returns descriptors (role-annotated); the controller only `Send`s the query. DB: none. QA: descriptor completeness, role annotation, plain-array shape.
 
 ---
 
@@ -149,8 +154,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 - **Dependencies**: 002 (projects + scope), 003 (tasks + completion). **Out of scope**: export mechanics (US-006-06).
 
 **B. Quality validation**
-- **INVEST** — Independent ✔; Negotiable ✔ (exact columns are OQ-006-04); Valuable ✔; Estimable ✔; Small ✔ (a scoped grouped aggregate per project); Testable ✔ (each metric assertable per role against seeded data).
-- **3Cs** — Card ✔ (stands alone: "per-project progress over a window"); Conversation ✔ (surfaced the exact column set (OQ-006-04), how "projected completion" is derived, and the named-project-out-of-scope 403; see Edge cases); Confirmation ✔ (the Given/When/Then scenarios cover the three-role scope matrix, the named-out-of-scope 403, the date window, and value-consistency with Dashboard — sufficient once OQ-006-04 fixes columns).
+- **INVEST** — Independent ✔; Negotiable ✔ (columns were the negotiated decision — now finalized, OQ-006-04, Clarifications 2026-07-22); Valuable ✔; Estimable ✔; Small ✔ (a scoped grouped aggregate per project); Testable ✔ (each metric assertable per role against seeded data).
+- **3Cs** — Card ✔ (stands alone: "per-project progress over a window"); Conversation ✔ (surfaced the column set and the "projected completion" formula — both now finalized in the Consolidated Read Model, Clarifications 2026-07-22 — and the named-project-out-of-scope 403; see Edge cases); Confirmation ✔ (the Given/When/Then scenarios cover the three-role scope matrix, the named-out-of-scope 403, the date window, and value-consistency with Dashboard — sufficient, with columns now fixed).
 - **7Cs** — Clear ✔ (states scope resolves to the same set 002 would show); Concise ✔; Concrete ✔ (named metrics, exact 200/400/403 outcomes); Correct ✔ (overdue uses 003's definition, matching 005); Coherent ✔ (the overdue/open/closed counts equal Dashboard's for the same caller — one definition, two surfaces); Complete ✔ (all three roles, window, and the out-of-scope case covered, with columns flagged); Courteous n/a (a data report, no prose copy).
 - **Given/When/Then**
   1. **Given** projects across owners, **When** an **Admin** runs the report with `projectScope=all`, **Then** **200** with one row per project across the whole system, for the requested window.
@@ -158,9 +163,9 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   3. **Given** a caller who names a specific `projectId` **outside their scope**, **When** they run it, **Then** **403** (maskable to 404 by config) — the parameterized analogue of 002's out-of-scope read.
   4. **Given** a window `from`/`to`, **When** the report computes, **Then** completion %, open/closed counts, and overdue reflect that window and the caller's scope, and **overdue equals the value 005 Dashboard shows the same caller**.
   5. **Given** generation succeeds, **When** the response returns, **Then** a single `ReportGenerated` audit entry (actor, report type, parameters, timestamp) is written (US-006-06 / B.7).
-- **Edge cases**: empty scope (no visible projects) → **200** with an empty `rows` array, not 403/404; a project with zero tasks → completion `0%`, not a divide-by-zero; the exact column set is **OQ-006-04**; "projected completion" derivation (from throughput over the window) is directional and depends on OQ-006-04; `from` after `to` → **400**.
+- **Edge cases**: empty scope (no visible projects) → **200** with an empty `rows` array, not 403/404; a project with zero tasks → completion `0%`, not a divide-by-zero; the column set is **finalized** in the Consolidated Read Model (Clarifications 2026-07-22); "projected completion" uses the linear throughput extrapolation defined there (`null` when no throughput/no open tasks); `from` after `to` → **400**.
 - **Audit/security**: generation writes the `ReportGenerated` audit entry (the one write); scope enforced in the query; a named out-of-scope project → 403; no out-of-scope project leaks through a total.
-- **Configurability**: the column set (OQ-006-04); default window (e.g. last 30 days); whether "projected completion" is included.
+- **Configurability**: default window (e.g. last 30 days); whether "projected completion" is included. (The column set is fixed by the field tables — Clarifications 2026-07-22 — not configurable.)
 
 **C. UI** — **F006-S02 Project Progress** (report view): parameter form (window, project scope) + a Chart.js progress visualization + a tabular body; Export to PDF/CSV via the shared export service (US-006-06). The table paginates **client-side** over the returned (bounded) row set — one row per visible project is a small set.
 
@@ -168,7 +173,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **reads only** — `projects` (002) + `tasks` (003) aggregated within scope; **writes one `activity_logs`** row (`ReportGenerated`). No domain write, no migration.
 
-**F. Separation** — UI: parameter form + chart + table. Backend: `IReportService.GetProjectProgressAsync` composes 002's `ApplyScope` into grouped aggregates, audits generation. DB: scoped aggregate read + one audit write. QA: three-role matrix (**primary acceptance**), named-out-of-scope 403, Dashboard-value parity, audit written.
+**F. Separation** — UI: parameter form + chart + table. Backend: `GetProjectProgressQueryHandler` composes 002's `ApplyScope` into grouped aggregates, audits generation; the controller only `Send`s the query. DB: scoped aggregate read + one audit write (handler → `DbContext` + `IActivityLogService`). QA: three-role matrix (**primary acceptance**), named-out-of-scope 403, Dashboard-value parity, audit written.
 
 ---
 
@@ -183,7 +188,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 - **Dependencies**: 003 (task **`closed_at`** completion timestamp — see Assumptions/Dependencies), 002/004 (scope). **Out of scope**: export mechanics (US-006-06).
 
 **B. Quality validation**
-- **INVEST** — Independent ✔; Negotiable ✔ (grouping set, columns OQ-006-04); Valuable ✔; Estimable ✔; Small ✔ (a grouped-by-period aggregate); Testable ✔ (period buckets assertable against seeded completions).
+- **INVEST** — Independent ✔; Negotiable ✔ (grouping set; columns now finalized, OQ-006-04, Clarifications 2026-07-22); Valuable ✔; Estimable ✔; Small ✔ (a grouped-by-period aggregate); Testable ✔ (period buckets assertable against seeded completions).
 - **3Cs** — Card ✔ (stands alone: "completion trend over a window, grouped"); Conversation ✔ (surfaced the **completion-timestamp dependency on 003** (Assumptions), timezone-of-bucketing (OQ-006-05), and grouping granularity; see Edge cases); Confirmation ✔ (the Given/When/Then scenarios cover grouping, scope, the optional assignee filter, and the empty window — sufficient now that the completion-timestamp (`closed_at`) and timezone (UTC) questions are settled, Clarifications 2026-07-22).
 - **7Cs** — Clear ✔ (names the completion-timestamp assumption rather than hiding it); Concise ✔; Concrete ✔ (day/week/month buckets, exact 200/400 outcomes); Correct ✔ (a task counts in the bucket of its completion date within scope); Coherent ✔ (scope identical to the other reports and Dashboard); Complete ✔ (grouping, scope, filters, and empty window covered); Courteous n/a.
 - **Given/When/Then**
@@ -201,7 +206,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **reads only** — `tasks` (003) grouped by completion period within scope; **writes one `activity_logs`** (`ReportGenerated`). No migration.
 
-**F. Separation** — UI: trend chart + bucket table. Backend: `IReportService.GetTaskCompletionAsync` (scoped grouped-by-period aggregate), audits generation. DB: scoped aggregate + one audit write. QA: bucket correctness, grouping, TeamMember-self constraint, zero-filled series.
+**F. Separation** — UI: trend chart + bucket table. Backend: `GetTaskCompletionQueryHandler` (scoped grouped-by-period aggregate), audits generation; the controller only `Send`s the query. DB: scoped aggregate + one audit write. QA: bucket correctness, grouping, TeamMember-self constraint, zero-filled series.
 
 ---
 
@@ -216,8 +221,8 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 - **Dependencies**: 003 (assignee + completion), 004 (membership pool for who's on the team). **Out of scope**: export mechanics (US-006-06).
 
 **B. Quality validation**
-- **INVEST** — Independent ✔; Negotiable ✔ (columns OQ-006-04); Valuable ✔; Estimable ✔; Small ✔ (a per-user aggregate over scoped tasks); Testable ✔ (the **self-only** rule for a TeamMember is directly assertable).
-- **3Cs** — Card ✔ (stands alone: "per-member throughput/workload/overdue in my scope"); Conversation ✔ (surfaced the **TeamMember self-only least-privilege** rule and how "throughput" is defined; see Role Model and Edge cases); Confirmation ✔ (the Given/When/Then scenarios include the defining least-privilege test — a TeamMember gets exactly one row, themselves — sufficient once columns settle).
+- **INVEST** — Independent ✔; Negotiable ✔ (columns now finalized, OQ-006-04, Clarifications 2026-07-22); Valuable ✔; Estimable ✔; Small ✔ (a per-user aggregate over scoped tasks); Testable ✔ (the **self-only** rule for a TeamMember is directly assertable).
+- **3Cs** — Card ✔ (stands alone: "per-member throughput/workload/overdue in my scope"); Conversation ✔ (surfaced the **TeamMember self-only least-privilege** rule and how "throughput" is defined; see Role Model and Edge cases); Confirmation ✔ (the Given/When/Then scenarios include the defining least-privilege test — a TeamMember gets exactly one row, themselves — sufficient, with columns now finalized, Clarifications 2026-07-22).
 - **7Cs** — Clear ✔ (states the self-only rule outright); Concise ✔; Concrete ✔ (throughput = tasks closed in window; workload = currently assigned; overdue = assigned & overdue); Correct ✔ (overdue reuses 003's rule, matching 005); Coherent ✔ (the member pool is exactly 004's, and scope matches the other reports); Complete ✔ (all three roles incl. the self-only boundary, and the three metrics covered); Courteous n/a.
 - **Given/When/Then**
   1. **Given** members across projects, **When** an **Admin** runs it for a project, **Then** **200** with one row per member (throughput, workload, overdue) over the window.
@@ -225,9 +230,9 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   3. **Given** a **TeamMember**, **When** they run it, **Then** the report returns **exactly one row — themselves** (personal productivity), regardless of any `userId` parameter they supply; requesting another user's row is ignored/denied (**self-only least privilege**).
   4. **Given** an Admin/ProjectManager `userId` filter, **When** applied, **Then** the report narrows to that member if within scope, else **403** (named out-of-scope user).
   5. **Given** generation, **Then** a `ReportGenerated` audit entry is written.
-- **Edge cases**: a member with **no** activity in the window → a row of zeros (they still appear, so absence is visible); a deactivated member who had throughput in the window → still shown (historical), flagged inactive; a TeamMember passing `userId` of a colleague → **their own row is returned regardless** (not a 403 that would confirm the colleague exists — the safest least-privilege response); "throughput" definition (tasks closed in window) — OQ-006-04.
-- **Audit/security**: generation audited; the **self-only** rule is enforced in the service, not the UI; a TeamMember can never widen to a peer via any parameter.
-- **Configurability**: the metric columns (OQ-006-04); default window; whether inactive members appear.
+- **Edge cases**: a member with **no** activity in the window → a row of zeros (they still appear, so absence is visible); a deactivated member who had throughput in the window → still shown (historical), flagged inactive; a TeamMember passing `userId` of a colleague → **their own row is returned regardless** (not a 403 that would confirm the colleague exists — the safest least-privilege response); "throughput" = tasks whose `closed_at` falls in the window (finalized field tables, Clarifications 2026-07-22).
+- **Audit/security**: generation audited; the **self-only** rule is enforced in the slice handler, not the UI; a TeamMember can never widen to a peer via any parameter.
+- **Configurability**: default window; whether inactive members appear. (Metric columns are fixed by the field tables — Clarifications 2026-07-22.)
 
 **C. UI** — **F006-S04 Team Performance** (report view): window + project scope (Admin/PM) or a fixed self-view (TeamMember); a Chart.js bar comparison (Admin/PM) or a single-member card (TeamMember); PDF/CSV export.
 
@@ -235,7 +240,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **reads only** — `tasks` (003, by assignee) + `team_members` (004) within scope; **writes one `activity_logs`** (`ReportGenerated`). No migration.
 
-**F. Separation** — UI: comparison chart vs single-member card by role. Backend: `IReportService.GetTeamPerformanceAsync` (per-user scoped aggregate; **forces self-row for TeamMember**), audits generation. DB: scoped aggregate + one audit write. QA: **TeamMember-single-self-row (defining test)**, PM-only-own-members, throughput/workload/overdue correctness.
+**F. Separation** — UI: comparison chart vs single-member card by role. Backend: `GetTeamPerformanceQueryHandler` (per-user scoped aggregate; **forces self-row for TeamMember**), audits generation; the controller only `Send`s the query. DB: scoped aggregate + one audit write. QA: **TeamMember-single-self-row (defining test)**, PM-only-own-members, throughput/workload/overdue correctness.
 
 ---
 
@@ -270,7 +275,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **reads only**, through `IActivityLogService` (001), scoped to visible entities; **writes one `activity_logs`** (`ReportGenerated`). No migration.
 
-**F. Separation** — UI: filter form + paginated table + narrow-range prompt. Backend: `IReportService.GetActivityAsync` calls the 001 audit-log **read** with the caller's scope + filters + paging, audits generation. DB: scoped paginated audit read + one audit write. QA: per-role scope, filters-cannot-widen, clamp, service-not-direct-table, too-wide-window 422.
+**F. Separation** — UI: filter form + paginated table + narrow-range prompt. Backend: `GetActivityReportQueryHandler` calls the 001 audit-log **read** (`IActivityLogService`) with the caller's scope + filters + paging, audits generation; the controller only `Send`s the query. DB: scoped paginated audit read + one audit write. QA: per-role scope, filters-cannot-widen, clamp, service-not-direct-table, too-wide-window 422.
 
 ---
 
@@ -305,7 +310,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — **writes one `activity_logs`** row per report generation (`ReportGenerated`); no other write, no migration.
 
-**F. Separation** — UI: export buttons → `ReportExportService`. Backend: each report service method emits the `ReportGenerated` audit via `IActivityLogService` on success. DB: one audit write per generation. QA: PDF via jsPDF, CSV via papaparse, same-data guarantee, exactly-one-audit-per-generation, no-double-audit-on-reexport.
+**F. Separation** — UI: export buttons → `ReportExportService`. Backend: each report query handler emits the `ReportGenerated` audit via `IActivityLogService` on success. DB: one audit write per generation. QA: PDF via jsPDF, CSV via papaparse, same-data guarantee, exactly-one-audit-per-generation, no-double-audit-on-reexport.
 
 ---
 
@@ -323,13 +328,61 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **Transient report DTOs (not persisted):** `ReportDescriptor` (catalog), `ProjectProgressReport`, `TaskCompletionReport`, `TeamPerformanceReport`, `ActivityReport` (a `PagedResult<ActivityReportRow>`). Each is a **stable typed contract** (not a free-form dictionary).
 
+**Report DTO field tables (finalized — Clarifications 2026-07-22, OQ-006-04).** Every report DTO is an **envelope** + a typed row/bucket collection. All four share the envelope header `{ reportType, generatedAt, scope, window{from,to}, timeZone:"UTC" }`.
+
+> **Closed / completion counting — uniform across every report.** A task is **"closed" iff `status = Done`** (equivalently `closed_at` is not null — 003's invariant). A **re-opened** task (`closed_at` cleared, status ≠ `Done`) is **not** counted as closed and is **excluded** from Task Completion's buckets — the **identical** rule applied to Project Progress's `closedTasks` count. **Overdue** = `due_date < today (UTC)` and `status ≠ Done` (003's rule, equal to 005's value for the same caller). **Throughput** (Team Performance, projected completion) = tasks whose `closed_at` falls within the window.
+
+**`ProjectProgressReport`** — envelope + `rows[]` (one per in-scope project) + `totals`:
+
+| `rows[]` field | Type | Meaning |
+|---|---|---|
+| `projectId` · `projectName` | uuid · string | Project identity |
+| `status` | `ProjectStatus` (002) | Current project status |
+| `totalTasks` · `openTasks` · `closedTasks` | int | In-scope task counts; `closed = status Done`, `open = not Done` |
+| `overdueTasks` | int | Open & `due_date < today (UTC)` — equals 005's overdue for this caller |
+| `completionPercent` | decimal | `closedTasks ÷ totalTasks × 100`; **`0` when `totalTasks = 0`** (no divide-by-zero) |
+| `projectedCompletion` | date? | Linear extrapolation (below); **`null`** when no throughput or no open tasks |
+
+`totals`: `{ projects:int, avgCompletionPercent:decimal }`. **Projected-completion formula (directional):** `avgClosedPerDay = closedTasksInWindow ÷ windowDays`; `projectedCompletion = today(UTC) + ceil(openTasks ÷ avgClosedPerDay)`; **`null`** when `avgClosedPerDay = 0` (no recent throughput) or `openTasks = 0` (already complete).
+
+**`TaskCompletionReport`** — envelope (+ `groupBy`) + `buckets[]` + `totals`:
+
+| `buckets[]` field | Type | Meaning |
+|---|---|---|
+| `periodStart` | date | Bucket start (UTC), per `groupBy` = day/week/month |
+| `periodLabel` | string | Human label (e.g. `2026-W30`) |
+| `completedCount` | int | Tasks whose `closed_at` falls in the bucket, in scope (re-opened excluded) |
+
+Series is **zero-filled continuous** (every period in the window present). `totals`: `{ completed:int }`.
+
+**`TeamPerformanceReport`** — envelope + `rows[]` (one per member; **exactly one — self — for a TeamMember**):
+
+| `rows[]` field | Type | Meaning |
+|---|---|---|
+| `userId` · `fullName` | uuid · string | Member identity |
+| `isActive` | bool | 001 `is_active` (inactive members with in-window throughput still shown, flagged) |
+| `throughput` | int | Tasks whose `closed_at` is in the window, assigned to this member, in scope |
+| `workload` | int | Tasks currently assigned to them and **not** `Done` |
+| `overdueCount` | int | Assigned to them, open, `due_date < today (UTC)` |
+
+**`ActivityReport`** — a `PagedResult<ActivityReportRow>` (envelope + `page/pageSize/totalCount/totalPages`), each `ActivityReportRow`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | uuid | Audit entry id |
+| `timestamp` | timestamptz | When (UTC) |
+| `actorId` · `actorName` | uuid? · string | Who (null actor = system/seed) |
+| `action` | string | e.g. `TaskStatusChanged`, `ProjectCreated`, `ReportGenerated` |
+| `entityType` · `entityId` | string · string | Target entity |
+| `changeSummary` | string | Human-readable before→after (001; no secrets) |
+
 **Explicitly *not* created (out of scope; model must not preclude):** a `ReportArtifact` table (persisted generated files — OQ-006-03) or a `ReportSchedule` table (scheduled/emailed reports — OQ-006-01). The design leaves room for both without needing them now.
 
 ## Consolidated API Catalog
 
-> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** via the shared `ErrorKind` mapper; documented via **Swagger/OpenAPI**. Authenticated by default (001). **All endpoints are `GET`, returning JSON** — PDF/CSV are client-side representations (T.4); there is **no write endpoint**. Resource-oriented under `/api/reports` (Constitution VI.6).
+> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** via the shared `ErrorKind` mapper. Per Constitution **X.2 (API-first)**, the OpenAPI contract for these routes is authored and reviewed under `/docs/contracts/` **before** the handlers are implemented, and the code is validated against it; **Swagger UI** is enabled in development for local exploration only. Authenticated by default (001). **All endpoints are `GET`, returning JSON** — PDF/CSV are client-side representations (T.4); there is **no write endpoint**. Resource-oriented under `/api/reports` (Constitution VI.6).
 
-| Method · Route | Purpose | Role gate | Service gate | Success | Failure |
+| Method · Route | Purpose | Role gate | Access gate (in handler) | Success | Failure |
 |---|---|---|---|---|---|
 | `GET /api/reports/catalog` | Report types + their parameters | `[Authorize]` (all 3) | role-annotate | **200** descriptor array | 401 |
 | `GET /api/reports/project-progress` | Per-project progress over a window | `[Authorize]` (all 3) | `ApplyScope` | **200** typed report | 400, 401, 403 |
@@ -346,7 +399,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 > The read-only-plus-one-audit-write posture, the endpoint-shape and export-architecture decisions (resolved here, not deferred), how scope folds into parameterized queries, the flows, failure handling, and security guarantees.
 
 ### T.1 Posture — read-only over domain data, one audit-only write
-- **The .NET API is the authority**; the **service layer** owns aggregation, scope, and the audit write. Controllers bind + delegate only (Constitution II.2).
+- **The .NET API is the authority**; the **slice handler** owns aggregation, scope, and the audit write. The **thin controller** does nothing but `MediatR.Send(...)` (Constitution II.2).
 - **No domain writes.** No create/update/delete of Users/Projects/Tasks/TeamMembers. So `CanMutateAsync` is **not** implemented and `xmin` (ADR-0004) is **not applicable**.
 - **One audit-only write — the deliberate exception.** Each report **generation** writes a single `ReportGenerated` `activity_logs` entry via `IActivityLogService`. Constitution IV.4 audits *domain writes*; report generation is not a domain write but **is** a security-relevant access event, so it is audited by exception. This is the one place a read-side feature legitimately writes to the audit log (005 Dashboard writes nothing; see B.7).
 - **The Angular frontend is convenience** for viewing; it also performs the **export render** (jsPDF/papaparse) — but never a security decision. The API re-checks scope on every request.
@@ -356,7 +409,7 @@ Every report reuses the existing `ApplyScope` predicates (002/003/004) — Repor
 - **Visible set** = `IProjectAccessPolicy.ApplyScope` (Admin all · PM owned · TeamMember member-of).
 - **Parameters narrow, never widen.** `from`/`to`, `projectScope`, `groupBy`, `assigneeId`, `entityType`, `actorId` filter *within* the visible set.
 - **Named out-of-scope → 403** (the key difference from Dashboard). Because a report can *name* a `projectId`/`userId`, requesting one outside scope returns **403** (maskable to 404 by config), inheriting 002/003/004's convention. Dashboard, being parameter-free, never 403s; Reports does. A `projectScope=all` request is silently narrowed to the visible set (no 403).
-- **TeamMember self-only for Team Performance** — enforced in the service: the per-user aggregate is forced to `assignee_id == caller`, ignoring/denying any other `userId`.
+- **TeamMember self-only for Team Performance** — enforced in the slice handler: the per-user aggregate is forced to `assignee_id == caller`, ignoring/denying any other `userId`.
 - **Value parity with Dashboard (hard requirement).** Where a metric appears in both surfaces (overdue count, open/closed counts), Reports reuses the **same scope predicate and the same metric definition** (003's overdue rule, `Done` terminal), so for a given caller and window the numbers **match** what 005 shows. (NFR-002.)
 - **Filter at the source.** Aggregates translate the scope + parameters to SQL; nothing is fetched then filtered.
 
@@ -420,8 +473,8 @@ Each report has a **distinct typed parameter contract** (Project Progress takes 
 
 ### T.5 How a report is computed (step by step)
 1. JWT validated; `ICurrentUserService` materializes `CurrentUser(UserId, Email, Role)` — never from the body.
-2. The controller binds the **typed query** and runs its FluentValidation validator (window present, `from ≤ to`, valid `groupBy`, paging bounds) — else **400** (ADR-0005).
-3. The service resolves the **visible set** via `ApplyScope`; a **named** `projectId`/`userId` outside it → **403**; `projectScope=all` narrows to visible.
+2. The **thin controller** `Send`s the **typed query**; a **MediatR validation behaviour** runs its FluentValidation validator (window present, `from ≤ to`, valid `groupBy`, paging bounds) — else **400** (ADR-0005) — then the **slice handler** executes.
+3. The handler resolves the **visible set** via `ApplyScope`; a **named** `projectId`/`userId` outside it → **403**; `projectScope=all` narrows to visible.
 4. The scoped, parameterized aggregate runs **in SQL** (grouped counts / per-period / per-user), or, for Activity, a scoped paginated read **through `IActivityLogService`** — with the **threshold guard** (→ **422** if exceeded for export).
 5. The typed report DTO is assembled (metric definitions identical to 005 for shared metrics).
 6. `IActivityLogService.LogAsync` writes **one** `ReportGenerated` entry (actor, report type, serialized parameters, timestamp).
@@ -467,30 +520,64 @@ Each report has a **distinct typed parameter contract** (Project Progress takes 
 - **New (report-local):** `ReportType` (`ProjectProgress, TaskCompletion, TeamPerformance, Activity`); `ReportFormat` (`Json, Pdf, Csv` — client render targets, not API params); `GroupingGranularity` (`Day, Week, Month`).
 - **AuditAction (new):** `ReportGenerated` — the one audit action this feature emits.
 
-### B.3 Service interfaces & method signatures (C#; nullable reference types on)
-```csharp
-// Read-only over domain data. No Create/Update/Delete/Mutate of domain entities — by design (T.1).
-public interface IReportService {
-    Task<Result<IReadOnlyList<ReportDescriptor>>> GetCatalogAsync(CurrentUser caller, CancellationToken ct);
-    Task<Result<ProjectProgressReport>> GetProjectProgressAsync(ProjectProgressQuery q, CurrentUser caller, CancellationToken ct);
-    Task<Result<TaskCompletionReport>>  GetTaskCompletionAsync(TaskCompletionQuery q, CurrentUser caller, CancellationToken ct);
-    Task<Result<TeamPerformanceReport>> GetTeamPerformanceAsync(TeamPerformanceQuery q, CurrentUser caller, CancellationToken ct);
-    Task<Result<PagedResult<ActivityReportRow>>> GetActivityAsync(ActivityReportQuery q, CurrentUser caller, CancellationToken ct);
-}
+### B.3 Vertical slices, handlers & shared abstractions (C#; nullable reference types on)
 
-// Frontend only (Constitution VII.8) — the single export service, NOT per-component:
-//   ReportExportService.toPdf(report)  -> jsPDF render + download
-//   ReportExportService.toCsv(report)  -> papaparse serialize + download
-// The API returns JSON; PDF/CSV are produced here, client-side.
+Per Constitution **II.2**, each report use-case is a self-contained **vertical slice** under
+`Features/Reports/<UseCase>/`, holding its Query, its FluentValidation validator, and its handler.
+Reports is read-only over domain data — no commands mutate a domain entity (T.1) — but each report
+handler (except the catalog) writes the **one** `ReportGenerated` audit entry via `IActivityLogService`.
+Controllers are **thin**: one endpoint maps one HTTP verb to a single `MediatR.Send(...)`. Per **IV.1**,
+each query handler reads via the EF Core `DbContext` **directly** (grouped aggregates), reusing the shared
+scope abstractions below — **no Repository is introduced**.
 
-// Reused, not redefined:
+```text
+Features/Reports/GetCatalog/          GET /api/reports/catalog          [Authorize] (all 3)
+  GetReportCatalogQuery() : IRequest<Result<IReadOnlyList<ReportDescriptor>>>
+  GetReportCatalogQueryHandler        // role-annotated descriptors; static/config-derived; NOT audited (metadata only)
+  → Response: IReadOnlyList<ReportDescriptor>
+
+Features/Reports/GetProjectProgress/  GET /api/reports/project-progress [Authorize] (all 3)
+  GetProjectProgressQuery(From, To, ProjectScope?) : IRequest<Result<ProjectProgressReport>>
+  GetProjectProgressQueryValidator    // window present, from <= to
+  GetProjectProgressQueryHandler      // ApplyScope grouped aggregate; named-out-of-scope → 403; emits ReportGenerated
+  → Response: ProjectProgressReport
+
+Features/Reports/GetTaskCompletion/   GET /api/reports/task-completion  [Authorize] (all 3)
+  GetTaskCompletionQuery(From, To, GroupBy, ProjectScope?, AssigneeId?) : IRequest<Result<TaskCompletionReport>>
+  GetTaskCompletionQueryValidator     // valid groupBy, from <= to
+  GetTaskCompletionQueryHandler       // scoped grouped-by-period aggregate; TeamMember constrained to self; emits ReportGenerated
+  → Response: TaskCompletionReport
+
+Features/Reports/GetTeamPerformance/  GET /api/reports/team-performance [Authorize] (all 3)
+  GetTeamPerformanceQuery(From, To, ProjectScope?, UserId?) : IRequest<Result<TeamPerformanceReport>>
+  GetTeamPerformanceQueryHandler      // per-user scoped aggregate; FORCES self-row for TeamMember; emits ReportGenerated
+  → Response: TeamPerformanceReport
+
+Features/Reports/GetActivity/         GET /api/reports/activity         [Authorize] (all 3)
+  GetActivityReportQuery(From, To, ProjectId?, EntityType?, ActorId?, Page, PageSize) : IRequest<Result<PagedResult<ActivityReportRow>>>
+  GetActivityReportQueryValidator     // paging bounds
+  GetActivityReportQueryHandler       // scoped paginated read THROUGH IActivityLogService; 422 threshold guard; emits ReportGenerated
+  → Response: PagedResult<ActivityReportRow>
+```
+
+**Shared cross-cutting abstractions the handlers depend on** (reused, **not** redefined; these are **shared-kernel** abstractions declared in [docs/shared-contracts.md §3](../../docs/shared-contracts.md) (`IProjectAccessPolicy`/`ITaskAccessPolicy`) and §6 (`IActivityLogService`), so the handler depends on shared-kernel contracts — it does **not** call 001's/002's/003's/004's slice handlers):
+```text
 //   IProjectAccessPolicy.ApplyScope (002), ITaskAccessPolicy.ApplyScope (003) — role scope
 //   IActivityLogService (001): (a) SCOPED READ for the Activity Report; (b) LogAsync for the ONE
 //     ReportGenerated audit write per generation. Both through the 001-owned service — never a direct table query.
-// Result<T>, ErrorKind, CurrentUser, AccessDecision, PagedResult<T> — docs/shared-contracts.md (ADR-0003), reused.
-// Query DTOs carry { from, to, projectScope?, groupBy?, assigneeId?, userId?, entityType?, actorId?, page?, pageSize? }
+```
+
+**Frontend only (Constitution VII.8) — the single export service, NOT per-component** (unchanged by this revision; may now also be generated from the OpenAPI contract per VII.3):
+```text
+//   ReportExportService.toPdf(report)  -> jsPDF render + download
+//   ReportExportService.toCsv(report)  -> papaparse serialize + download
+//   The API returns JSON; PDF/CSV are produced here, client-side.
+```
+```text
+// Query records carry { from, to, projectScope?, groupBy?, assigneeId?, userId?, entityType?, actorId?, page?, pageSize? }
 //   as each report requires; scope is derived from the caller, never trusted from the body.
-// Every Get*Async (except catalog) emits exactly one ReportGenerated audit entry on success.
+// Result<T>, ErrorKind, CurrentUser, AccessDecision, PagedResult<T> — docs/shared-contracts.md (ADR-0003), reused.
+// Every report handler (except catalog) emits exactly one ReportGenerated audit entry on success.
 // Report DTOs are stable typed contracts (one row per project/period/member; enum-keyed where applicable) — not dictionaries.
 ```
 
@@ -499,7 +586,7 @@ public interface IReportService {
 - `Reports:Activity:{DefaultPageSize,MaxPageSize}` (20 / 100, clamped)
 - `Reports:LargeReportRowThreshold` (default **10,000**, configurable) + `Reports:LargeReportFallback` (**`ForceNarrow`** for v1 — Clarifications 2026-07-22; `ServerStream` reserved for a later iteration, no v1 code path)
 - `Reports:TimeZone` — **fixed to UTC** for v1 (Clarifications 2026-07-22): `from`/`to` and all bucket boundaries are evaluated in UTC for cross-viewer reproducibility; the header states the applied zone. (Caller-local display is a possible later addition, not a v1 knob.)
-- `Reports:EnabledTypes` (which report types the catalog exposes — OQ-006-06)
+- `Reports:EnabledTypes` — v1 exposes the **four** baseline types (Clarifications 2026-07-22); the flag gates only *future* additional types, not the fixed v1 set
 - `Reports:AuditOnGeneration` (default `true`; if ever changed to audit only explicit exports, see B.7)
 - `Reports:MaskOutOfScopeAs404` (default `false` → 403, matching 002/003/004)
 - `Reports:DownloadFilenamePattern`
@@ -512,7 +599,7 @@ Via the shared `ErrorKind` mapper (ADR-0003): `400` validation (window, `from>to
 - **Performance:** each report is a scoped grouped aggregate pushed to the database (no N+1, no fetch-then-filter); bounded reports returned in full; the Activity read is paginated + threshold-guarded. Values reuse 005's query shapes where shared.
 - **Consistency (hard):** for the same caller/window, a metric shared with Dashboard (overdue, open/closed) **must** equal Dashboard's value — same `ApplyScope`, same 003 definitions. Covered by a cross-feature test.
 - **Observability:** Serilog structured logging; report-generation timings recorded; the `ReportGenerated` audit is the security record.
-- **Testability (Constitution IX):** three-role scope matrix per report; the **TeamMember self-only** Team-Performance test; the **named-out-of-scope 403** test; the **Dashboard-value-parity** test; the Activity **422 threshold** test; export produces PDF (jsPDF) and CSV (papaparse) from the same JSON; **exactly one audit entry per generation**. Frontend `ReportsService`, `ReportExportService`, guards, and catalog-driven forms via Jasmine+Karma.
+- **Testability (Constitution IX):** each report query handler is unit-tested; three-role scope matrix per report; the **TeamMember self-only** Team-Performance test; the **named-out-of-scope 403** test; the **Dashboard-value-parity** test; the Activity **422 threshold** test; export produces PDF (jsPDF) and CSV (papaparse) from the same JSON; **exactly one audit entry per generation**. Frontend `ReportsService`, `ReportExportService`, guards, and catalog-driven forms via Jasmine+Karma.
 
 ### B.7 Audit event catalog — one entry, the deliberate exception
 > Reports is read-only over domain data, so — like 005 — it writes **no** audit entry *for domain reads*. **But** report generation is a security-relevant action, so each successful report data request emits **exactly one** `ReportGenerated` entry via `IActivityLogService`: `(actor_id, action='ReportGenerated', entity_type='Report', entity_id=<generated run id>, timestamp, change_summary=<report type + serialized parameters>)`. It targets a **logical `Report`**, not a domain entity, and modifies no domain state. This is **the one place a read-side feature legitimately writes to the audit log** — explicitly by design (contrast 005, whose catalog is intentionally empty). The catalog endpoint is **not** audited (metadata only). Default is audit-on-generation; auditing only explicit exports is a config option (`Reports:AuditOnGeneration`) but not the default, since the security-relevant fact is that the data was produced.
@@ -528,19 +615,19 @@ Via the shared `ErrorKind` mapper (ADR-0003): `400` validation (window, `from>to
 8. **Export**: PDF via **jsPDF** and CSV via **papaparse**, both from the one `ReportExportService` (not per component), representing the **same data** as the preview.
 9. **Exactly one `ReportGenerated` audit entry** per report generation (asserted); re-exporting the same previewed data to PDF and CSV does **not** double-audit; the catalog is not audited; **no domain entity is written** and **no migration is added**.
 10. The Angular `reports` route group is lazy-loaded with standalone components; HTTP in `ReportsService`; export in `ReportExportService`; charts use Chart.js; parameter forms are catalog-driven Reactive Forms; a functional role guard is the only navigation block.
-11. Errors are RFC 7807 via the shared mapper; all endpoints in Swagger; backend warnings-as-errors + nullable; frontend strict mode.
-12. **Deferred to `/speckit.clarify` before build**: OQ-006-01..06 decided and their tests written.
+11. Errors are RFC 7807 via the shared mapper; the OpenAPI contract for all endpoints is authored/reviewed under `/docs/contracts/` **before** the handlers and the code is validated against it (API-first, X.2), with Swagger UI in development; backend warnings-as-errors + nullable; frontend strict mode.
+12. All open questions **OQ-006-01..06 are resolved** (Clarifications 2026-07-22) and covered by tests: report field tables + the closed/re-open counting rule (FR-017); the four-report v1 set (FR-018); UTC bucketing; the ~10,000-row threshold + forced-narrowing; scheduling/email out of scope; transient artifacts.
 13. Unit + integration tests pass (Constitution IX.3 — no merge on failing tests).
 
 ### B.9 Open questions for review
 | # | Question | Recommendation (not yet a decision) | Status |
 |---|---|---|---|
-| OQ-006-01 | Scheduled / emailed reports? | **Out of scope for v1** (brief bonus — Slack/email); keep the model open to a later `ReportSchedule` concept (no schema commitment now) | **OPEN — decide at `/speckit.clarify`** (non-blocking) |
+| OQ-006-01 | Scheduled / emailed reports? | **Resolved (Clarifications 2026-07-22): out of scope for v1** (brief bonus — Slack/email); model left open to a later `ReportSchedule` concept, no schema committed now | **Resolved** |
 | OQ-006-02 | Exact large-Activity **threshold value** and fallback — forced-narrowing (v1) vs server-side streaming? | **Resolved (Clarifications 2026-07-22): ~10,000 rows (configurable), forced narrowing (422)** — export stays fully client-side; server-side streaming deferred as a possible later addition behind the same config. | **Resolved** |
-| OQ-006-03 | Persist generated PDFs/CSVs server-side (a "recent reports" list) or always transient? | **Transient** for v1 (re-generate on demand); persistence would be a separate `ReportArtifact` spec | **OPEN — decide at `/speckit.clarify`** (non-blocking) |
-| OQ-006-04 | The exact **columns/fields** in each report body | Baseline metrics above are directional; finalize columns (and "projected completion" formula, re-opened-task counting) with the reviewer | **OPEN — decide at `/speckit.clarify`** (non-blocking) |
+| OQ-006-03 | Persist generated PDFs/CSVs server-side (a "recent reports" list) or always transient? | **Resolved (Clarifications 2026-07-22): transient for v1** (re-generate on demand); persistence would be a separate `ReportArtifact` spec | **Resolved** |
+| OQ-006-04 | The exact **columns/fields** in each report body | **Resolved (Clarifications 2026-07-22): field tables finalized** in the Consolidated Read Model, incl. the projected-completion formula and the uniform closed/re-open counting rule (`closed = Done`; re-opened excluded from both Project Progress `closedTasks` and Task Completion buckets) | **Resolved** |
 | OQ-006-05 | **Timezone** for date-range params and displayed timestamps — server UTC vs caller-local? | **Resolved (Clarifications 2026-07-22): UTC**, fixed for v1 — reproducible across viewers; applied zone shown in the report header; caller-local is a possible later addition. | **Resolved** |
-| OQ-006-06 | Additional **report types** beyond the baseline four? | Ship the four for v1; add types via the catalog without a contract change | **OPEN — decide at `/speckit.clarify`** (non-blocking) |
+| OQ-006-06 | Additional **report types** beyond the baseline four? | **Resolved (Clarifications 2026-07-22): four only for v1** (brief names three; ActivityLogs' "auditing and reporting" purpose covers the fourth); more can be added later via the catalog without a contract change | **Resolved** |
 
 *Decided here (not open):* endpoint shape (resource-per-type) and export architecture (client-side jsPDF + papaparse, JSON-only API) — see T.4.
 
@@ -560,10 +647,12 @@ Via the shared `ErrorKind` mapper (ADR-0003): `400` validation (window, `from>to
 - **FR-010**: PDF export MUST be produced **client-side via jsPDF** and CSV export **client-side via a papaparse-based utility**, both from the single JSON the preview uses, in **one shared report-export service** (Constitution III, VII.8) — not per component and not per-format endpoints.
 - **FR-011**: Each successful report **generation** MUST write **exactly one** `ReportGenerated` `activity_logs` entry (actor, report type, parameters, timestamp) via `IActivityLogService`; this is the **sole write** the feature performs and MUST NOT modify any domain entity; the catalog endpoint MUST NOT be audited.
 - **FR-012**: Reports MUST NOT modify any domain entity (Users/Projects/Tasks/TeamMembers); `CanMutateAsync` and `xmin` MUST NOT be used.
-- **FR-013**: Errors MUST be RFC 7807 Problem Details via the shared mapper; all endpoints MUST be documented via Swagger/OpenAPI; error statuses are limited to 400/401/403/404/422 (no 409).
+- **FR-013**: Errors MUST be RFC 7807 Problem Details via the shared mapper; the OpenAPI contract for all endpoints MUST be authored and reviewed under `/docs/contracts/` **before** the handlers are implemented (API-first, Constitution X.2), with the code validated against the contract and Swagger UI enabled in development; error statuses are limited to 400/401/403/404/422 (no 409).
 - **FR-014**: The Angular `reports` feature area MUST be lazy-loaded via route-level code splitting with standalone components (ADR-0001); HTTP MUST live in `ReportsService`; export in `ReportExportService`; parameter forms MUST be **catalog-driven** Reactive Forms; charts MUST use Chart.js (Constitution III); a functional role guard MUST be the only navigation block.
 - **FR-015**: All data access MUST go through EF Core (Constitution IV.1); aggregates are LINQ grouped queries with scope + parameters translated to SQL.
-- **FR-016**: The architecture MUST NOT preclude adding scheduled/emailed reports, persisted report artifacts, or real-time push later (Constitution I.2 / II.4) — but none is built in v1.
+- **FR-016**: The architecture MUST NOT preclude adding scheduled/emailed reports, persisted report artifacts, or real-time push later (Constitution I.2 / II.4) — but none is built in v1. Scheduled/emailed reports (OQ-006-01) and persisted report artifacts (OQ-006-03) are **out of scope for v1** (Clarifications 2026-07-22).
+- **FR-017**: Each report DTO's fields MUST match the **field tables in the Consolidated Read Model** (Clarifications 2026-07-22). A task MUST be counted **closed iff `status = Done`** (`closed_at` not null); a **re-opened** task (`closed_at` cleared) MUST be excluded from **both** Project Progress's `closedTasks` count **and** Task Completion's buckets — the same rule in both. "Projected completion" MUST be the linear throughput extrapolation defined there (`null` when throughput is 0 or there are no open tasks).
+- **FR-018**: v1 MUST ship **exactly the four baseline reports** — Project Progress, Task Completion, Team Performance, Activity (Clarifications 2026-07-22); additional report types are added later via the catalog without a contract change.
 
 ## Non-Functional Requirements
 - **NFR-001**: Server-side enforcement is authoritative; the frontend never gates for security (it only renders exports).
@@ -592,7 +681,7 @@ Reports performs **no domain-data audit** (it makes no domain write) — but it 
 ## Dependencies
 - **Depends on**: [001](../001-auth-rbac/spec.md) (Users, role model, JWT, `ICurrentUserService`, `IActivityLogService` — read + the audit write) · [002](../002-projects/spec.md) (Project entity, ownership scope, status enum) · [003](../003-tasks/spec.md) (Task entity, status enum, due date, assignee, and a **`closed_at` completion timestamp** — see the follow-up below) · [004](../004-team/spec.md) (membership — a TeamMember's visible projects) · [005](../005-dashboard/spec.md) (**no runtime dependency**, but Reports MUST share 005's role-scoping and metric definitions so shared numbers match). All five **referenced, not redefined**.
 - **Cross-spec follow-up (agreed, Clarifications 2026-07-22):** 003 adds a nullable **`closed_at`** timestamp to `tasks` (set on → `Done`, cleared on re-open) via a lightweight additive migration; Reports consumes it for completion buckets and closed counts. This is a plan-time follow-up to 003, actioned when 003 is built — **not** a change made by this spec.
-- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; Serilog; Swagger/OpenAPI; Chart.js; jsPDF; a papaparse-based CSV utility (Constitution III).
+- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; MediatR (query dispatch for vertical slices); Serilog; OpenAPI contract under `/docs/contracts/` + Swagger UI (dev); Chart.js; jsPDF; a papaparse-based CSV utility (Constitution III).
 
 ## Out of Scope
 Any write to a domain entity (the `ReportGenerated` audit entry is the sole write); user-authored custom reports / a report-query DSL (brief bonus); scheduled/recurring generation and email/Slack delivery (brief bonus — model not precluded); persisted report history / "recently generated" list (transient by default — separate `ReportArtifact` spec if ever needed); real-time report push via SignalR (not precluded — II.4 — but on-demand for v1); chart libraries other than Chart.js (D3 only with justification); new domain entities, tables, or migrations against domain tables.

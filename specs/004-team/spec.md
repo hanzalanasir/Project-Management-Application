@@ -11,9 +11,10 @@
 **Backs**: **003 Tasks'** "an assignee must be a valid team member on the project" constraint — this feature owns the membership records that constraint validates against (see Dependencies)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.1 (Principles II Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
-**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision`, error→HTTP mapping (`PagedResult<T>` and `xmin` concurrency evaluated and deliberately **not** applied — see Technical Design T.6 and Implementation Blueprint B.1) · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
+**Governed By**: Project Constitution v1.3.0 (Principles II Architecture — vertical slice / Clean Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing, X Documentation — API-first)
+**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision`, error→HTTP mapping (`PagedResult<T>` and `xmin` concurrency evaluated and deliberately **not** applied — see Technical Design T.6 and Implementation Blueprint B.1) · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation · [0006](../../docs/adr/0006-vertical-slice-clean-architecture-api-first.md) vertical slice + Clean Architecture + API-first
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
+**Revised**: 2026-07-29 — re-organized against Constitution v1.3.0 (vertical slice / Clean Architecture / API-first; II.2/IV.1/X.2/VII.3). Business rules, roles, endpoints, status codes, data model, and clarifications are unchanged — only the code-organization framing was updated. Satisfies the Governance §5 revision gate.
 
 ---
 
@@ -54,7 +55,7 @@ Enforced **server-side**, in this order:
 3. **Project-scope gate (service)** — every team operation is governed by the **parent project**, identified by the route's `projectId`:
    - **View** the roster: Admin any; ProjectManager if they own the project **or are a member of it**; TeamMember if they are a member of it. Otherwise → **403**.
    - **Manage** (add/remove): Admin any; ProjectManager only if they own the project. Otherwise → **403**.
-   This is a **binary** authorization — there is no graduated, field-level mutation model here (that was Tasks-specific), because a membership row has no editable fields to partially permit. The check lives in the service, never the controller (Constitution II.2).
+   This is a **binary** authorization — there is no graduated, field-level mutation model here (that was Tasks-specific), because a membership row has no editable fields to partially permit. The check lives in the slice handler (via the shared `ITeamAccessPolicy`), never the controller (Constitution II.2).
 4. **Identity from the token** — the acting user comes from `ICurrentUserService` reading the validated JWT, never from the request body.
 5. **Deny by default** — if project scope cannot be established, the request is denied. Frontend guards and conditionally rendered controls are convenience only.
 
@@ -117,7 +118,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — writes **`team_members`** (FK `project_id` → `projects`, FK `user_id` → `users`, `added_by` → `users`), **`activity_logs`**.
 
-**F. Separation** — UI: add dialog + eligible-user picker. Backend: `ITeamService.AddAsync` → `ITeamAccessPolicy.CanManageTeamAsync` → eligibility + not-already-member + user-active validation → persist → audit. DB: unique-constrained insert + audit row in one transaction. QA: cross-project 403, TeamMember 403, duplicate 409, unknown ids 404, audit written.
+**F. Separation** — UI: add dialog + eligible-user picker. Backend: `Features/Team/AddTeamMember/` slice — `AddTeamMemberCommandHandler` → `ITeamAccessPolicy.CanManageTeamAsync` → eligibility + not-already-member + user-active validation → persist → audit; the controller only `Send`s the command. DB: unique-constrained insert + audit row in one transaction (handler → `DbContext` directly). QA: cross-project 403, TeamMember 403, duplicate 409, unknown ids 404, audit written.
 
 ---
 
@@ -150,7 +151,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — reads **`team_members`** joined to **`users`** (for name/email/role/active) and, for the ProjectManager/TeamMember scope decision, checks ownership on **`projects`** and membership in **`team_members`**.
 
-**F. Separation** — UI: roster table + client-side filter + states. Backend: `ITeamService.ListAsync` → `ITeamAccessPolicy.CanViewTeamAsync` → projection. DB: bounded read + scope check. QA: three-role visibility matrix, empty roster, deactivated-member display, out-of-scope 403.
+**F. Separation** — UI: roster table + client-side filter + states. Backend: `ListTeamQueryHandler` → `ITeamAccessPolicy.CanViewTeamAsync` → projection; the controller only `Send`s the query. DB: bounded read + scope check (handler → `DbContext` directly). QA: three-role visibility matrix, empty roster, deactivated-member display, out-of-scope 403.
 
 ---
 
@@ -184,7 +185,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — reads **`tasks`** (003) to detect open assignments (the 409 block); deletes from **`team_members`** and writes **`activity_logs`** (retained) only when unblocked.
 
-**F. Separation** — UI: confirm dialog + roster refresh. Backend: `ITeamService.RemoveAsync` → `ITeamAccessPolicy.CanManageTeamAsync` → open-tasks check (block with 409) → audit → delete. DB: open-tasks read + delete + retained audit. QA: cross-project 403, TeamMember 403, non-member 404, **open-tasks removal 409**, audit-before-delete.
+**F. Separation** — UI: confirm dialog + roster refresh. Backend: `RemoveTeamMemberCommandHandler` → `ITeamAccessPolicy.CanManageTeamAsync` → open-tasks check (reads shared `tasks`; block with 409) → audit → delete; the controller only `Send`s the command. DB: open-tasks read + delete + retained audit. QA: cross-project 403, TeamMember 403, non-member 404, **open-tasks removal 409**, audit-before-delete.
 
 ---
 
@@ -212,9 +213,9 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Consolidated API Catalog
 
-> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** produced by the shared `ErrorKind` mapper ([shared-contracts §1](../../docs/shared-contracts.md)); documented via **Swagger/OpenAPI**. Authenticated by default (001). Routes nest team under the parent project, matching 002/003 and Constitution VI.6.
+> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** produced by the shared `ErrorKind` mapper ([shared-contracts §1](../../docs/shared-contracts.md)). Per Constitution **X.2 (API-first)**, the OpenAPI contract for these routes is authored and reviewed under `/docs/contracts/` **before** the handlers are implemented, and the code is validated against it; **Swagger UI** is enabled in development for local exploration only. Authenticated by default (001). Routes nest team under the parent project, matching 002/003 and Constitution VI.6.
 
-| Method · Route | Purpose | Role gate | Service gate | Success | Failure |
+| Method · Route | Purpose | Role gate | Access gate (in handler) | Success | Failure |
 |---|---|---|---|---|---|
 | `GET /api/projects/{projectId}/team` | View the roster (plain array, unpaged) | `[Authorize]` (all 3) | `CanViewTeamAsync` | **200** member DTO array | 401, 403, 404 |
 | `POST /api/projects/{projectId}/team` | Add a member | `[Authorize(Roles="Admin,ProjectManager")]` | `CanManageTeamAsync` | **201** + `Location` | 400 (ineligible/inactive), 401, 403, 404, **409** (already a member) |
@@ -227,7 +228,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 > The detailed solution: the components, exact requests/responses, the step-by-step flows, why this feature is deliberately simpler than 003, failure handling, and the security guarantees. Written so a developer can implement it directly.
 
 ### T.1 The roles (who is authority, who enforces)
-- **The .NET API is the authority.** The controller declares the **role gate**; the **service layer** owns the project-scope gate and every business rule. Controllers do model binding, validation, and delegation only (Constitution II.2).
+- **The .NET API is the authority.** The **thin controller** declares the **role gate** (`[Authorize(Roles=...)]`) and does nothing but `MediatR.Send(...)`; the **slice handler** owns the project-scope gate (via the shared `ITeamAccessPolicy`) and every business rule. No business logic lives in the controller (Constitution II.2).
 - **The Angular frontend is convenience.** Guards and conditionally rendered controls shape what a user *sees*; the API re-checks every request. A TeamMember who hand-crafts a `POST …/team` still receives **403**.
 
 ### T.2 Membership is a link, not a role (the heart of this feature)
@@ -294,17 +295,17 @@ Removing a member with open assigned tasks is **blocked (409)** — a fixed inva
 ### T.4 How a roster read is authorized (step by step)
 1. The JWT is validated; `ICurrentUserService` materializes `CurrentUser(UserId, Email, Role)` — never from the body.
 2. The role gate admits the caller (all three roles may read a roster).
-3. The service loads the parent project by `projectId`. Not found → `ErrorKind.NotFound` → **404**.
-4. `CanViewTeamAsync(project, caller)`:
+3. The handler loads the parent project by `projectId` from the `DbContext`. Not found → `ErrorKind.NotFound` → **404**.
+4. `ITeamAccessPolicy.CanViewTeamAsync(project, caller)`:
    - `Admin` → allow.
    - `ProjectManager` → allow if `project.OwnerId == caller.UserId`, else allow if the caller has a `team_members` row for this project, else `ErrorKind.Forbidden` → **403**.
    - `TeamMember` → allow only if the caller has a `team_members` row for this project, else **403**.
-5. The service projects the project's `team_members` joined to `users` into the roster DTO array and returns it. There is no paging — the set is bounded (T.6).
+5. The handler projects the project's `team_members` joined to `users` into the roster DTO array and returns it. There is no paging — the set is bounded (T.6).
 
 ### T.5 How a write flows — add / remove (step by step)
 1. The role gate admits or refuses the caller (**403** before any data is touched for a TeamMember).
-2. The controller binds the operation DTO (`{ userId }` for add; `userId` from the route for remove) and runs its FluentValidation validator (ADR-0005), then delegates to `ITeamService`.
-3. The service loads the parent project. Not found → **404**. `CanManageTeamAsync(project, caller)` → **403** if the caller is not the owner (or Admin).
+2. The **thin controller** `Send`s the operation command (`{ userId }` for add; `userId` from the route for remove); a **MediatR validation behaviour** runs its FluentValidation validator (ADR-0005); then the **slice handler** executes — no business logic in the controller.
+3. The handler loads the parent project from the `DbContext`. Not found → **404**. `ITeamAccessPolicy.CanManageTeamAsync(project, caller)` → **403** if the caller is not the owner (or Admin).
 4. **Add:** validate the target user exists and is eligible (OQ-004-01) and active → else `ErrorKind.Validation` → **400**; check they are not already a member → else `ErrorKind.Conflict` → **409**; insert the `team_members` row.
    **Remove:** confirm the target is a member → else **404**; if the member has **any open task assigned to them in this project** (read from `tasks`, 003), **block with 409** and a dependency message (Clarifications 2026-07-22); otherwise delete the `team_members` row.
 5. `IActivityLogService.LogAsync` writes the audit row (`TeamMemberAdded` / `TeamMemberRemoved`, actor, `TeamMember`, membership id, timestamp, summary) — **for remove, before the row is deleted**.
@@ -359,32 +360,54 @@ Removing a member with open assigned tasks is **blocked (409)** — a fixed inva
 - **AuditAction** (TeamMember): `TeamMemberAdded, TeamMemberRemoved`
 - *(No status or role enum — the entity has neither; a member's role is the global `Role` enum owned by 001.)*
 
-### B.3 Service interfaces & method signatures (C#; nullable reference types on)
-```csharp
-public interface ITeamService {
-    // Bounded roster — returns a plain list, not PagedResult<T> (see T.6). CanViewTeamAsync first.
-    Task<Result<IReadOnlyList<TeamMemberDto>>> ListAsync(Guid projectId, CurrentUser caller, CancellationToken ct);
-    // Validates eligibility (OQ-004-01) + user-active + not-already-a-member (409). Audits TeamMemberAdded.
-    Task<Result<TeamMemberDto>> AddAsync(Guid projectId, AddTeamMemberRequest req, CurrentUser caller, CancellationToken ct);
-    // Blocks with 409 if the member has open assigned tasks in the project (Clarifications 2026-07-22). Audits TeamMemberRemoved BEFORE removal.
-    Task<Result> RemoveAsync(Guid projectId, Guid userId, CurrentUser caller, CancellationToken ct);
-}
+### B.3 Vertical slices, handlers & shared abstractions (C#; nullable reference types on)
 
+Per Constitution **II.2**, each use-case is a self-contained **vertical slice** under
+`Features/Team/<UseCase>/`, holding its Command-or-Query, its FluentValidation validator, its handler,
+and its response shape together. Controllers are **thin**: one endpoint maps one HTTP verb to a single
+`MediatR.Send(...)` (the Layer-1 role gate stays on the endpoint as `[Authorize(Roles=...)]`). Per
+**IV.1**, every handler calls the EF Core `DbContext` **directly** — **no Repository is introduced**.
+Per **Clean Architecture**, the binary project-scope gate that every slice shares stays as the
+`ITeamAccessPolicy` abstraction: a **shared-kernel** interface declared in
+[docs/shared-contracts.md §3](../../docs/shared-contracts.md) (**not** in this feature's Application
+layer), which this feature implements. There is **no graduated mutation model** here (see T.2).
+
+```text
+Features/Team/ListTeam/       GET /api/projects/{projectId}/team              [Authorize] (all 3)
+  ListTeamQuery(ProjectId) : IRequest<Result<IReadOnlyList<TeamMemberDto>>>
+  ListTeamQueryHandler        // CanViewTeamAsync first; bounded roster — plain list, NOT PagedResult<T> (see T.6)
+  → Response: IReadOnlyList<TeamMemberDto>
+
+Features/Team/AddTeamMember/  POST /api/projects/{projectId}/team             [Authorize(Roles="Admin,ProjectManager")]
+  AddTeamMemberCommand(ProjectId, UserId) : IRequest<Result<TeamMemberDto>>
+  AddTeamMemberCommandValidator  // userId present
+  AddTeamMemberCommandHandler // CanManageTeamAsync; eligibility (any active user, OQ-004-01) + not-already-member (409); audit TeamMemberAdded
+  → Response: TeamMemberDto
+
+Features/Team/RemoveTeamMember/ DELETE /api/projects/{projectId}/team/{userId} [Authorize(Roles="Admin,ProjectManager")]
+  RemoveTeamMemberCommand(ProjectId, UserId) : IRequest<Result>
+  RemoveTeamMemberCommandHandler // CanManageTeamAsync; blocks with 409 if member has open assigned tasks; audit TeamMemberRemoved BEFORE removal
+  → Response: (none / 204)
+```
+
+**Shared cross-cutting abstraction** (not a slice; depended on by every handler per Clean Architecture):
+```csharp
 // Binary authorization — no graduated mutation model is needed (see T.2).
 public interface ITeamAccessPolicy {
     Task<AccessDecision> CanViewTeamAsync(Project project, CurrentUser caller, CancellationToken ct);   // Admin · owner · member
     Task<AccessDecision> CanManageTeamAsync(Project project, CurrentUser caller, CancellationToken ct); // Admin · owner only
 }
-
-// AddTeamMemberRequest { Guid UserId; }
+```
+```text
+// Command/Query records carry the fields above.
 // TeamMemberDto { Guid MembershipId; Guid UserId; string FullName; string Email; string Role; DateTimeOffset AddedAt; }
 //   -> Role is the member's GLOBAL role (001), read-only, for display — NOT a per-project role.
 // Result<T>, ErrorKind, CurrentUser, and AccessDecision are defined once in docs/shared-contracts.md
 // (ADR-0003) and reused verbatim — not redefined here. PagedResult<T> is intentionally not used (T.6).
-// Entity → DTO mapping uses manual static extension methods; the add DTO is validated with
-// FluentValidation (userId present). See ADR-0005.
+// Entity → DTO mapping uses manual static extension methods; the add command is validated with
+// FluentValidation (userId present) as a MediatR pipeline behaviour. See ADR-0005.
 ```
-`IActivityLogService` is **reused from 001**; `Project`/ownership comes from **002**; the open-tasks check on removal reads/updates `tasks` owned by **003**. None is redefined here.
+**Cross-feature dependencies point at shared Domain, never at another feature's handler** (Clean Architecture, cross-check per ADR-0006): the scope gate reads the shared **`Project`** entity (`project.OwnerId`, membership rows) via the `DbContext`, and the removal open-tasks block **reads** the shared **`tasks`** entity directly — both are shared Domain entities in the single EF model. This feature does **not** call 002's or 003's slice handlers; it never mutates `tasks` (it only reads to block). `IActivityLogService` is **reused from 001**.
 
 ### B.4 Configuration (never hardcoded)
 - `Team:AllowAddInactiveUser` (default `false`) — the sole add-time eligibility gate; **any active user is eligible regardless of global role** (Clarifications 2026-07-22), so there is no role-based eligibility setting
@@ -398,10 +421,10 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 `400` validation (ineligible user per OQ-004-01, deactivated user, missing `userId`) · `401` `Authentication required` · `403` `Forbidden` (role gate or project-scope denial) · `404` `Project not found` / `User is not a member of this project` · `409` `Conflict` (already a member; or removal blocked because the member has open assigned tasks in the project) · `500` `Unexpected error`. Never leak the roster of a project the caller may not view in an error body.
 
 ### B.6 Non-functional requirements
-- **Security:** deny-by-default; project scope enforced in the service; membership grants no permissions; unique constraint enforced at the database.
+- **Security:** deny-by-default; project scope enforced in the slice handler (shared `ITeamAccessPolicy`); membership grants no permissions; unique constraint enforced at the database.
 - **Performance:** the roster is a single bounded read (one join, no paging); add/remove are single-row writes; indexes on `(project_id)`, `(user_id)`, and the unique `(project_id, user_id)` keep membership lookups (including 003's assignee validation) O(1).
 - **Observability:** structured logging via **Serilog**; authorization denials logged with actor, project id, and reason.
-- **Testability (Constitution IX):** every `ITeamAccessPolicy` branch unit-tested — the three-role view matrix and the owner-only manage rule; each controller happy path + one error path via `WebApplicationFactory`; frontend `TeamService`, guards, and the add-member validator via Jasmine+Karma.
+- **Testability (Constitution IX):** every `ITeamAccessPolicy` branch and slice handler unit-tested — the three-role view matrix and the owner-only manage rule; each controller happy path + one error path via `WebApplicationFactory`; frontend `TeamService`, guards, and the add-member validator via Jasmine+Karma.
 
 ### B.7 Audit event catalog (→ `activity_logs`, defined in 001)
 Emit `(actor_id, action, entity_type='TeamMember', entity_id, timestamp, change_summary)` for: **add** (`TeamMemberAdded`, with the added user and project) and **remove** (`TeamMemberRemoved`, snapshot written before deletion). Roster reads are not audited. A removal blocked by open assigned tasks (409) makes no change and writes no audit row; because removal is blocked rather than cascading, no task mutation is ever triggered from here. Append-only; audit rows are never cascaded away.
@@ -416,7 +439,7 @@ Emit `(actor_id, action, entity_type='TeamMember', entity_id, timestamp, change_
 7. Every add/remove produces an `activity_logs` row in the same transaction; remove audits **before** deletion and the audit survives; deleting a project or a user cascades the membership while its audit rows remain.
 8. This feature's membership records back 003's assignee validation — an integration test confirms 003 accepts an assignee **iff** a matching `team_members` row exists.
 9. The Angular `team` route group is lazy-loaded with standalone components (no `@NgModule`); all HTTP lives in `TeamService`; the add-member form uses a Reactive Form with an explicit validator; functional role guards are the only navigation block.
-10. Errors are RFC 7807 via the shared mapper; all endpoints appear in Swagger; backend compiles warnings-as-errors with nullable enabled; frontend compiles in strict mode.
+10. Errors are RFC 7807 via the shared mapper; the OpenAPI contract for all endpoints is authored/reviewed under `/docs/contracts/` **before** the handlers and the code is validated against it (API-first, X.2), with Swagger UI enabled in development; backend compiles warnings-as-errors with nullable enabled; frontend compiles in strict mode.
 11. Both clarified decisions are covered by tests (Clarifications 2026-07-22): **add** accepts any *active* user of any global role and refuses a deactivated user with 400; **remove** is refused with **409** and a dependency message while the member has an open assigned task in the project, and succeeds once those tasks are reassigned or closed — proving the "assignee is always a current member" invariant that backs 003.
 12. Unit + integration tests pass (Constitution IX.3 — no merge on failing tests).
 
@@ -441,12 +464,12 @@ Emit `(actor_id, action, entity_type='TeamMember', entity_id, timestamp, change_
 - **FR-005**: The roster read MUST be project-scoped server-side: Admin any; ProjectManager if owner or member; TeamMember if member. An out-of-scope read MUST return **403** (maskable to **404** by configuration).
 - **FR-006**: The roster MUST return each member's user identity and **global** role for display, and MUST return an **empty array** (not 404) for a project with no members.
 - **FR-007**: Removing a member MUST be permitted only to Admin or the project owner; a TeamMember MUST be refused with **403**; removing a non-member MUST return **404**.
-- **FR-008**: Role checks MUST be declared with `[Authorize(Roles = "...")]` attributes only; project-ownership/membership checks MUST be enforced in the service layer via `AccessDecision`, never in the controller.
+- **FR-008**: Role checks MUST be declared with `[Authorize(Roles = "...")]` attributes only; project-ownership/membership checks MUST be enforced in the slice handler via the shared `ITeamAccessPolicy` returning an `AccessDecision`, never in the controller.
 - **FR-009**: Every add and remove MUST create an `activity_logs` entry (actor, action, entity type `TeamMember`, entity id, timestamp, change summary) in the same transaction; remove MUST audit before deletion and the entry MUST survive.
 - **FR-010**: Deleting a project or a user MUST cascade-delete the associated `team_members` rows; `added_by` MUST be set null when the adding user is deleted; `activity_logs` rows MUST NOT be cascaded away.
 - **FR-011**: The `team_members` entity MUST NOT carry an optimistic-concurrency token; concurrency safety MUST come from the unique `(project_id, user_id)` constraint and idempotent removal (this is the deliberate, documented exception to ADR-0004).
 - **FR-012**: The roster endpoint MUST return a plain array (no pagination envelope), justified by the bounded size of a project team; the design MUST NOT preclude adding pagination later without breaking clients.
-- **FR-013**: Errors MUST be RFC 7807 Problem Details produced by the shared `ErrorKind` mapper; all endpoints MUST be documented via Swagger/OpenAPI.
+- **FR-013**: Errors MUST be RFC 7807 Problem Details produced by the shared `ErrorKind` mapper; the OpenAPI contract for all endpoints MUST be authored and reviewed under `/docs/contracts/` **before** the handlers are implemented (API-first, Constitution X.2), with the code validated against the contract and Swagger UI enabled in development.
 - **FR-014**: The Angular `team` feature area MUST be lazy-loaded via route-level code splitting with standalone components (ADR-0001); all HTTP MUST live in a dedicated `TeamService` (never in components); the add-member form MUST use a Reactive Form with an explicit validator; a functional role-based route guard MUST be the only mechanism blocking navigation.
 - **FR-015**: All persistence MUST go through EF Core with a Code-First migration; no raw SQL and no manual DDL (Constitution IV.1, IV.2).
 - **FR-016**: Any **active** user MUST be eligible to be added to a project's team **regardless of their global role** (Clarifications 2026-07-22); the only add-time eligibility gate is that the user is active (a deactivated user is refused with **400**). Membership MUST NOT be restricted by, or coupled to, the user's role.
@@ -468,7 +491,7 @@ Emit `(actor_id, action, entity_type='TeamMember', entity_id, timestamp, change_
 - **CFG-006**: Out-of-scope roster reads return 403 or are masked as 404 (default 403).
 
 ## Security Rules
-- Authenticated by default; role gate via attributes only; project-scope gate in the service layer.
+- Authenticated by default; role gate via attributes only; project-scope gate in the slice handler (shared `ITeamAccessPolicy`).
 - Membership carries no role/permission field — adding/removing a member never changes what anyone *is*, only what they can *see*.
 - `project_id` from the route; a member cannot be added to or removed from an unmanaged project.
 - Uniqueness enforced at the database, not just in code; scope re-checked at write time; deny by default.
@@ -488,7 +511,7 @@ Audit every write to team membership — add and remove — with actor, action, 
 - **Depends on**: [001 Auth & RBAC](../001-auth-rbac/spec.md) — Users, role model, JWT claims, `CurrentUser`, `IActivityLogService`. · [002 Projects](../002-projects/spec.md) — the `Project` entity and the ownership rule that governs who may manage a team.
 - **Backs (retroactive)**: [003 Tasks](../003-tasks/spec.md) already assumes "a task's assignee must be a valid team member on the project" and validates assignees against the `team_members` pool. **This feature is what populates and maintains that pool** — 003's assignee validation depends, at runtime, on the membership records created here. The interaction is resolved (Clarifications 2026-07-22): removing a member who has open assigned tasks is **blocked with 409** until those tasks are reassigned or closed, so a task's `assignee_id` can never point at a non-member — the invariant 003 relies on holds at all times, consistent with 002's dependency-aware delete.
 - **Consumed by**: 005 Dashboard (staffing/roster aggregates) · 006 Reports (team exports). Both inherit this feature's project-scoped visibility.
-- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; Serilog; Swagger/OpenAPI.
+- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; MediatR (command/query dispatch for vertical slices); Serilog; OpenAPI contract under `/docs/contracts/` + Swagger UI (dev).
 
 ## Out of Scope
 Per-project custom roles or permission overrides beyond a user's existing global role (this feature adds **no** new role dimension); bulk import of team members; the `Project` entity and its ownership rule (002); the `Task` entity and the assignee-validation logic itself (003 — this feature only supplies the membership records that logic reads); authentication and the role model (001); dashboard aggregation (005); report export (006).

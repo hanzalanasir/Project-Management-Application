@@ -10,15 +10,16 @@
 **Enables**: 003 Tasks · 004 Team · 005 Dashboard · 006 Reports (all anchor on the Project entity)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.1 (Principles II Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
-**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `CurrentUser`, `AccessDecision`, `PagedResult<T>`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
+**Governed By**: Project Constitution v1.3.0 (Principles II Architecture — vertical slice / Clean Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing, X Documentation — API-first)
+**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `CurrentUser`, `AccessDecision`, `PagedResult<T>`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation · [0006](../../docs/adr/0006-vertical-slice-clean-architecture-api-first.md) vertical slice + Clean Architecture + API-first
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
+**Revised**: 2026-07-29 — re-organized against Constitution v1.3.0 (vertical slice / Clean Architecture / API-first; II.2/IV.1/X.2/VII.3). Business rules, roles, endpoints, status codes, data model, and clarifications are unchanged — only the code-organization framing was updated. Satisfies the Governance §5 revision gate.
 
 ---
 
 ## Purpose
 
-Own the **Project** — the anchor entity of ProjectManagementApp. This feature provides full lifecycle management of projects (create, list/search, view, edit, delete) and, critically, establishes the **resource-level authorization** pattern the rest of the application follows: a role gate declared with `[Authorize(Roles = "...")]` at the controller, plus an **ownership/assignment check in the service layer** for scoping that a role attribute alone cannot express.
+Own the **Project** — the anchor entity of ProjectManagementApp. This feature provides full lifecycle management of projects (create, list/search, view, edit, delete) and, critically, establishes the **resource-level authorization** pattern the rest of the application follows: a role gate declared with `[Authorize(Roles = "...")]` at the controller, plus an **ownership/assignment check in the slice handler** (via a shared access policy) for scoping that a role attribute alone cannot express.
 
 Every other domain feature hangs off this one — Tasks belong to a Project, TeamMembers are assigned to a Project, the Dashboard aggregates Projects, and Reports export them.
 
@@ -40,7 +41,7 @@ Projects are the unit of work the entire product organizes around; without them 
 
 ## Scope Summary
 
-**In scope**: the `Project` entity (name, description, start date, end date, status) and its Code-First migration; the five endpoints named in the brief and Constitution VI.6 (`GET /api/projects`, `GET /api/projects/{id}`, `POST /api/projects`, `PUT /api/projects/{id}`, `DELETE /api/projects/{id}`); role-scoped listing (Admin → all, ProjectManager → owned, TeamMember → assigned) with `?page`/`?pageSize` pagination plus search and status filtering; project ownership (`owner_id`) and the service-layer ownership check; the two-layer authorization model (role attribute + service-layer scope); an `ActivityLog` entry on every write to Projects; optimistic concurrency on the Project row (ADR-0004); the lazy-loaded Angular **`projects` route group** (standalone components per ADR-0001) with a dedicated `ProjectsService`, Reactive Forms for create/edit, and a role-based functional route guard.
+**In scope**: the `Project` entity (name, description, start date, end date, status) and its Code-First migration; the five endpoints named in the brief and Constitution VI.6 (`GET /api/projects`, `GET /api/projects/{id}`, `POST /api/projects`, `PUT /api/projects/{id}`, `DELETE /api/projects/{id}`); role-scoped listing (Admin → all, ProjectManager → owned, TeamMember → assigned) with `?page`/`?pageSize` pagination plus search and status filtering; project ownership (`owner_id`) and the slice-handler ownership check; the two-layer authorization model (role attribute + slice-handler scope via the shared access policy); an `ActivityLog` entry on every write to Projects; optimistic concurrency on the Project row (ADR-0004); the lazy-loaded Angular **`projects` route group** (standalone components per ADR-0001) with a dedicated `ProjectsService`, Reactive Forms for create/edit, and a role-based functional route guard.
 
 **Out of scope**: task details and task management (feature 003 — Tasks reference Projects as their anchor); team-member assignment management, i.e. creating/removing the TeamMembers rows themselves (feature 004 — this feature only *reads* those rows to scope a TeamMember's visibility); dashboard aggregation (005) and report export (006); anything already owned by 001 Auth & RBAC (authentication, the role model, JWT issuance, the `users` table, the `activity_logs` table definition); project templates, cloning, archiving/restore, attachments, comments, and Gantt charts (bonus scope per Constitution I.2).
 
@@ -50,7 +51,7 @@ Enforced **server-side**, in this order:
 
 1. **Authenticated by default** — every endpoint in this feature requires a valid JWT (inherited from 001; the global fallback policy requires an authenticated user). No token / invalid / expired → **401**.
 2. **Role gate (controller, attribute-only)** — declared with `[Authorize(Roles = "...")]`. Write endpoints permit `Admin,ProjectManager`; read endpoints permit all three roles. A role that is not permitted → **403**. Ad-hoc role checks in method bodies remain prohibited (Constitution V.2).
-3. **Ownership / assignment gate (service layer)** — the role attribute cannot express *"only the projects you own"* or *"only the projects you're assigned to"*, so the **service layer** applies it: Admin is unscoped; ProjectManager is scoped to `owner_id == caller`; TeamMember is scoped to projects with a matching TeamMembers assignment. A permitted role acting on a project outside its scope → **403**. This check lives in the service, never in the controller (Constitution II.2).
+3. **Ownership / assignment gate (slice handler)** — the role attribute cannot express *"only the projects you own"* or *"only the projects you're assigned to"*, so the **slice handler** applies it via the shared `IProjectAccessPolicy`: Admin is unscoped; ProjectManager is scoped to `owner_id == caller`; TeamMember is scoped to projects with a matching TeamMembers assignment. A permitted role acting on a project outside its scope → **403**. This check lives in the handler, never in the controller (Constitution II.2).
 4. **Identity from the token** — the acting user id and role come from the validated JWT. `owner_id` is **derived server-side**, never accepted from the request body for a ProjectManager.
 5. **Deny by default** — if scope cannot be established, the request is denied. Frontend route guards and role-scoped list views are convenience only; the API re-checks every request.
 
@@ -116,7 +117,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — writes **`projects`** (with `owner_id` FK → `users`), **`activity_logs`** (audit).
 
-**F. Separation** — UI: create form + validators. Backend: `IProjectService.CreateAsync` (validation, owner resolution from token, persist, audit) — controller only binds/validates and delegates. DB: project row + audit row. QA: owner-from-token, TeamMember 403, date-order 400, 201 + Location, audit written.
+**F. Separation** — UI: create form + validators. Backend: `Features/Projects/CreateProject/` slice — `CreateProjectCommandHandler` (owner resolution from token, persist, audit); the controller only `Send`s the command, validation runs as a MediatR pipeline behaviour. DB: project row + audit row (handler → `DbContext` directly). QA: owner-from-token, TeamMember 403, date-order 400, 201 + Location, audit written.
 
 ---
 
@@ -150,7 +151,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — reads **`projects`**; joins **`team_members`** (owned by feature 004) for TeamMember scoping. Indexes lead with `owner_id` and `status`.
 
-**F. Separation** — UI: list + filters + paginator + states. Backend: `IProjectAccessPolicy.ApplyScope` composes the scope predicate; `IProjectService.ListAsync` applies search/filter/sort/paging on top. DB: indexed scope + paging query. QA: three-role scope matrix (the primary acceptance test), paging metadata, empty state, clamped `pageSize`.
+**F. Separation** — UI: list + filters + paginator + states. Backend: `ListProjectsQueryHandler` composes `IProjectAccessPolicy.ApplyScope` then applies search/filter/sort/paging on top; the controller only `Send`s the query. DB: indexed scope + paging query (handler → `DbContext` directly). QA: three-role scope matrix (the primary acceptance test), paging metadata, empty state, clamped `pageSize`.
 
 ---
 
@@ -174,7 +175,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   3. **Given** a project that exists but is **outside the caller's scope** (a ProjectManager who is not the owner, or an unassigned TeamMember), **When** requested, **Then** **403**.
   4. **Given** an Admin, **When** they request any project id, **Then** it is returned regardless of owner.
 - **Edge cases**: malformed (non-GUID) id → **400**; a project whose owner has been deactivated (still returned, owner shown as inactive); concurrent deletion between list and open → **404**.
-- **Audit/security**: scope enforced in the service before the entity is returned; the **403-vs-404 distinction is deliberate** (see OQ-002-03) — a 403 confirms existence to a permitted role, which is acceptable within a single organization's workspace.
+- **Audit/security**: scope enforced in the handler before the entity is returned; the **403-vs-404 distinction is deliberate** (see OQ-002-03) — a 403 confirms existence to a permitted role, which is acceptable within a single organization's workspace.
 - **Configurability**: whether out-of-scope reads return **403** or are masked as **404** (config flag; default **403**).
 
 **C. UI** — **F002-S03 Project Detail** (read-only view). Shows all fields plus owner and timestamps; Edit/Delete actions render only for users whose role permits them (UX only). Loading/error/not-found/forbidden states are explicit.
@@ -183,7 +184,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — reads **`projects`** (+ `users` for owner display); joins **`team_members`** for TeamMember scope resolution.
 
-**F. Separation** — UI: detail view + states. Backend: `IProjectService.GetByIdAsync` → `IProjectAccessPolicy.CanReadAsync`. DB: single read + scope join. QA: 200/403/404 matrix per role, malformed id, deleted-in-flight.
+**F. Separation** — UI: detail view + states. Backend: `GetProjectByIdQueryHandler` → `IProjectAccessPolicy.CanReadAsync`; the controller only `Send`s the query. DB: single read + scope join (handler → `DbContext` directly). QA: 200/403/404 matrix per role, malformed id, deleted-in-flight.
 
 ---
 
@@ -208,7 +209,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
   4. **Given** a **TeamMember**, **When** they attempt an update, **Then** **403** (blocked at the role gate).
   5. **Given** an invalid payload (blank name, `endDate` before `startDate`), **When** updating, **Then** **400** with field errors; nothing changes.
 - **Edge cases**: updating a project to a terminal status (`Completed`/`Cancelled`) — permitted, no cascade in this feature; changing `owner_id` — **Admin only** (a ProjectManager cannot transfer away or claim ownership), **and the new owner must be a ProjectManager or Admin** else **400** (Clarifications 2026-07-22); no-op update (identical values) still refreshes `updated_at` and audits; unknown id → **404**; **two users editing the same project — the second write is rejected with 409** (stale `xmin` row version, ADR-0004) rather than silently overwriting.
-- **Audit/security**: every update audited with a change summary; ownership re-checked **at write time** in the service (not trusted from the earlier read); `owner_id` changes rejected for non-Admin.
+- **Audit/security**: every update audited with a change summary; ownership re-checked **at write time** in the handler (not trusted from the earlier read); `owner_id` changes rejected for non-Admin.
 - **Configurability**: which fields are editable after a terminal status; whether ownership transfer is permitted (Admin-only by default).
 
 **C. UI** — **F002-S04 Edit Project**. Reactive form pre-populated from the detail response; same validators as create; the owner field is editable only for Admin; unsaved-changes guard; errors via the shared error-display component.
@@ -217,7 +218,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — updates **`projects`**; writes **`activity_logs`**.
 
-**F. Separation** — UI: edit form + guard. Backend: `IProjectService.UpdateAsync` → `IProjectAccessPolicy.CanMutateAsync` → persist → audit. DB: update + audit. QA: cross-owner 403, TeamMember 403, validation 400, ownership-transfer rule, audit summary.
+**F. Separation** — UI: edit form + guard. Backend: `UpdateProjectCommandHandler` → `IProjectAccessPolicy.CanMutateAsync` → persist → audit; the controller only `Send`s the command. DB: update + audit (handler → `DbContext` directly). QA: cross-owner 403, TeamMember 403, validation 400, ownership-transfer rule, audit summary.
 
 ---
 
@@ -251,7 +252,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — deletes from **`projects`** (cascading to dependent `tasks` / `team_members` rows owned by features 003/004); writes **`activity_logs`** (retained).
 
-**F. Separation** — UI: confirm dialog + list refresh. Backend: `IProjectService.DeleteAsync` → `CanMutateAsync` → audit → delete. DB: cascade declared explicitly in the EF model. QA: cross-owner 403, cascade verified, audit-before-delete, double-delete 404.
+**F. Separation** — UI: confirm dialog + list refresh. Backend: `DeleteProjectCommandHandler` → `IProjectAccessPolicy.CanMutateAsync` → audit → delete; the controller only `Send`s the command. DB: cascade declared explicitly in the EF model. QA: cross-owner 403, cascade verified, audit-before-delete, double-delete 404.
 
 ---
 
@@ -270,7 +271,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Consolidated API Catalog
 
-> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details**; documented via **Swagger/OpenAPI**. Authenticated by default (001). The five routes below are named explicitly in the brief and **Constitution VI.6** and must exist exactly as written.
+> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details**. Per Constitution **X.2 (API-first)**, the OpenAPI contract for these routes is authored and reviewed under `/docs/contracts/` **before** the handlers are implemented, and the code is validated against it; **Swagger UI** is enabled in development for local exploration only. Authenticated by default (001). The five routes below are named explicitly in the brief and **Constitution VI.6** and must exist exactly as written.
 
 | Method · Route | Purpose | Role gate | Service-layer scope | Success | Failure |
 |---|---|---|---|---|---|
@@ -287,18 +288,18 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 > The detailed solution: the components, the exact requests/responses, how scoping is composed into the query, the step-by-step write flow, failure handling, and the security guarantees. Written so a developer can implement it directly.
 
 ### T.1 The roles (who is authority, who enforces)
-- **The .NET API is the authority.** The controller declares the **role gate**; the **service layer** owns the ownership/assignment gate and every business rule. The controller never contains business logic beyond model binding, validation, and delegation (Constitution II.2).
+- **The .NET API is the authority.** The **thin controller** declares the **role gate** (`[Authorize(Roles=...)]`) and does nothing else but `MediatR.Send(...)`; the **slice handler** owns the ownership/assignment gate (via the shared `IProjectAccessPolicy`) and every business rule. No business logic lives in the controller (Constitution II.2).
 - **The Angular frontend is convenience.** Route guards and conditionally rendered buttons shape what a user *sees*; the API re-checks every request. A TeamMember who hand-crafts a `POST /api/projects` still gets **403**.
 
 ### T.2 The two-layer model (the heart of this feature)
 Role and scope are **different questions**, and only the first fits in an attribute:
 
 - **Layer 1 — Role gate (attribute, controller).** *"May this kind of user perform this kind of operation at all?"* Expressed declaratively: `[Authorize(Roles = "Admin,ProjectManager")]` on write endpoints. This is the only place a role is checked — no `if (role == ...)` in method bodies (Constitution V.2).
-- **Layer 2 — Scope gate (service).** *"May this specific user act on **this specific project**?"* Ownership and assignment are **row-level facts**, not roles, so no attribute can express them. The service resolves them in two complementary ways:
+- **Layer 2 — Scope gate (slice handler + shared access policy).** *"May this specific user act on **this specific project**?"* Ownership and assignment are **row-level facts**, not roles, so no attribute can express them. The handler resolves them via the shared `IProjectAccessPolicy` in two complementary ways:
   - **For reads of collections** — a **scope predicate composed into the query** (`ApplyScope`), so out-of-scope rows are never loaded, counted, or paged. Filtering after the fact would leak totals.
   - **For single-entity reads and all writes** — an explicit **decision check** (`CanReadAsync` / `CanMutateAsync`) evaluated **at the moment of the operation**, so a stale earlier read cannot authorize a later write.
 
-> **Why not a policy/requirement handler?** ASP.NET Core resource-based authorization is a valid alternative, but the constitution places business rules in Services (II.2), and scope here is a query concern (it must fold into the `IQueryable` for correct paging). Keeping both halves in one `IProjectAccessPolicy` used by the service keeps the rule in exactly one place. Recorded as an ADR-worthy decision (OQ-002-02).
+> **Why not a policy/requirement handler?** ASP.NET Core resource-based authorization is a valid alternative, but the constitution places business rules in the slice handler (II.2), and scope here is a query concern (it must fold into the `IQueryable` for correct paging). Keeping both halves in one shared `IProjectAccessPolicy` that every handler calls keeps the rule in exactly one place. Recorded as an ADR-worthy decision (OQ-002-02).
 
 ### T.3 The endpoints, with concrete examples
 
@@ -369,13 +370,13 @@ DELETE /api/projects/4d9b1e77-...-c3  Authorization: Bearer eyJ...
 6. A single database round-trip returns the page; EF Core translates the whole composition to SQL (no in-memory filtering).
 
 ### T.5 How a write flows (step by step)
-1. The role gate admits the caller (`Admin` or `ProjectManager`); a TeamMember is rejected **403** before the action runs.
-2. The controller binds the model, runs its **FluentValidation** validator (including the cross-field `endDate >= startDate` rule, ADR-0005), and delegates to `IProjectService` — no business logic in the controller.
-3. The service loads the target project (update/delete). Not found → **404**.
-4. `CanMutateAsync(project, caller)` evaluates ownership **now**: `Admin` → allow; `ProjectManager` → allow only if `project.OwnerId == caller.UserId`; otherwise → **403**.
-5. The service applies the change (or resolves `owner_id` from the token on create).
+1. The role gate admits the caller (`Admin` or `ProjectManager`); a TeamMember is rejected **403** before the handler runs.
+2. The **thin controller** `Send`s the command; a **MediatR validation behaviour** runs the **FluentValidation** validator (including the cross-field `endDate >= startDate` rule, ADR-0005); then the **slice handler** executes — no business logic in the controller.
+3. The handler loads the target project from the `DbContext` (update/delete). Not found → **404**.
+4. `IProjectAccessPolicy.CanMutateAsync(project, caller)` evaluates ownership **now**: `Admin` → allow; `ProjectManager` → allow only if `project.OwnerId == caller.UserId`; otherwise → **403**.
+5. The handler applies the change (or resolves `owner_id` from the token on create).
 6. `IActivityLogService.LogAsync` writes the audit row (actor, action, `Project`, id, timestamp, change summary) — **for deletes this happens before the row is removed**.
-7. The service and audit write commit in **one transaction/`SaveChanges`**, so a project change can never exist without its audit entry.
+7. The handler's change and the audit write commit in **one transaction/`SaveChanges`**, so a project change can never exist without its audit entry.
 
 ### T.6 API behaviour rules
 - **Exact routes** — the five routes are fixed by the brief and Constitution VI.6; resource-oriented, plural noun, verbs are HTTP verbs.
@@ -387,7 +388,7 @@ DELETE /api/projects/4d9b1e77-...-c3  Authorization: Bearer eyJ...
 ### T.7 Failure handling (fail-safe)
 - **Unknown/expired token → 401** (inherited from 001).
 - **Disallowed role → 403** at the attribute, before any data is touched.
-- **In-scope failure → 403** from the service, after existence is confirmed; **unknown id → 404**. Out-of-scope reads return **403** by default (configurable to mask as **404** — OQ-002-03).
+- **In-scope failure → 403** from the handler, after existence is confirmed; **unknown id → 404**. Out-of-scope reads return **403** by default (configurable to mask as **404** — OQ-002-03).
 - **Validation failure → 400** with per-field errors; nothing is persisted.
 - **Concurrent delete during update → 404**; the transaction rolls back with no partial write and no orphan audit row.
 - **Concurrent update (stale `xmin`) → 409** with Problem Details; the UI prompts the user to reload and reapply. Silent last-write-wins is never acceptable (ADR-0004).
@@ -429,35 +430,66 @@ DELETE /api/projects/4d9b1e77-...-c3  Authorization: Bearer eyJ...
 - **ProjectStatus**: `Planning, Active, OnHold, Completed, Cancelled` (default `Planning`; persisted as string for readability and migration safety)
 - **AuditAction** (Project): `ProjectCreated, ProjectUpdated, ProjectDeleted, ProjectOwnerChanged`
 
-### B.3 Service interfaces & method signatures (C#; nullable reference types on)
-```csharp
-public interface IProjectService {
-    // Scope is applied inside the query; totalCount is per-scope.
-    Task<Result<PagedResult<ProjectSummaryDto>>> ListAsync(ProjectQuery query, CurrentUser caller, CancellationToken ct);
-    // 404 if unknown; 403 if outside the caller's scope.
-    Task<Result<ProjectDetailDto>> GetByIdAsync(Guid projectId, CurrentUser caller, CancellationToken ct);
-    // owner_id resolved from the token for ProjectManager; Admin may supply ownerId. Audits ProjectCreated.
-    Task<Result<ProjectDetailDto>> CreateAsync(CreateProjectRequest req, CurrentUser caller, CancellationToken ct);
-    // Re-checks ownership at write time. Ownership transfer is Admin-only. Audits ProjectUpdated.
-    Task<Result<ProjectDetailDto>> UpdateAsync(Guid projectId, UpdateProjectRequest req, CurrentUser caller, CancellationToken ct);
-    // Audits ProjectDeleted BEFORE removal; dependents cascade. Audits survive.
-    Task<Result> DeleteAsync(Guid projectId, CurrentUser caller, CancellationToken ct);
-}
+### B.3 Vertical slices, handlers & shared abstractions (C#; nullable reference types on)
 
+Per Constitution **II.2**, each use-case is a self-contained **vertical slice** under
+`Features/Projects/<UseCase>/`, holding its Command-or-Query, its FluentValidation validator, its
+handler, and its response shape together. Controllers are **thin**: one endpoint maps one HTTP verb
+to a single `MediatR.Send(...)` and contains no business logic (Layer-1 role gate stays on the
+endpoint as `[Authorize(Roles=...)]`). Per **IV.1**, every handler calls the EF Core `DbContext`
+**directly** as its default persistence path — **no Repository is introduced** (none is justified).
+Per **Clean Architecture**, the Layer-2 ownership/scope gate — which no role attribute can express and
+which every read/write slice shares — stays as the `IProjectAccessPolicy` abstraction: it is a
+**shared-kernel** interface declared in [docs/shared-contracts.md §3](../../docs/shared-contracts.md)
+(**not** in this feature's Application layer), this feature implements its scope rules, and 003/005/006
+reuse it without depending on 002's Application layer.
+
+```text
+Features/Projects/CreateProject/     POST /api/projects            [Authorize(Roles="Admin,ProjectManager")]
+  CreateProjectCommand(Name, Description, StartDate, EndDate, Status, OwnerId?) : IRequest<Result<ProjectDetailDto>>
+  CreateProjectCommandValidator      // required name, endDate >= startDate (cross-field, ADR-0005), max lengths
+  CreateProjectCommandHandler        // owner_id from token for PM (ownerId ignored); Admin may set owner (must be PM/Admin); audit ProjectCreated
+  → Response: ProjectDetailDto
+
+Features/Projects/ListProjects/      GET /api/projects             [Authorize] (all 3 roles)
+  ListProjectsQuery(Page, PageSize, Search?, Status?, Sort?) : IRequest<Result<PagedResult<ProjectSummaryDto>>>
+  ListProjectsQueryHandler           // IProjectAccessPolicy.ApplyScope → search/filter/sort/paging; totalCount is per-scope
+  → Response: PagedResult<ProjectSummaryDto>
+
+Features/Projects/GetProjectById/    GET /api/projects/{id}        [Authorize] (all 3 roles)
+  GetProjectByIdQuery(ProjectId) : IRequest<Result<ProjectDetailDto>>
+  GetProjectByIdQueryHandler         // 404 if unknown; IProjectAccessPolicy.CanReadAsync → 403 if outside scope
+  → Response: ProjectDetailDto
+
+Features/Projects/UpdateProject/     PUT /api/projects/{id}        [Authorize(Roles="Admin,ProjectManager")]
+  UpdateProjectCommand(ProjectId, Name, Description, StartDate, EndDate, Status, OwnerId?) : IRequest<Result<ProjectDetailDto>>
+  UpdateProjectCommandValidator      // same validators as create
+  UpdateProjectCommandHandler        // CanMutateAsync at write time; ownership transfer Admin-only (new owner must be PM/Admin); xmin→409; audit ProjectUpdated
+  → Response: ProjectDetailDto
+
+Features/Projects/DeleteProject/     DELETE /api/projects/{id}     [Authorize(Roles="Admin,ProjectManager")]
+  DeleteProjectCommand(ProjectId) : IRequest<Result>
+  DeleteProjectCommandHandler        // CanMutateAsync; audit ProjectDeleted BEFORE removal; dependents cascade; audit survives
+  → Response: (none / 204)
+```
+
+**Shared cross-cutting abstractions** (not slices; depended on by the handlers per Clean Architecture — interface in Application, implementation in Infrastructure):
+```csharp
 // Layer 2 of the authorization model — the ownership/assignment gate that no role attribute can express.
+// Shared by every read/write slice; composed INTO the handler's IQueryable<Project> for correct paging.
 public interface IProjectAccessPolicy {
     IQueryable<Project> ApplyScope(IQueryable<Project> source, CurrentUser caller);        // Admin=all · PM=owned · TM=assigned
     Task<AccessDecision> CanReadAsync(Project project, CurrentUser caller, CancellationToken ct);
     Task<AccessDecision> CanMutateAsync(Project project, CurrentUser caller, CancellationToken ct); // Admin any · PM own only
 }
-
-// ProjectQuery      { int Page; int PageSize; string? Search; ProjectStatus? Status; string? Sort; }
-// Result<T>, Error/ErrorKind, CurrentUser, AccessDecision, and PagedResult<T> are defined once in
-// docs/shared-contracts.md (ADR-0003) and reused verbatim by every feature — not redefined here.
-// Entity → DTO mapping uses manual static extension methods; write DTOs are validated with
-// FluentValidation (incl. the cross-field endDate >= startDate rule). See ADR-0005.
 ```
-`IActivityLogService` is **reused from 001** — this feature adds Project-targeted rows, it does not define a new audit service.
+```text
+// Command/Query records carry the fields above; Result<T>, Error/ErrorKind, CurrentUser, AccessDecision,
+// and PagedResult<T> are defined once in docs/shared-contracts.md (ADR-0003) and reused verbatim — not redefined here.
+// Entity → DTO mapping uses manual static extension methods; write commands are validated with
+// FluentValidation (incl. the cross-field endDate >= startDate rule), run as a MediatR pipeline behaviour. See ADR-0005.
+```
+`IActivityLogService` is **reused from 001** — this feature's handlers add Project-targeted rows; it does not define a new audit service.
 
 ### B.4 Configuration (never hardcoded)
 - `Projects:Paging:{DefaultPageSize,MaxPageSize}` (e.g. 20 / 100)
@@ -473,7 +505,7 @@ public interface IProjectAccessPolicy {
 - **Security:** deny-by-default; scope enforced in SQL; ownership derived from the token; write-time re-check.
 - **Performance:** list is a single round-trip with scope+filter+paging pushed to the database; indexes lead with `owner_id`/`status`; no N+1 on owner (projection or `Include`).
 - **Observability:** structured logging via **Serilog** (console + rolling files); authorization denials logged with actor, project id, and reason.
-- **Testability (Constitution IX):** every `IProjectAccessPolicy` and `IProjectService` branch unit-tested (xUnit) — notably the three-role scope matrix; each controller happy path + one error path via `WebApplicationFactory`; frontend `ProjectsService`, guard, and form validators via Jasmine+Karma.
+- **Testability (Constitution IX):** every `IProjectAccessPolicy` and slice-handler branch unit-tested (xUnit) — notably the three-role scope matrix; each controller happy path + one error path via `WebApplicationFactory`; frontend `ProjectsService`, guard, and form validators via Jasmine+Karma.
 
 ### B.7 Audit event catalog (→ `activity_logs`, defined in 001)
 Emit `(actor_id, action, entity_type='Project', entity_id, timestamp, change_summary)` for: **create** (`ProjectCreated`), **update** (`ProjectUpdated`, summary of changed fields), **delete** (`ProjectDeleted`, snapshot summary, written before removal), **ownership change** (`ProjectOwnerChanged`). Reads are not audited. Append-only; audit rows are never cascaded away.
@@ -487,7 +519,7 @@ Emit `(actor_id, action, entity_type='Project', entity_id, timestamp, change_sum
 6. Every write to Projects produces an `activity_logs` row in the same transaction; delete audits before removal and the audit row survives.
 7. Deleting a project cascades to dependent tasks/assignments; deleting a user is **restricted** while they own projects.
 8. The Angular `projects` route group is lazy-loaded with standalone components; all HTTP lives in `ProjectsService` (none in components); create/edit use Reactive Forms with explicit validators incl. date-order; a functional role-based route guard is the only navigation block.
-9. Errors are RFC 7807; all endpoints appear in Swagger; backend compiles warnings-as-errors with nullable enabled; frontend compiles in strict mode.
+9. Errors are RFC 7807; the OpenAPI contract for all endpoints is authored/reviewed under `/docs/contracts/` **before** the handlers and the code is validated against it (API-first, X.2), with Swagger UI enabled in development; backend compiles warnings-as-errors with nullable enabled; frontend compiles in strict mode.
 10. Concurrent updates to the same project are rejected with **409** (stale `xmin`), proven by an integration test — never a silent overwrite.
 11. Unit + integration tests pass (Constitution IX.3 — no merge on failing tests).
 
@@ -495,7 +527,7 @@ Emit `(actor_id, action, entity_type='Project', entity_id, timestamp, change_sum
 | # | Question | Recommendation | Blocks build? |
 |---|---|---|---|
 | OQ-002-01 | Hard delete with cascade, or soft delete/archive? | **Resolved (Clarifications 2026-07-22): hard delete with explicit cascade** — row + tasks + team members removed; `activity_logs` preserves history. Revisit only if Reports (006) needs deleted projects surfaced. | **Resolved** |
-| OQ-002-02 | Scope gate as `IProjectAccessPolicy` in the service vs. ASP.NET resource-based authorization handlers? | Service-layer policy (scope must fold into the `IQueryable` for correct paging); record as an ADR | No |
+| OQ-002-02 | Scope gate as a shared `IProjectAccessPolicy` called by the slice handlers vs. ASP.NET resource-based authorization handlers? | Handler-invoked shared policy (scope must fold into the `IQueryable` for correct paging); record as an ADR | No |
 | OQ-002-03 | Out-of-scope read → **403** or masked **404**? | **Resolved (Clarifications 2026-07-22): 403 by default**, with a `MaskOutOfScopeAs404` flag to harden to 404; single-org workspace makes existence disclosure acceptable. App-wide convention inherited by 003/004; 005 Dashboard is a deliberate exception (content-scoping — 200 with zeroed/empty results — rather than 403). | **Resolved** |
 | OQ-002-04 | Is the `ProjectStatus` set correct (`Planning/Active/OnHold/Completed/Cancelled`)? | Adopt as listed; confirm with the demo script's needs | No |
 | OQ-002-05 | May an Admin assign ownership to a non-ProjectManager (e.g. a TeamMember) user? | **Resolved (Clarifications 2026-07-22): no** — the owner MUST hold the ProjectManager or Admin role; a TeamMember owner is rejected with 400 on create and transfer. | **Resolved** |
@@ -514,12 +546,12 @@ Emit `(actor_id, action, entity_type='Project', entity_id, timestamp, change_sum
 - **FR-006**: Listing MUST be role-scoped server-side: Admin → all projects; ProjectManager → only owned; TeamMember → only projects they are assigned to via TeamMembers.
 - **FR-007**: The scope filter MUST be applied within the database query so out-of-scope projects never appear in items, `totalCount`, or paging metadata.
 - **FR-008**: `GET /api/projects` MUST support `?page` and `?pageSize` with a configured default and maximum (Constitution VI.4), and SHOULD support `?search` and `?status`.
-- **FR-009**: Role checks MUST be declared with `[Authorize(Roles = "...")]` attributes only; ownership/assignment checks MUST be enforced in the **service layer**, never in the controller.
+- **FR-009**: Role checks MUST be declared with `[Authorize(Roles = "...")]` attributes only; ownership/assignment checks MUST be enforced in the **slice handler** (via the shared `IProjectAccessPolicy`), never in the controller.
 - **FR-010**: Update and delete MUST re-check ownership at write time; a ProjectManager acting on a project they do not own MUST receive **403**.
 - **FR-011**: An unknown project id MUST return **404**; an existing project outside the caller's scope MUST return **403** (maskable to 404 by configuration).
 - **FR-012**: Every write to Projects (create, update, delete, ownership change) MUST create an `activity_logs` entry (actor, action, entity type, entity id, timestamp, change summary) in the same transaction; for deletes the entry MUST be written before removal and MUST survive it.
 - **FR-013**: Deleting a project MUST cascade to its dependent tasks and team-member assignments; deleting a user who owns projects MUST be restricted until ownership is reassigned.
-- **FR-014**: Errors MUST be RFC 7807 Problem Details; all endpoints MUST be documented via Swagger/OpenAPI.
+- **FR-014**: Errors MUST be RFC 7807 Problem Details; the OpenAPI contract for all endpoints MUST be authored and reviewed under `/docs/contracts/` **before** the handlers are implemented (API-first, Constitution X.2), with the code validated against the contract and Swagger UI enabled in development.
 - **FR-015**: The Angular `projects` feature area MUST be lazy-loaded via route-level code splitting with standalone components (ADR-0001); all HTTP calls MUST live in a dedicated `ProjectsService` (never in components); create/edit MUST use Reactive Forms with explicit validators; a functional role-based route guard MUST be the only mechanism blocking navigation.
 - **FR-016**: All persistence MUST go through EF Core with a Code-First migration; no raw SQL and no manual DDL (Constitution IV.1, IV.2).
 - **FR-017**: Updating a project MUST use optimistic concurrency (PostgreSQL `xmin` row-version token); a stale write MUST return **409 Conflict** as Problem Details rather than silently overwriting (ADR-0004).
@@ -540,7 +572,7 @@ Emit `(actor_id, action, entity_type='Project', entity_id, timestamp, change_sum
 - **CFG-006**: Whether delete is blocked when a project has dependent tasks (default: not blocked — cascade).
 
 ## Security Rules
-- Authenticated by default; role gate via attributes only; scope gate in the service layer.
+- Authenticated by default; role gate via attributes only; scope gate in the slice handler (shared access policy).
 - Ownership derived from the token and never accepted from the body for a ProjectManager.
 - Out-of-scope rows excluded inside the query — no leakage via counts or paging.
 - Ownership re-checked at write time; deny by default when scope cannot be established.
@@ -559,7 +591,7 @@ Audit every write to Projects — create, update, delete, ownership change — w
 ## Dependencies
 - **Depends on**: [001 Auth & RBAC](../001-auth-rbac/spec.md) — Users, role model, JWT claims, `[Authorize]` conventions, ActivityLog pattern.
 - **Consumed by**: 003 Tasks (tasks belong to a project) · 004 Team (assignments target a project) · 005 Dashboard (aggregates projects) · 006 Reports (exports projects). Each inherits this feature's scoping rules as its anchor.
-- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; Serilog; Swagger/OpenAPI.
+- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; MediatR (command/query dispatch for vertical slices); Serilog; OpenAPI contract under `/docs/contracts/` + Swagger UI (dev).
 
 ## Out of Scope
 Task details and task management (003); creating/removing team-member assignments (004); dashboard aggregation (005); report export (006); authentication and the role model itself (001); project templates, cloning, archive/restore, attachments, comments, and Gantt charts (bonus scope, Constitution I.2).

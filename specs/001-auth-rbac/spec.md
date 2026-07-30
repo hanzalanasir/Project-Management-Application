@@ -10,9 +10,10 @@
 **Enables**: 002 Projects · 003 Tasks · 004 Team · 005 Dashboard · 006 Reports (every other feature consumes this feature's authentication and role checks)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.1 (Principles II Architecture, III Stack, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
-**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `CurrentUser`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
+**Governed By**: Project Constitution v1.3.0 (Principles II Architecture — vertical slice / Clean Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing, X Documentation — API-first)
+**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `CurrentUser`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation · [0006](../../docs/adr/0006-vertical-slice-clean-architecture-api-first.md) vertical slice + Clean Architecture + API-first
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
+**Revised**: 2026-07-29 — re-organized against Constitution v1.3.0 (vertical slice / Clean Architecture / API-first; II.2/IV.1/X.2/VII.3). Business rules, roles, endpoints, status codes, data model, and clarifications are unchanged — only the code-organization framing was updated. Satisfies the Governance §5 revision gate.
 
 ---
 
@@ -112,7 +113,7 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **E. DB** — writes **`users`** (Identity), **`user_roles`** (role assignment), **`activity_logs`** (audit).
 
-**F. Separation** — UI: register form + inline validation. Backend: `IAuthService.RegisterAsync` (validation, Identity `CreateAsync`, role assignment, audit). DB: user + role link + audit row. QA: duplicate reject, password never returned, weak-password reject, audit written.
+**F. Separation** — UI: register form + inline validation. Backend: `Features/Auth/Register/` slice — `RegisterCommandHandler` (validation via `RegisterCommandValidator`, Identity `CreateAsync`, role assignment, audit); the controller only `Send`s the command. DB: user + role link + audit row (handler calls `DbContext`/`UserManager` directly). QA: duplicate reject, password never returned, weak-password reject, audit written.
 
 ---
 
@@ -145,7 +146,7 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **E. DB** — reads **`users`**/**`user_roles`**; writes **`refresh_tokens`** (new token, stored hashed) and **`activity_logs`**.
 
-**F. Separation** — UI: login form + NgRx dispatch. Backend: `IAuthService.LoginAsync` + `ITokenService.CreateAccessToken/CreateRefreshToken`. DB: refresh-token persist + audit. QA: generic 401, deactivated blocked, claims/expiry correct.
+**F. Separation** — UI: login form + NgRx dispatch. Backend: `Features/Auth/Login/` slice — `LoginCommandHandler`, using the shared `ITokenService.CreateAccessToken/CreateRefreshToken`; the controller only `Send`s the command. DB: refresh-token persist + audit (handler → `DbContext` directly). QA: generic 401, deactivated blocked, claims/expiry correct.
 
 ---
 
@@ -177,7 +178,7 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **E. DB** — updates **`refresh_tokens`** (`revoked_at`); writes **`activity_logs`**.
 
-**F. Separation** — UI: dispatch + guard-driven redirect. Backend: `IAuthService.LogoutAsync` (revoke). DB: refresh-token revoke + audit. QA: revoked token unusable, idempotent logout, state cleared.
+**F. Separation** — UI: dispatch + guard-driven redirect. Backend: `Features/Auth/Logout/` slice — `LogoutCommandHandler` (revoke); the controller only `Send`s the command. DB: refresh-token revoke + audit (handler → `DbContext` directly). QA: revoked token unusable, idempotent logout, state cleared.
 
 ---
 
@@ -243,7 +244,7 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 **E. DB** — reads/updates **`refresh_tokens`** (validate, revoke old, insert new); writes **`activity_logs`**.
 
-**F. Separation** — UI: two interceptors (attach + refresh), single-flight refresh. Backend: `IAuthService.RefreshAsync` + `ITokenService.ValidateRefreshToken`. DB: rotation. QA: replay rejected, deactivated denied, single-flight, boundary expiry.
+**F. Separation** — UI: two interceptors (attach + refresh), single-flight refresh. Backend: `Features/Auth/Refresh/` slice — `RefreshCommandHandler`, using the shared `ITokenService.ValidateRefreshTokenAsync`; the controller only `Send`s the command. DB: rotation (handler → `DbContext` directly). QA: replay rejected, deactivated denied, single-flight, boundary expiry.
 
 ---
 
@@ -295,7 +296,7 @@ Within *this* feature, the role model exists so that: registration assigns a rol
 
 ## Consolidated API Catalog
 
-> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details**; documented via **Swagger/OpenAPI** (enabled in development). Authenticated-by-default; anonymous endpoints explicitly marked. Identity (user id, roles) is read from the validated token, never the body.
+> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details**. Per Constitution **X.2 (API-first)**, the OpenAPI contract for these endpoints is authored and reviewed under `/docs/contracts/` **before** the handlers are implemented, and the code is validated against it; **Swagger UI** is enabled in development for local exploration only. Authenticated-by-default; anonymous endpoints explicitly marked. Identity (user id, roles) is read from the validated token, never the body.
 
 | Method · Route | Purpose | Auth | Success | Failure |
 |---|---|---|---|---|
@@ -381,10 +382,10 @@ Set-Cookie: refresh_token=; Max-Age=0        (cookie cleared; token revoked_at s
 
 ### T.4 How a protected request flows (step by step)
 1. The user is logged in; the JWT interceptor attaches `Authorization: Bearer <accessToken>` to every outgoing request.
-2. The request hits a feature endpoint, e.g. `DELETE /api/projects/{id}` annotated `[Authorize(Roles = "Admin,ProjectManager")]`.
-3. ASP.NET Core validates the JWT signature + `exp` and materializes the `ClaimsPrincipal` (including role claims) **before** the action runs.
-4. The authorization middleware evaluates the attribute: role satisfied → action runs; not satisfied → **403**; token missing/invalid → **401**. No `if`-checks inside the method.
-5. If the action writes to `Users`, `IActivityLogService.LogAsync` records the change (actor from the token, action, entity, id, timestamp, summary).
+2. The request hits a **thin controller endpoint**, e.g. `DELETE /api/projects/{id}` annotated `[Authorize(Roles = "Admin,ProjectManager")]`, whose only body is a single `MediatR.Send(...)`.
+3. ASP.NET Core validates the JWT signature + `exp` and materializes the `ClaimsPrincipal` (including role claims) **before** the endpoint runs.
+4. The authorization middleware evaluates the attribute: role satisfied → the controller `Send`s the command/query to its slice handler via MediatR; not satisfied → **403**; token missing/invalid → **401**. The role gate is attribute-only — no `if`-checks in the controller or the handler.
+5. If the slice handler writes to `Users`, `IActivityLogService.LogAsync` records the change (actor from the token, action, entity, id, timestamp, summary).
 
 ### T.5 Token-expiry & refresh flow (client + server)
 1. Access token expires; the next request returns **401**.
@@ -461,39 +462,72 @@ Set-Cookie: refresh_token=; Max-Age=0        (cookie cleared; token revoked_at s
 - **AuditAction** (User): `UserRegistered, UserLoggedIn, UserLoggedOut, TokenRefreshed, UserDeactivated, UserSeeded`
 - **TokenType** (internal): `Access, Refresh`
 
-### B.3 Service interfaces & method signatures (C#; nullable reference types on)
-```csharp
-public interface IAuthService {
-    // Register: validate → Identity CreateAsync (hash) → assign role → audit. Never returns a password.
-    Task<Result<UserDto>>      RegisterAsync(RegisterRequest req, CancellationToken ct);
-    // Login: verify credentials → issue access+refresh pair → audit. Generic failure (no enumeration).
-    Task<Result<AuthTokens>>   LoginAsync(LoginRequest req, CancellationToken ct);
-    // Refresh: validate+rotate refresh token → new pair. Deactivated user → fail.
-    Task<Result<AuthTokens>>   RefreshAsync(string refreshToken, CancellationToken ct);
-    // Logout: revoke the presented refresh token (idempotent) → audit.
-    Task<Result>               LogoutAsync(Guid userId, string refreshToken, CancellationToken ct);
-}
+### B.3 Vertical slices, handlers & shared abstractions (C#; nullable reference types on)
 
-public interface ITokenService {
+Per Constitution **II.2**, each use-case is a self-contained **vertical slice** under
+`Features/Auth/<UseCase>/`, holding its Command-or-Query, its FluentValidation validator, its
+handler, and its response shape together — not split across shared Controllers/Services/Repositories
+folders. Controllers are **thin**: one endpoint maps one HTTP verb to a single `MediatR.Send(...)`
+and contains no business logic. Per **IV.1**, every handler below calls the EF Core `DbContext`
+(and, for identity operations, `UserManager`/`SignInManager`) **directly** as its default persistence
+path — **no Repository is introduced** (none is justified at this scale). Per **Clean Architecture**,
+the two genuinely cross-cutting capabilities (token signing/validation and audit writing) stay as
+abstractions the handlers depend on: the Application layer defines the interface, Infrastructure
+implements it; Domain depends on neither.
+
+```text
+Features/Auth/Register/          POST /api/auth/register
+  RegisterCommand(FullName, Email, Password, ConfirmPassword) : IRequest<Result<UserDto>>
+  RegisterCommandValidator       // required, email format, min length, password match
+  RegisterCommandHandler         // UserManager CreateAsync (hash) → assign TeamMember → audit; never returns a password
+  → Response: UserDto
+
+Features/Auth/Login/             POST /api/auth/login
+  LoginCommand(Email, Password) : IRequest<Result<AuthTokens>>
+  LoginCommandValidator          // required, email format
+  LoginCommandHandler            // verify credentials → ITokenService issues access+refresh pair → audit; generic failure (no enumeration)
+  → Response: AuthTokens
+
+Features/Auth/Refresh/           POST /api/auth/refresh
+  RefreshCommand(RefreshToken) : IRequest<Result<AuthTokens>>
+  RefreshCommandHandler          // ITokenService.ValidateRefreshTokenAsync → rotate (single-use) → new pair; deactivated user → fail
+  → Response: AuthTokens
+
+Features/Auth/Logout/            POST /api/auth/logout
+  LogoutCommand(UserId, RefreshToken) : IRequest<Result>
+  LogoutCommandHandler           // revoke the presented refresh token (idempotent) → audit
+  → Response: (none / 204)
+
+Features/Auth/GetCurrentUser/    GET /api/auth/me
+  GetCurrentUserQuery(UserId) : IRequest<Result<UserDto>>
+  GetCurrentUserQueryHandler     // read-only projection of the current user + role
+  → Response: UserDto
+```
+
+**Shared cross-cutting abstractions** (not slices; depended on by handlers per Clean Architecture — the interface lives in Application, the implementation in Infrastructure):
+```csharp
+public interface ITokenService {          // token signing/validation — used by Login & Refresh handlers
     string      CreateAccessToken(User user, string role);                   // signs JWT (single role claim) from config key
     string      CreateRefreshToken();                                        // opaque; caller stores the hash
     Task<RefreshToken?> ValidateRefreshTokenAsync(string presented, CancellationToken ct); // null = invalid
 }
 
-public interface IActivityLogService {   // Constitution IV.4 — every write to Users audited
+public interface IActivityLogService {    // Constitution IV.4 — every write to Users audited
     Task LogAsync(Guid? actorId, string action, string entityType, string entityId,
                   string changeSummary, CancellationToken ct);
 }
 
-public interface IDataSeeder {           // US-001-06 — idempotent
-    Task SeedAsync(CancellationToken ct); // ensure roles, then ensure one user per role; no duplicates
+public interface IDataSeeder {            // US-001-06 — a startup routine, invoked once at boot, NOT a request slice
+    Task SeedAsync(CancellationToken ct); // ensure roles, then ensure one user per role; idempotent, no duplicates
 }
+```
+```text
 // AuthTokens { string AccessToken; string RefreshToken; DateTimeOffset ExpiresAt; UserDto User; }
 // UserDto    { Guid Id; string FullName; string Email; string Role; } // exactly one role; never a password
-// Transport: the controller reads the refresh token from the httpOnly cookie and writes the rotated
+// Transport: the thin controller reads the refresh token from the httpOnly cookie and writes the rotated
 // token back as a Set-Cookie; AuthTokens.RefreshToken is never serialized into the response body.
 // Result<T>, Error/ErrorKind, and CurrentUser are defined once in docs/shared-contracts.md (ADR-0003);
-// a shared mapper converts ErrorKind to the status codes below — services never throw for expected outcomes.
+// a shared mapper converts ErrorKind to the status codes below — handlers never throw for expected outcomes.
 ```
 
 ### B.4 Configuration (never hardcoded; secrets never committed)
@@ -512,7 +546,7 @@ public interface IDataSeeder {           // US-001-06 — idempotent
 - **Security:** password hashing (Identity/PBKDF2); tokens signed; refresh tokens hashed + rotated; deny-by-default; CORS allow-list; secrets out of source.
 - **Performance:** login/refresh are single-round-trip DB operations; JWT validation is stateless (no DB hit on protected reads).
 - **Observability:** structured logging via **Serilog** (console + rolling files); auth failures logged **without** credentials.
-- **Testability (Constitution IX):** services unit-tested per branch (xUnit); each controller happy-path + one error-path via `WebApplicationFactory`; frontend guards/interceptors/validators via Jasmine+Karma.
+- **Testability (Constitution IX):** slice handlers (and shared `ITokenService`/`IActivityLogService`) unit-tested per branch (xUnit); each controller happy-path + one error-path via `WebApplicationFactory`; frontend guards/interceptors/validators via Jasmine+Karma.
 
 ### B.7 Audit event catalog (→ `activity_logs`)
 Emit `(actor_id, action, entity_type=User, entity_id, timestamp, change_summary)` for: **register** (`UserRegistered`), **login** (`UserLoggedIn`), **logout** (`UserLoggedOut`), **refresh** (`TokenRefreshed`), **deactivation** (`UserDeactivated`), **seed** (`UserSeeded`, actor = system/null). Append-only; never contains passwords or raw tokens.
@@ -526,7 +560,7 @@ Emit `(actor_id, action, entity_type=User, entity_id, timestamp, change_summary)
 6. Every write to `Users` produces an `activity_logs` row.
 7. CORS is an explicit allow-list; JWT key + connection string come from user secrets/env, not source control.
 8. The Angular `auth` route group is lazy-loaded with standalone components (no `@NgModule`); functional JWT + 401 interceptors and functional route guards are in place; forms are Reactive with validators and the shared error-display component; auth state lives in NgRx.
-9. Swagger/OpenAPI documents all endpoints; the backend compiles warnings-as-errors with nullable enabled; the frontend compiles in strict mode.
+9. The OpenAPI contract for all endpoints is authored/reviewed under `/docs/contracts/` **before** the handlers and the code is validated against it (API-first, X.2), with Swagger UI enabled in development; the backend compiles warnings-as-errors with nullable enabled; the frontend compiles in strict mode.
 10. Unit + integration tests pass (Constitution IX.3 — no merge on failing tests).
 
 ### B.9 Open questions for review
@@ -557,7 +591,7 @@ Emit `(actor_id, action, entity_type=User, entity_id, timestamp, change_summary)
 - **FR-011**: Auth forms MUST use Reactive Forms with explicit validators, surfacing errors through a consistent error-display component; auth session/current user MUST be held in NgRx.
 - **FR-012**: Seeding MUST provision three roles and one Admin, one ProjectManager, one TeamMember on an empty database, MUST be idempotent (no duplicates on re-run), and MUST take seed credentials from configuration, not hardcoded secrets.
 - **FR-013**: Every write to `Users` MUST create an `activity_logs` entry (actor, action, entity type, entity id, timestamp, change summary).
-- **FR-014**: Errors MUST be returned as RFC 7807 Problem Details JSON; endpoints MUST be documented via Swagger/OpenAPI.
+- **FR-014**: Errors MUST be returned as RFC 7807 Problem Details JSON; the OpenAPI contract for all endpoints MUST be authored and reviewed under `/docs/contracts/` **before** the handlers are implemented (API-first, Constitution X.2), with the code validated against the contract and Swagger UI enabled in development.
 - **FR-015**: CORS MUST use an explicit origin allow-list (no wildcard outside local dev); the JWT signing key and connection string MUST come from user secrets (dev) or environment/secret store (prod) and MUST NOT be committed.
 - **FR-016**: The refresh token MUST be transported only as an httpOnly, Secure, SameSite cookie (never JavaScript-readable, never in the response body); the cookie-authenticated `/refresh` and `/logout` endpoints MUST be CSRF-protected (SameSite + anti-forgery).
 
@@ -594,7 +628,7 @@ Audit every user write — register, login, logout, refresh, deactivation, seed 
 
 ## Dependencies
 - **Consumed by** features 002 Projects, 003 Tasks, 004 Team, 005 Dashboard, 006 Reports — each declares its role requirement via `[Authorize(Roles=...)]` and relies on the JWT/role claims this feature issues.
-- **Infrastructure**: PostgreSQL 18; Serilog; Swagger/OpenAPI; .NET user secrets (dev) / secret store (prod).
+- **Infrastructure**: PostgreSQL 18; MediatR (command/query dispatch for vertical slices); Serilog; OpenAPI contract under `/docs/contracts/` + Swagger UI (dev); .NET user secrets (dev) / secret store (prod).
 
 ## Out of Scope
 SSO / external identity providers; social login; MFA; password-reset and email-verification flows; user-profile management beyond authentication; resource-level ownership rules (owned by each resource's feature).

@@ -10,9 +10,10 @@
 **Enables**: 005 Dashboard · 006 Reports (both aggregate Tasks)
 **Created**: 2026-07-22
 **Status**: Draft — Ready for Planning
-**Governed By**: Project Constitution v1.1.1 (Principles II Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing)
-**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision`, `PagedResult<T>`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation
+**Governed By**: Project Constitution v1.3.0 (Principles II Architecture — vertical slice / Clean Architecture, III Stack, IV Data Access, V Security & Authorization, VI API Design, VII Frontend, VIII Code Quality, IX Testing, X Documentation — API-first)
+**Cross-cutting contracts**: [docs/shared-contracts.md](../../docs/shared-contracts.md) — `Result<T>`, `ErrorKind`, `CurrentUser`, `AccessDecision`, `PagedResult<T>`, error→HTTP mapping · ADRs [0001](../../docs/adr/0001-angular-standalone-components.md) standalone Angular · [0002](../../docs/adr/0002-same-origin-hosting.md) same-origin hosting · [0003](../../docs/adr/0003-result-error-contract.md) error contract · [0004](../../docs/adr/0004-optimistic-concurrency.md) concurrency · [0005](../../docs/adr/0005-mapping-and-validation.md) mapping/validation · [0006](../../docs/adr/0006-vertical-slice-clean-architecture-api-first.md) vertical slice + Clean Architecture + API-first
 **Generated Via**: `/speckit.specify` (merged requirements + solution design, per project convention)
+**Revised**: 2026-07-29 — re-organized against Constitution v1.3.0 (vertical slice / Clean Architecture / API-first; II.2/IV.1/X.2/VII.3). Business rules, roles, endpoints, status codes, data model, and clarifications are unchanged — only the code-organization framing was updated. Satisfies the Governance §5 revision gate.
 
 ---
 
@@ -50,8 +51,8 @@ Enforced **server-side**, in this order:
 
 1. **Authenticated by default** — every endpoint requires a valid JWT (inherited from 001). No/invalid/expired token → **401**.
 2. **Role gate (controller, attribute-only)** — `[Authorize(Roles = "...")]`. Task **creation, deletion, and reassignment** permit `Admin,ProjectManager`; reads and status updates permit all three roles. A role that is not permitted → **403**. Ad-hoc role checks in method bodies remain prohibited (Constitution V.2).
-3. **Scope gate (service)** — *may this user touch this task at all?* Admin unscoped; ProjectManager scoped to tasks whose parent project they own; TeamMember scoped to tasks assigned to them. Out of scope → **403**.
-4. **Mutation gate (service)** — *how much of it may they change?* The same TeamMember who passes the scope gate for a read is refused a `FullEdit`, `Reassign`, or `Delete` and permitted only a `StatusChange`. This is the graduated layer this feature adds, and it lives inside `CanMutateAsync` — never in the attribute, never in the controller (Constitution II.2).
+3. **Scope gate (slice handler)** — *may this user touch this task at all?* Admin unscoped; ProjectManager scoped to tasks whose parent project they own; TeamMember scoped to tasks assigned to them. Out of scope → **403**. The handler resolves this via the shared `ITaskAccessPolicy`.
+4. **Mutation gate (slice handler)** — *how much of it may they change?* The same TeamMember who passes the scope gate for a read is refused a `FullEdit`, `Reassign`, or `Delete` and permitted only a `StatusChange`. This is the graduated layer this feature adds, and it lives inside the shared `ITaskAccessPolicy.CanMutateAsync` that the handler calls — never in the attribute, never in the controller (Constitution II.2).
 5. **Identity from the token** — the acting user comes from `ICurrentUserService` reading the validated JWT, never from the request body.
 6. **Deny by default** — if scope or mutation permission cannot be established, the request is denied. Frontend guards and conditionally rendered controls are convenience only.
 
@@ -119,7 +120,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — writes **`tasks`** (FK `project_id` → `projects`, FK `assignee_id` → `users`), **`activity_logs`**.
 
-**F. Separation** — UI: create form + project-scoped assignee picker. Backend: `ITaskService.CreateAsync` → `CanMutateAsync(…, TaskMutation.Create, …)` → assignee-pool + date-window validation → persist → audit. DB: task row + audit row in one transaction. QA: cross-project 403, TeamMember 403, invalid-assignee 400, date-window 400, 201 + Location.
+**F. Separation** — UI: create form + project-scoped assignee picker. Backend: `Features/Tasks/CreateTask/` slice — `CreateTaskCommandHandler` → `ITaskAccessPolicy.CanMutateAsync(Create)` → assignee-pool + date-window validation → persist → audit; the controller only `Send`s the command. DB: task row + audit row in one transaction (handler → `DbContext` directly). QA: cross-project 403, TeamMember 403, invalid-assignee 400, date-window 400, 201 + Location.
 
 ---
 
@@ -153,7 +154,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — reads **`tasks`**, joining **`projects`** for ProjectManager scope resolution. Indexes lead with `project_id` and `assignee_id`.
 
-**F. Separation** — UI: list + filters + paginator + states. Backend: `ITaskAccessPolicy.ApplyScope` composes the scope predicate; `ITaskService.ListAsync` layers filter/search/sort/paging on top. DB: indexed scope + paging query. QA: three-role scope matrix (**primary acceptance test**), filter-cannot-widen-scope, clamped `pageSize`, empty state.
+**F. Separation** — UI: list + filters + paginator + states. Backend: `ListTasksQueryHandler` composes `ITaskAccessPolicy.ApplyScope` then layers filter/search/sort/paging on top (one handler serves both the nested and cross-project routes); the controller only `Send`s the query. DB: indexed scope + paging query (handler → `DbContext` directly). QA: three-role scope matrix (**primary acceptance test**), filter-cannot-widen-scope, clamped `pageSize`, empty state.
 
 ---
 
@@ -186,7 +187,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — reads **`tasks`** (+ `projects`, `users` for display); joins `projects` for ProjectManager scope.
 
-**F. Separation** — UI: detail view + states. Backend: `ITaskService.GetByIdAsync` → `CanReadAsync`. DB: single read + scope join. QA: 200/403/404 matrix per role, malformed id, deleted-in-flight.
+**F. Separation** — UI: detail view + states. Backend: `GetTaskByIdQueryHandler` → `ITaskAccessPolicy.CanReadAsync`; the controller only `Send`s the query. DB: single read + scope join (handler → `DbContext` directly). QA: 200/403/404 matrix per role, malformed id, deleted-in-flight.
 
 ---
 
@@ -220,7 +221,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — updates **`tasks`**; writes **`activity_logs`**.
 
-**F. Separation** — UI: edit form + conflict UX. Backend: `ITaskService.UpdateAsync` → `CanMutateAsync(FullEdit)` → validate → persist → audit. DB: update + audit + `xmin` check. QA: cross-project 403, **assignee-refused-full-edit 403**, validation 400, concurrency 409.
+**F. Separation** — UI: edit form + conflict UX. Backend: `UpdateTaskCommandHandler` → `ITaskAccessPolicy.CanMutateAsync(FullEdit)` → validate → persist → audit; the controller only `Send`s the command. DB: update + audit + `xmin` check (handler → `DbContext` directly). QA: cross-project 403, **assignee-refused-full-edit 403**, validation 400, concurrency 409.
 
 ---
 
@@ -255,7 +256,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — updates **`tasks.status`** and, as a system side effect when crossing the `Done` boundary, **`tasks.closed_at`** (set on entry to `Done`, cleared on re-open); writes **`activity_logs`**. The bound DTO remains **status-only** — `closed_at` is derived, not accepted.
 
-**F. Separation** — UI: status control only. Backend: `ITaskService.UpdateStatusAsync` → `CanMutateAsync(StatusChange)`; a dedicated status-only DTO, with `closed_at` set/cleared server-side as a derived effect. DB: status update + derived `closed_at` side effect + audit. QA: **assignee-allowed vs. non-assignee-refused on the same row**, extra-fields-ignored, invalid status 400, concurrency 409, **`closed_at` set-on-`Done` / cleared-on-re-open**.
+**F. Separation** — UI: status control only. Backend: `UpdateTaskStatusCommandHandler` → `ITaskAccessPolicy.CanMutateAsync(StatusChange)`; a dedicated status-only command, with `closed_at` set/cleared server-side as a derived effect; the controller only `Send`s the command. DB: status update + derived `closed_at` side effect + audit. QA: **assignee-allowed vs. non-assignee-refused on the same row**, extra-fields-ignored, invalid status 400, concurrency 409, **`closed_at` set-on-`Done` / cleared-on-re-open**.
 
 ---
 
@@ -288,7 +289,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — deletes from **`tasks`**; writes **`activity_logs`** (retained).
 
-**F. Separation** — UI: confirm dialog + list refresh. Backend: `ITaskService.DeleteAsync` → `CanMutateAsync(Delete)` → audit → delete. DB: delete + retained audit. QA: cross-project 403, assignee-refused 403, audit-before-delete, double-delete 404.
+**F. Separation** — UI: confirm dialog + list refresh. Backend: `DeleteTaskCommandHandler` → `ITaskAccessPolicy.CanMutateAsync(Delete)` → audit → delete; the controller only `Send`s the command. DB: delete + retained audit. QA: cross-project 403, assignee-refused 403, audit-before-delete, double-delete 404.
 
 ---
 
@@ -322,7 +323,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 **E. DB** — updates **`tasks.assignee_id`**; reads **`team_members`** (004) to validate; writes **`activity_logs`**.
 
-**F. Separation** — UI: project-scoped assignee picker. Backend: `ITaskService.ReassignAsync` → `CanMutateAsync(Reassign)` → pool validation → persist → audit. DB: single-column update + validation join + audit. QA: outside-pool 400, TeamMember-refused 403, deactivated-user 400, unassign path, audit from→to.
+**F. Separation** — UI: project-scoped assignee picker. Backend: `ReassignTaskCommandHandler` → `ITaskAccessPolicy.CanMutateAsync(Reassign)` → pool validation (reads shared `team_members`, no 004-handler call) → persist → audit; the controller only `Send`s the command. DB: single-column update + validation join + audit. QA: outside-pool 400, TeamMember-refused 403, deactivated-user 400, unassign path, audit from→to.
 
 ---
 
@@ -347,9 +348,9 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Consolidated API Catalog
 
-> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** produced by the shared `ErrorKind` mapper ([shared-contracts §1](../../docs/shared-contracts.md)); documented via **Swagger/OpenAPI**. Authenticated by default (001). Sub-resource routes use **nouns** (`/status`, `/assignee`), never verbs, per Constitution II.3.
+> Base path `/api`; JSON over HTTPS; errors as **RFC 7807 Problem Details** produced by the shared `ErrorKind` mapper ([shared-contracts §1](../../docs/shared-contracts.md)). Per Constitution **X.2 (API-first)**, the OpenAPI contract for these routes is authored and reviewed under `/docs/contracts/` **before** the handlers are implemented, and the code is validated against it; **Swagger UI** is enabled in development for local exploration only. Authenticated by default (001). Sub-resource routes use **nouns** (`/status`, `/assignee`), never verbs, per Constitution II.3.
 
-| Method · Route | Purpose | Role gate | Service gate | Success | Failure |
+| Method · Route | Purpose | Role gate | Access gate (in handler) | Success | Failure |
 |---|---|---|---|---|---|
 | `GET /api/projects/{projectId}/tasks` | Tasks in one project, paged | `[Authorize]` (all 3) | `ApplyScope` | **200** `PagedResult<T>` | 400, 401, 403, 404 |
 | `GET /api/tasks` | Cross-project list (e.g. "my work"), paged | `[Authorize]` (all 3) | `ApplyScope` | **200** `PagedResult<T>` | 400, 401 |
@@ -367,7 +368,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 > The detailed solution: the components, exact requests/responses, how the mutation gate resolves, the step-by-step flows, failure handling, and security guarantees. Written so a developer can implement it directly.
 
 ### T.1 The roles (who is authority, who enforces)
-- **The .NET API is the authority.** The controller declares the **role gate**; the **service layer** owns the scope gate, the mutation gate, and every business rule. Controllers do model binding, validation, and delegation only (Constitution II.2).
+- **The .NET API is the authority.** The **thin controller** declares the **role gate** (`[Authorize(Roles=...)]`) and does nothing but `MediatR.Send(...)`; the **slice handler** owns the scope gate, the mutation gate (via the shared `ITaskAccessPolicy`), and every business rule. No business logic lives in the controller (Constitution II.2).
 - **The Angular frontend is convenience.** Guards and conditionally enabled controls shape what a user *sees*; the API re-checks every request. A TeamMember who hand-crafts a `PUT /api/tasks/{id}` still receives **403**.
 
 ### T.2 The graduated mutation model (the heart of this feature)
@@ -393,9 +394,9 @@ public enum TaskMutation { Create, FullEdit, StatusChange, Reassign, Delete }
 
 Two mechanisms enforce it together, deliberately belt-and-braces:
 1. **Separate narrow endpoints** with **narrow DTOs** — `PUT /api/tasks/{id}/status` binds a status-only DTO, so a widened payload is *structurally* incapable of changing the title. Privilege escalation by extra JSON field is impossible, not merely rejected.
-2. **The mutation gate** — `CanMutateAsync(task, mutation, caller)` is still consulted, so the rule is enforced even if a future endpoint reuses the service.
+2. **The mutation gate** — `CanMutateAsync(task, mutation, caller)` is still consulted, so the rule is enforced even if a future slice reuses the shared `ITaskAccessPolicy`.
 
-> **Why not one `[Authorize]` policy per operation?** The permitted set depends on *row facts* (who owns the parent project, who is assigned) that are unknown until the entity is loaded. Attributes run before that. Constitution II.2 also places business rules in Services. Hence the split: role in the attribute, everything row-dependent in `ITaskAccessPolicy`.
+> **Why not one `[Authorize]` policy per operation?** The permitted set depends on *row facts* (who owns the parent project, who is assigned) that are unknown until the entity is loaded. Attributes run before that. Constitution II.2 also places business rules in the slice handler. Hence the split: role in the attribute, everything row-dependent in the shared `ITaskAccessPolicy` the handler calls.
 
 ### T.3 The endpoints, with concrete examples
 
@@ -480,8 +481,8 @@ DELETE /api/tasks/9ac41f02-…-e5      Authorization: Bearer eyJ…  (role=Proje
 
 ### T.5 How a write flows (step by step)
 1. The role gate admits or refuses the caller (**403** before any data is touched for a disallowed role).
-2. The controller binds the **operation-specific DTO** (full-edit / status-only / assignee-only) and runs its FluentValidation validator (ADR-0005), then delegates to `ITaskService`.
-3. The service loads the task with its parent project. Not found → `ErrorKind.NotFound` → **404**.
+2. The **thin controller** `Send`s the **operation-specific command** (full-edit / status-only / assignee-only); a **MediatR validation behaviour** runs its FluentValidation validator (ADR-0005); then the **slice handler** executes — no business logic in the controller.
+3. The handler loads the task with its parent project from the `DbContext`. Not found → `ErrorKind.NotFound` → **404**.
 4. `CanMutateAsync(task, mutation, caller)` evaluates the **scope and mutation** gates together against the matrix in T.2 → `ErrorKind.Forbidden` → **403** when refused.
 5. Business validation that needs the database runs here: assignee ∈ project's team pool, assignee is active, `dueDate` within the project's start/end window → `ErrorKind.Validation` → **400**.
 6. The change is applied; `IActivityLogService.LogAsync` writes the audit row (actor, action, `Task`, id, timestamp, change summary) — **for deletes, before removal**.
@@ -543,37 +544,74 @@ DELETE /api/tasks/9ac41f02-…-e5      Authorization: Bearer eyJ…  (role=Proje
 - **TaskMutation** (authorization input, not persisted): `Create, FullEdit, StatusChange, Reassign, Delete`
 - **AuditAction** (Task): `TaskCreated, TaskUpdated, TaskStatusChanged, TaskReassigned, TaskDeleted`
 
-### B.3 Service interfaces & method signatures (C#; nullable reference types on)
-```csharp
-public interface ITaskService {
-    Task<Result<PagedResult<TaskSummaryDto>>> ListAsync(TaskQuery query, CurrentUser caller, CancellationToken ct);
-    Task<Result<TaskDetailDto>> GetByIdAsync(Guid taskId, CurrentUser caller, CancellationToken ct);
-    // projectId comes from the ROUTE, never the body. Validates assignee pool + due-date window. Audits TaskCreated.
-    Task<Result<TaskDetailDto>> CreateAsync(Guid projectId, CreateTaskRequest req, CurrentUser caller, CancellationToken ct);
-    // Full edit — refused for a TeamMember even on their own assigned task. Audits TaskUpdated.
-    Task<Result<TaskDetailDto>> UpdateAsync(Guid taskId, UpdateTaskRequest req, CurrentUser caller, CancellationToken ct);
-    // Narrow write: status only. Permitted for the assignee. Audits TaskStatusChanged (from→to).
-    Task<Result<TaskDetailDto>> UpdateStatusAsync(Guid taskId, UpdateTaskStatusRequest req, CurrentUser caller, CancellationToken ct);
-    // Validates the candidate against the project's team pool (004) without mutating it. Audits TaskReassigned.
-    Task<Result<TaskDetailDto>> ReassignAsync(Guid taskId, ReassignTaskRequest req, CurrentUser caller, CancellationToken ct);
-    // Audits TaskDeleted BEFORE removal; the audit row is retained.
-    Task<Result> DeleteAsync(Guid taskId, CurrentUser caller, CancellationToken ct);
-}
+### B.3 Vertical slices, handlers & shared abstractions (C#; nullable reference types on)
 
-// The scope AND mutation gates — the layer no [Authorize] attribute can express (T.2).
+Per Constitution **II.2**, each use-case is a self-contained **vertical slice** under
+`Features/Tasks/<UseCase>/`, holding its Command-or-Query, its FluentValidation validator, its handler,
+and its response shape together. Controllers are **thin**: one endpoint maps one HTTP verb to a single
+`MediatR.Send(...)` (the Layer-1 role gate stays on the endpoint as `[Authorize(Roles=...)]`). Per
+**IV.1**, every handler calls the EF Core `DbContext` **directly** — **no Repository is introduced**.
+Per **Clean Architecture**, the scope + graduated-mutation gate that no attribute can express (T.2) and
+that every slice shares stays as the `ITaskAccessPolicy` abstraction: a **shared-kernel** interface
+declared in [docs/shared-contracts.md §3](../../docs/shared-contracts.md) (**not** in this feature's
+Application layer), which this feature implements and 005/006 reuse without depending on 003's
+Application layer.
+
+```text
+Features/Tasks/CreateTask/       POST /api/projects/{projectId}/tasks   [Authorize(Roles="Admin,ProjectManager")]
+  CreateTaskCommand(ProjectId, Title, Description, Priority, DueDate, AssigneeId?) : IRequest<Result<TaskDetailDto>>
+  CreateTaskCommandValidator     // required title, due-date within project window (ADR-0005), max lengths
+  CreateTaskCommandHandler       // projectId from ROUTE; CanMutateAsync(Create); assignee-pool + date-window validation; audit TaskCreated
+  → Response: TaskDetailDto
+
+Features/Tasks/ListTasks/        GET /api/projects/{projectId}/tasks AND GET /api/tasks   [Authorize] (all 3)
+  ListTasksQuery(Page, PageSize, ProjectId?, Status?, AssigneeId?, Search?, Sort?) : IRequest<Result<PagedResult<TaskSummaryDto>>>
+  ListTasksQueryHandler          // ITaskAccessPolicy.ApplyScope → filter/search/sort/paging; one handler serves both routes
+  → Response: PagedResult<TaskSummaryDto>
+
+Features/Tasks/GetTaskById/      GET /api/tasks/{id}                    [Authorize] (all 3)
+  GetTaskByIdQuery(TaskId) : IRequest<Result<TaskDetailDto>>
+  GetTaskByIdQueryHandler        // 404 if unknown; ITaskAccessPolicy.CanReadAsync → 403 if outside scope
+  → Response: TaskDetailDto
+
+Features/Tasks/UpdateTask/       PUT /api/tasks/{id}                    [Authorize(Roles="Admin,ProjectManager")]
+  UpdateTaskCommand(TaskId, Title, Description, Priority, DueDate) : IRequest<Result<TaskDetailDto>>
+  UpdateTaskCommandValidator     // same validators as create
+  UpdateTaskCommandHandler       // CanMutateAsync(FullEdit) — refused for a TeamMember even on their own task; xmin→409; audit TaskUpdated
+  → Response: TaskDetailDto
+
+Features/Tasks/UpdateTaskStatus/ PUT /api/tasks/{id}/status             [Authorize] (all 3)
+  UpdateTaskStatusCommand(TaskId, Status) : IRequest<Result<TaskDetailDto>>   // status-only DTO — nothing else bindable
+  UpdateTaskStatusCommandHandler // CanMutateAsync(StatusChange); closed_at set/cleared server-side as a derived effect; audit TaskStatusChanged (from→to)
+  → Response: TaskDetailDto
+
+Features/Tasks/ReassignTask/     PUT /api/tasks/{id}/assignee           [Authorize(Roles="Admin,ProjectManager")]
+  ReassignTaskCommand(TaskId, AssigneeId?) : IRequest<Result<TaskDetailDto>>
+  ReassignTaskCommandHandler     // CanMutateAsync(Reassign); validates candidate ∈ project's team_members pool (read-only); audit TaskReassigned (from→to)
+  → Response: TaskDetailDto
+
+Features/Tasks/DeleteTask/       DELETE /api/tasks/{id}                 [Authorize(Roles="Admin,ProjectManager")]
+  DeleteTaskCommand(TaskId) : IRequest<Result>
+  DeleteTaskCommandHandler       // CanMutateAsync(Delete); audit TaskDeleted BEFORE removal; audit row retained
+  → Response: (none / 204)
+```
+
+**Shared cross-cutting abstraction** (not a slice; depended on by every handler per Clean Architecture):
+```csharp
+// The scope AND graduated-mutation gates — the layer no [Authorize] attribute can express (T.2).
 public interface ITaskAccessPolicy {
     IQueryable<TaskItem> ApplyScope(IQueryable<TaskItem> source, CurrentUser caller);   // Admin=all · PM=owned projects · TM=assigned
     Task<AccessDecision> CanReadAsync(TaskItem task, CurrentUser caller, CancellationToken ct);
     Task<AccessDecision> CanMutateAsync(TaskItem task, TaskMutation mutation, CurrentUser caller, CancellationToken ct);
 }
-
-// TaskQuery { int Page; int PageSize; Guid? ProjectId; TaskStatus? Status; Guid? AssigneeId; string? Search; string? Sort; }
-// Result<T>, ErrorKind, CurrentUser, AccessDecision, and PagedResult<T> are defined once in
-// docs/shared-contracts.md (ADR-0003) and reused verbatim — not redefined here.
-// Entity → DTO mapping uses manual static extension methods; write DTOs are validated with
-// FluentValidation (title, enum ranges, due-date window). See ADR-0005.
 ```
-`IActivityLogService` is **reused from 001**; `IProjectService`/`Project` ownership comes from **002**. Neither is redefined here.
+```text
+// Command/Query records carry the fields above; Result<T>, ErrorKind, CurrentUser, AccessDecision, and
+// PagedResult<T> are defined once in docs/shared-contracts.md (ADR-0003) and reused verbatim — not redefined here.
+// Entity → DTO mapping uses manual static extension methods; write commands are validated with
+// FluentValidation (title, enum ranges, due-date window) as a MediatR pipeline behaviour. See ADR-0005.
+```
+**Cross-feature dependencies point at shared Domain, never at another feature's handler** (Clean Architecture, cross-check per ADR-0006): the ProjectManager scope reads the shared **`Project`** entity directly (`t.Project.OwnerId == caller.UserId`) via the `DbContext`, and assignee validation reads the shared **`team_members`** entity directly — both are shared Domain entities in the single EF model (002 owns Projects' rules, 004 owns Team's rules, but their *tables/entities* exist for all features). This feature does **not** call 002's or 004's slice handlers. `IActivityLogService` is **reused from 001**.
 
 ### B.4 Configuration (never hardcoded)
 - `Tasks:Paging:{DefaultPageSize,MaxPageSize}` (20 / 100)
@@ -589,10 +627,10 @@ Produced by the shared `ErrorKind` → status mapper ([shared-contracts §1](../
 `400` validation (per-field `errors` — title, enum range, due-date window, assignee not in pool, inactive assignee, paging bounds) · `401` `Authentication required` · `403` `Forbidden` (role gate) / scope denial / **mutation denial with the narrower right named** · `404` `Task not found` · `409` `Conflict` (stale row version) · `500` `Unexpected error`. Never leak an out-of-scope task's data in an error body.
 
 ### B.6 Non-functional requirements
-- **Security:** deny-by-default; scope enforced in SQL; mutation kind enforced in the service and structurally by narrow DTOs; write-time re-check.
+- **Security:** deny-by-default; scope enforced in SQL; mutation kind enforced in the slice handler (via the shared policy) and structurally by narrow DTOs; write-time re-check.
 - **Performance:** list is a single round-trip with scope+filter+paging pushed to the database; indexes lead with `project_id`/`assignee_id`; no N+1 on project or assignee (projection or `Include`). Tasks is the highest-volume entity, so paging is mandatory from day one.
 - **Observability:** structured logging via **Serilog**; authorization denials logged with actor, task id, attempted `TaskMutation`, and reason.
-- **Testability (Constitution IX):** every `ITaskAccessPolicy` branch unit-tested — the full `TaskMutation` × role matrix (15 cells) is a table-driven xUnit test; each controller happy path + one error path via `WebApplicationFactory`; frontend `TasksService`, guards, and form validators via Jasmine+Karma.
+- **Testability (Constitution IX):** every `ITaskAccessPolicy` branch and slice handler unit-tested — the full `TaskMutation` × role matrix (15 cells) is a table-driven xUnit test; each controller happy path + one error path via `WebApplicationFactory`; frontend `TasksService`, guards, and form validators via Jasmine+Karma.
 
 ### B.7 Audit event catalog (→ `activity_logs`, defined in 001)
 Emit `(actor_id, action, entity_type='Task', entity_id, timestamp, change_summary)` for: **create** (`TaskCreated`), **full edit** (`TaskUpdated`, changed-field summary), **status change** (`TaskStatusChanged`, from→to — its `change_summary` also reflects `closed_at` being set on entry to `Done` or cleared on re-open; **no new audit event type is introduced**), **reassignment** (`TaskReassigned`, from→to), **delete** (`TaskDeleted`, snapshot, written before removal). Reads are not audited. Append-only; audit rows are never cascaded away.
@@ -609,7 +647,7 @@ Emit `(actor_id, action, entity_type='Task', entity_id, timestamp, change_summar
 9. Every write produces an `activity_logs` row in the same transaction; delete audits before removal and the audit survives; deleting a **project** cascades its tasks while their audit rows remain.
 10. Concurrent writes to one task are rejected with **409** (stale `xmin`), proven by an integration test — never a silent overwrite.
 11. The Angular `tasks` route group is lazy-loaded with standalone components (no `@NgModule`); all HTTP lives in `TasksService`; create/edit use Reactive Forms with explicit validators; functional role guards are the only navigation block.
-12. Errors are RFC 7807 via the shared mapper; all endpoints appear in Swagger; backend compiles warnings-as-errors with nullable enabled; frontend compiles in strict mode.
+12. Errors are RFC 7807 via the shared mapper; the OpenAPI contract for all endpoints is authored/reviewed under `/docs/contracts/` **before** the handlers and the code is validated against it (API-first, X.2), with Swagger UI enabled in development; backend compiles warnings-as-errors with nullable enabled; frontend compiles in strict mode.
 13. Unit + integration tests pass (Constitution IX.3 — no merge on failing tests).
 
 ### B.9 Open questions for review
@@ -633,7 +671,7 @@ Emit `(actor_id, action, entity_type='Task', entity_id, timestamp, change_summar
 - **FR-003**: On create, `project_id` MUST be taken from the route and MUST NOT be accepted from the request body; `project_id` MUST be immutable thereafter.
 - **FR-004**: An assignee MUST be a team member on the task's project and MUST be active; violations return **400**.
 - **FR-005**: A task's `due_date`, when set, MUST fall within the parent project's start/end window; violations return **400**.
-- **FR-006**: Role checks MUST be declared with `[Authorize(Roles = "...")]` attributes only; scope (project ownership / assignment) and **mutation-kind** checks MUST be enforced in the service layer via `AccessDecision`, never in the controller.
+- **FR-006**: Role checks MUST be declared with `[Authorize(Roles = "...")]` attributes only; scope (project ownership / assignment) and **mutation-kind** checks MUST be enforced in the slice handler via the shared `ITaskAccessPolicy` returning an `AccessDecision`, never in the controller.
 - **FR-007**: TeamMember MUST be denied create, full edit, reassign, and delete with **403**, **and** MUST be permitted to change the status of tasks assigned to them.
 - **FR-008**: Status updates MUST use a dedicated status-only endpoint and DTO so that no other field can be altered by that request.
 - **FR-009**: Listing MUST be role-scoped server-side: Admin → all; ProjectManager → tasks in owned projects; TeamMember → tasks assigned to them. Query filters MUST only narrow the scope, never widen it.
@@ -644,7 +682,7 @@ Emit `(actor_id, action, entity_type='Task', entity_id, timestamp, change_summar
 - **FR-014**: Every write to Tasks MUST create an `activity_logs` entry (actor, action, entity type, entity id, timestamp, change summary) in the same transaction; deletes MUST audit before removal and the entry MUST survive.
 - **FR-015**: Deleting a **project** MUST cascade-delete its tasks; deleting a **user** who is assigned tasks MUST be restricted until those tasks are reassigned or removed.
 - **FR-016**: Updating a task MUST use optimistic concurrency (`xmin`); a stale write MUST return **409 Conflict** rather than silently overwriting (ADR-0004).
-- **FR-017**: Errors MUST be RFC 7807 Problem Details produced by the shared `ErrorKind` mapper; all endpoints MUST be documented via Swagger/OpenAPI.
+- **FR-017**: Errors MUST be RFC 7807 Problem Details produced by the shared `ErrorKind` mapper; the OpenAPI contract for all endpoints MUST be authored and reviewed under `/docs/contracts/` **before** the handlers are implemented (API-first, Constitution X.2), with the code validated against the contract and Swagger UI enabled in development.
 - **FR-018**: The Angular `tasks` feature area MUST be lazy-loaded via route-level code splitting with standalone components (ADR-0001); all HTTP MUST live in a dedicated `TasksService` (never in components); create/edit MUST use Reactive Forms with explicit validators; a functional role-based route guard MUST be the only mechanism blocking navigation.
 - **FR-019**: All persistence MUST go through EF Core with a Code-First migration; no raw SQL and no manual DDL (Constitution IV.1, IV.2).
 
@@ -665,7 +703,7 @@ Emit `(actor_id, action, entity_type='Task', entity_id, timestamp, change_summar
 - **CFG-007**: Max lengths for `title` and `description`.
 
 ## Security Rules
-- Authenticated by default; role gate via attributes only; scope **and** mutation gates in the service layer.
+- Authenticated by default; role gate via attributes only; scope **and** mutation gates in the slice handler (shared `ITaskAccessPolicy`).
 - Narrow endpoints bind narrow DTOs, so privilege cannot be widened by payload.
 - `project_id` from the route on create; immutable thereafter.
 - Out-of-scope rows excluded inside the query — no leakage via counts or paging.
@@ -687,7 +725,7 @@ Audit every write to Tasks — create, full edit, status change, reassignment, d
 - **Reads (does not mutate)**: feature 004's `team_members` pool, to validate assignees.
 - **Consumed by**: 005 Dashboard (task counts/aggregates by status, assignee, project) · 006 Reports (task exports). Both inherit this feature's scoping rules.
 - **`closed_at` supports 006 Reports:** the nullable `closed_at` timestamp on `tasks` exists specifically so 006 Reports can compute **Task Completion** trends and **Project Progress** "closed" counts from an accurate completion time — one that, unlike `updated_at`, a later edit to a done task will not move.
-- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; Serilog; Swagger/OpenAPI.
+- **Infrastructure**: PostgreSQL 18 via EF Core 10 + Npgsql; MediatR (command/query dispatch for vertical slices); Serilog; OpenAPI contract under `/docs/contracts/` + Swagger UI (dev).
 
 ## Out of Scope
 Managing the team-member/assignment pool — creating or removing `team_members` rows (004); the Project entity and ownership rule (002); authentication and the role model (001); dashboard aggregation (005); report export (006); Gantt/timeline views, task dependencies, sub-tasks, comments, attachments, time tracking, and recurring tasks (bonus scope, Constitution I.2).
