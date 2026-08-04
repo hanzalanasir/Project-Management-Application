@@ -1,0 +1,325 @@
+openapi: 3.0.3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHORED BY HAND. This file is the CONTRACT; the code is validated against it
+# (Constitution X.2, API-first). Do NOT regenerate this file from Swashbuckle.
+#
+# Feature .... 001 Auth & RBAC  (specs/001-auth-rbac/spec.md)
+# Version .... OpenAPI 3.0.3 — deliberately matches Swashbuckle's default output
+#              version so `oasdiff` reports real differences, not dialect noise.
+# Drift gate . CI runs:
+#                dotnet swagger tofile --output artifacts/openapi/generated.json <Api.dll> v1
+#                oasdiff breaking docs/contracts/auth.v1.yaml artifacts/openapi/generated.json --fail-on ERR
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: ProjectManagementApp API — Auth & RBAC
+  version: "1.0.0"
+  description: >
+    Authentication, token lifecycle, and the role model every other feature builds on.
+    Access tokens are short-lived JWTs carrying exactly one `role` claim. Refresh tokens are
+    opaque, stored hashed server-side, and transported **only** as an httpOnly Secure
+    SameSite=Strict cookie — never in a response body, never readable by JavaScript.
+
+servers:
+  - url: /api
+    description: Same-origin (the API serves the Angular bundle; `ng serve` proxies /api — ADR-0002)
+
+tags:
+  - name: Auth
+    description: Registration, session lifecycle, and current-user lookup
+  - name: System
+    description: Liveness / readiness
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      summary: Create an account
+      description: >
+        Open self-registration. The new account is **always** assigned the `TeamMember` role;
+        any client-supplied role is ignored. Creating ProjectManager/Admin accounts is an
+        Admin-only action owned by user administration, not this endpoint.
+      security: []          # AllowAnonymous
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Account created. The response never contains a password or hash.
+          headers:
+            Location:
+              description: URI of the created user
+              schema: { type: string, format: uri-reference, example: /api/users/9f1c8e2a-4b7d-4e11-8a3c-2f6b1d9e77b7 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserDto' }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '409':
+          description: Email already registered (normalized-email uniqueness)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              example:
+                type: https://tools.ietf.org/html/rfc7231#section-6.5.8
+                title: Conflict
+                status: 409
+                detail: Email already registered.
+                traceId: 00-9f2c1b7ad4e3f5a6b8c9d0e1f2a3b4c5-1a2b3c4d5e6f7a8b-00
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Authenticate and receive a token pair
+      description: >
+        On success returns a short-lived access token in the body and sets the refresh token as an
+        httpOnly cookie. Failure is deliberately generic — the response never reveals whether the
+        email exists or the password was wrong (no user enumeration).
+      security: []          # AllowAnonymous
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Authenticated
+          headers:
+            Set-Cookie:
+              description: >
+                Refresh token. `refresh_token=<opaque>; HttpOnly; Secure; SameSite=Strict; Path=/api/auth`.
+                Never JavaScript-readable and never present in the response body.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokensResponse' }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401':
+          description: Invalid credentials, or the account is deactivated
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              example:
+                title: Invalid credentials
+                status: 401
+                detail: Invalid credentials.
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refresh
+      summary: Rotate the token pair
+      description: >
+        Reads the refresh token from the httpOnly cookie (no request body). Single-use rotation:
+        the presented token is revoked and replaced. A replayed, revoked, expired, or unknown token
+        returns 401, as does a token whose user has since been deactivated.
+      security:
+        - refreshCookie: []
+      responses:
+        '200':
+          description: New token pair issued; the cookie is replaced with the rotated token.
+          headers:
+            Set-Cookie:
+              description: Rotated refresh token, same attributes as login.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessTokenResponse' }
+        '401':
+          description: Refresh token expired, revoked, replayed, or unknown
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Revoke the refresh token and end the session
+      description: >
+        Revokes the presented refresh token server-side and clears the cookie. Idempotent — logging
+        out with an already-expired or absent refresh token still succeeds. The access token remains
+        valid until its own short expiry (documented, accepted trade-off).
+      security:
+        - bearerAuth: []
+          refreshCookie: []
+      responses:
+        '204':
+          description: Session ended; refresh token revoked and cookie cleared.
+          headers:
+            Set-Cookie:
+              description: '`refresh_token=; Max-Age=0` — cookie cleared.'
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      summary: Current authenticated user and role
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's identity, resolved from the validated token — never from a parameter.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserDto' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /health:
+    get:
+      tags: [System]
+      operationId: health
+      summary: Liveness / readiness probe
+      security: []          # AllowAnonymous
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Access token issued by `/auth/login` or `/auth/refresh`. Claims: `sub` (user id), `email`,
+        a single `role` (`Admin` | `ProjectManager` | `TeamMember`), plus `jti`, `iat`, `exp`,
+        `iss`, `aud`. Carries no password, secret, or refresh token.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: >
+        Opaque high-entropy token, stored hashed server-side. Sent automatically by the browser to
+        `/auth/refresh` and `/auth/logout` only (Path=/api/auth). CSRF-protected via SameSite=Strict
+        plus an anti-forgery token.
+
+  schemas:
+
+    RegisterRequest:
+      type: object
+      required: [fullName, email, password, confirmPassword]
+      additionalProperties: false
+      properties:
+        fullName:    { type: string, minLength: 1, maxLength: 200, example: Dana Rivera }
+        email:       { type: string, format: email, maxLength: 256, example: dana@example.com }
+        password:    { type: string, format: password, minLength: 8, example: 'S3cure-P@ss' }
+        confirmPassword: { type: string, format: password, example: 'S3cure-P@ss' }
+      description: >
+        `role` is intentionally absent. Self-registration always produces a TeamMember; a supplied
+        role could not escalate even if sent, because the server never reads one here.
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:    { type: string, format: email, example: dana@example.com }
+        password: { type: string, format: password, example: 'S3cure-P@ss' }
+
+    UserDto:
+      type: object
+      required: [id, fullName, email, role]
+      properties:
+        id:        { type: string, format: uuid }
+        fullName:  { type: string, example: Dana Rivera }
+        email:     { type: string, format: email, example: dana@example.com }
+        role:      { $ref: '#/components/schemas/Role' }
+        createdAt: { type: string, format: date-time }
+      description: The safe user projection. Contains no password, no hash, no token — ever.
+
+    Role:
+      type: string
+      enum: [Admin, ProjectManager, TeamMember]
+      description: Exactly one role per user (a single `role` claim).
+
+    AuthTokensResponse:
+      type: object
+      required: [accessToken, expiresAt, user]
+      properties:
+        accessToken: { type: string, description: 'JWT. Held in memory/NgRx — never localStorage.', example: 'eyJhbGciOiJIUzI1NiIs...' }
+        expiresAt:   { type: string, format: date-time }
+        user:        { $ref: '#/components/schemas/UserDto' }
+      description: >
+        The refresh token is deliberately NOT a property here. It exists only as the Set-Cookie header.
+        Adding it to this schema would be a breaking security regression and the contract diff will
+        surface it.
+
+    AccessTokenResponse:
+      type: object
+      required: [accessToken, expiresAt]
+      properties:
+        accessToken: { type: string }
+        expiresAt:   { type: string, format: date-time }
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:  { type: string, enum: [Healthy, Degraded, Unhealthy], example: Healthy }
+        version: { type: string, example: 1.0.0 }
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807. The only error shape this API emits (ADR-0003, shared-contracts §1).
+      properties:
+        type:     { type: string, format: uri-reference }
+        title:    { type: string }
+        status:   { type: integer, format: int32 }
+        detail:   { type: string }
+        instance: { type: string, format: uri-reference }
+        traceId:  { type: string }
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties:
+                type: array
+                items: { type: string }
+              example:
+                email:    ['A valid email address is required.']
+                password: ['Password must be at least 8 characters.']
+
+  responses:
+
+    ValidationProblem:
+      description: Validation failed — per-field errors. Nothing was persisted.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ValidationProblemDetails' }
+
+    UnauthorizedProblem:
+      description: Authentication required, or the access token is missing/invalid/expired.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+    UnexpectedProblem:
+      description: Unexpected server error. Never contains a stack trace in production.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+# Global default: authenticated. Endpoints that are public override with `security: []`,
+# mirroring Constitution V.1's authenticated-by-default fallback policy.
+security:
+  - bearerAuth: []

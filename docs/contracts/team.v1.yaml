@@ -1,0 +1,241 @@
+openapi: 3.0.3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHORED BY HAND. This file is the CONTRACT; the code is validated against it
+# (Constitution X.2, API-first). Do NOT regenerate from Swashbuckle.
+#
+# Feature .... 004 Team Management  (specs/004-team/spec.md)
+# Version .... OpenAPI 3.0.3 — matches Swashbuckle's default output (ADR-0007 §1)
+# Drift gate . oasdiff breaking docs/contracts/team.v1.yaml <generated> --fail-on ERR
+#
+# TWO ABSENCES ARE DELIBERATE AND SHOULD NOT BE "FIXED":
+#   * No If-Match / ETag. A membership row has no mutable field, so there is no
+#     lost update to prevent. Concurrency is guaranteed by the UNIQUE
+#     (project_id, user_id) constraint: one 201, one 409. (research R-2)
+#   * No pagination envelope. A project team is a bounded, human-scale set, so
+#     Constitution VI.4's ">50 items" trigger does not fire. Returning a plain
+#     array is COMPLIANCE, not an exception. (research R-4)
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: ProjectManagementApp API — Team
+  version: "1.0.0"
+  description: >
+    Project team membership. **Membership is a link, not a role**: a `team_members` row records *that* a
+    user is on a project's team and grants nothing on its own. What a member may do is decided entirely by
+    their global role from 001. Being on a team changes what a user can *see* (project and task visibility
+    via 002/003 scoping), never what they *are*.
+
+servers:
+  - url: /api
+    description: Same-origin (ADR-0002)
+
+tags:
+  - name: Team
+    description: Project team membership — add, view, remove
+
+paths:
+  /projects/{projectId}/team:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+
+    get:
+      tags: [Team]
+      operationId: getProjectTeam
+      summary: View a project's team roster
+      description: >
+        Visible to an Admin (any project), a ProjectManager who **owns *or* is a member of** the project,
+        and a TeamMember who is a member. A member sees the **full roster**, not just themselves.
+
+        Returns a **plain array, not a paging envelope** — a project team is bounded and human-scale, so
+        Constitution VI.4's threshold does not apply. Client-side search over the list is sufficient. A
+        project with no members returns `200` with `[]`, never 404.
+      responses:
+        '200':
+          description: The roster. Empty array when the project has no members.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TeamMemberDto' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+    post:
+      tags: [Team]
+      operationId: addTeamMember
+      summary: Add a user to a project's team
+      description: >
+        Requires Admin, or a ProjectManager who **owns** the project. **Any active user is eligible
+        regardless of their global role** — a ProjectManager or Admin may be added as a contributor to a
+        project they do not own, which changes what they can see but not what they are. The **only**
+        add-time gate is that the user is active.
+
+        `projectId` comes from the route and is never read from the body, so a user cannot be slipped onto
+        a different project's team.
+
+        Concurrency: two simultaneous adds of the same user resolve to **one 201 and one 409**, enforced by
+        the `UNIQUE (project_id, user_id)` constraint rather than by an application check.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddTeamMemberRequest' }
+      responses:
+        '201':
+          description: Member added.
+          headers:
+            Location:
+              description: URI of the membership, addressed by project and user.
+              schema: { type: string, format: uri-reference, example: /api/projects/4d9b1e77-8c31-4a52-9f0e-2b7a51c6e3c3/team/b81a6f04-2d19-4e83-a7c5-6f2b9d0a4477 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamMemberDto' }
+        '400':
+          description: The target user is deactivated, or `userId` is missing.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ValidationProblemDetails' }
+              example:
+                title: Validation failed
+                status: 400
+                errors: { userId: ['User is deactivated and cannot be added to a team.'] }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { description: Unknown project or unknown user., content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } } }
+        '409':
+          description: The user is already a member of this project. No duplicate row is created.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              example:
+                title: Conflict
+                status: 409
+                detail: User is already a member of this project.
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /projects/{projectId}/team/{userId}:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: userId,    in: path, required: true, schema: { type: string, format: uuid } }
+
+    delete:
+      tags: [Team]
+      operationId: removeTeamMember
+      summary: Remove a user from a project's team
+      description: >
+        Requires Admin, or a ProjectManager who **owns** the project. Removal revokes the user's visibility
+        of the project and its tasks immediately — their next request re-evaluates scope and returns 403.
+
+        **Blocked with 409 while the member still has open tasks assigned to them in this project**
+        (open = status is not `Done`). The manager must reassign or close those tasks first. This is a
+        **fixed invariant, not a configurable option**: it preserves the guarantee that a task's assignee is
+        always a current team member, and it never silently drops assigned work to unassigned. A blocked
+        removal changes nothing and writes **no audit row**.
+
+        No `If-Match` is required — a membership row has no mutable field (research R-2).
+      responses:
+        '204':
+          description: Member removed; `TeamMemberRemoved` audited before deletion.
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404':
+          description: Unknown project, or this user is not a member of it. A second remove also returns 404 (idempotent).
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+        '409':
+          description: The member has open tasks assigned in this project. Reassign or close them first.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              example:
+                title: Conflict
+                status: 409
+                detail: 'Cannot remove: the member has 2 open task(s) assigned in this project. Reassign or close them first.'
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token issued by 001, carrying a single `role` claim.
+
+  schemas:
+
+    TeamMemberDto:
+      type: object
+      required: [membershipId, userId, fullName, email, role, addedAt]
+      properties:
+        membershipId: { type: string, format: uuid }
+        userId:       { type: string, format: uuid }
+        fullName:     { type: string, example: Sam Okafor }
+        email:        { type: string, format: email, example: sam@example.com }
+        role:
+          type: string
+          enum: [Admin, ProjectManager, TeamMember]
+          description: >
+            The member's **global** role (001), shown read-only for display. This endpoint never assigns or
+            implies a per-project role — there is no such concept. A `team_members` row carries no role
+            column at all.
+        isActive: { type: boolean, description: Deactivated members still appear, flagged (configurable). }
+        addedAt:  { type: string, format: date-time }
+
+    AddTeamMemberRequest:
+      type: object
+      required: [userId]
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: >
+            Any **active** user, regardless of global role. `projectId` is deliberately absent — it comes
+            from the route.
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807 — the only error shape this API emits (ADR-0003, shared-contracts §1).
+      properties:
+        type:     { type: string, format: uri-reference }
+        title:    { type: string }
+        status:   { type: integer, format: int32 }
+        detail:   { type: string }
+        instance: { type: string, format: uri-reference }
+        traceId:  { type: string }
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties: { type: array, items: { type: string } }
+
+  responses:
+
+    UnauthorizedProblem:
+      description: Authentication required, or the access token is missing/invalid/expired.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    ForbiddenProblem:
+      description: >
+        The **role gate** refused (a TeamMember attempting to manage a team), or the **project-scope gate**
+        refused (a ProjectManager acting on a project they do not own, or viewing one they are neither
+        owner nor member of).
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    NotFoundProblem:
+      description: No project exists with that id.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    UnexpectedProblem:
+      description: Unexpected server error. Never contains a stack trace in production.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+security:
+  - bearerAuth: []

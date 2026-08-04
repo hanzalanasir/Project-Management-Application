@@ -191,7 +191,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Consolidated Data Model (review-level; final physical schema at implementation)
 
-> Code-First (EF Core 10 + Npgsql). PostgreSQL identifiers are **snake_case** (Constitution VIII.2). `users` / `activity_logs` (001), `projects` (002), and `tasks` (003) are **referenced, not redefined** — all five constitution entities are created in the initial migration; a feature owns an entity's API/UI/rules, not its table's existence. Migration name: `AddTeamMembersTable`.
+> Code-First (EF Core 10 + Npgsql). PostgreSQL identifiers are **snake_case** (Constitution VIII.2). `users` / `activity_logs` (001), `projects` (002), and `tasks` (003) are **referenced, not redefined** — all five constitution entities are created in the initial migration; a feature owns an entity's API/UI/rules, not its table's existence. Migration name: **`AddTeamMemberIndexes`** — this feature adds the **unique constraint and indexes only**; the `team_members` table comes from 001's `InitialCreate`.
 
 | Entity | Table | Purpose | Key fields (type · req/null) | Relationships |
 |---|---|---|---|---|
@@ -342,7 +342,7 @@ Removing a member with open assigned tasks is **blocked (409)** — a fixed inva
 > Everything the team needs to build this feature: concrete schema, enums, service interfaces, configuration, error model, NFRs, the audit catalog, and the Definition of Done.
 
 ### B.1 Concrete schema (DDL-level intent; expressed as an EF Core migration)
-> PostgreSQL 18 via Npgsql. snake_case identifiers. Timestamps `timestamptz` (UTC). Migration name: `AddTeamMembersTable`.
+> PostgreSQL 18 via Npgsql. snake_case identifiers. Timestamps `timestamptz` (UTC). Migration name: **`AddTeamMemberIndexes`** — this feature adds the **unique constraint and indexes only**. The `team_members` **table** (columns, FKs, cascade/set-null behaviour) is created by 001's `InitialCreate`, because all five constitution entities are created in the initial migration (see Assumptions). A migration that tried to create this table would fail against an existing schema. Note the `UNIQUE (project_id, user_id)` constraint is added here rather than in 001: it is this feature's correctness guarantee (one 201, one 409 on a concurrent duplicate add), and only this feature inserts into the table.
 
 **`team_members`**
 - `id` uuid **PK**

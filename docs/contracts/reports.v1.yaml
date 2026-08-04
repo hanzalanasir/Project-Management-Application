@@ -1,0 +1,459 @@
+openapi: 3.0.3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHORED BY HAND. This file is the CONTRACT; the code is validated against it
+# (Constitution X.2, API-first). Do NOT regenerate from Swashbuckle.
+#
+# Feature .... 006 Reports  (specs/006-reports/spec.md)   — final module
+# Version .... OpenAPI 3.0.3 — matches Swashbuckle's default output (ADR-0007 §1)
+# Drift gate . oasdiff breaking docs/contracts/reports.v1.yaml <generated> --fail-on ERR
+#
+# THREE THINGS A REVIEWER SHOULD KNOW UP FRONT:
+#   * All endpoints are GET and return JSON. PDF and CSV are rendered
+#     CLIENT-SIDE (jsPDF / papaparse, Constitution III + VII.8) from this same
+#     JSON. There is deliberately NO export endpoint and NO ?format parameter.
+#   * Every data endpoint (not /catalog) writes ONE ReportGenerated audit row.
+#     That is the single deliberate exception to "read features don't write" —
+#     contrast 005 Dashboard, which writes nothing at all.
+#   * 422 is used for a window whose result set would exceed the row threshold.
+#     It is absent from Constitution VI.2's list but DECLARED BY THIS SPEC and
+#     resolved via OQ-006-02 — a spec may declare a status code; a plan may not
+#     invent one. (research R-5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: ProjectManagementApp API — Reports
+  version: "1.0.0"
+  description: >
+    Parameterized, role-scoped, read-only analytics over the data owned by 001–004. Where a metric also
+    appears on the Dashboard (overdue, open/closed counts), **the values are required to be identical for
+    the same caller** — same scope predicates, same definitions, same fixed-UTC boundary (005 NFR-002,
+    guarded by a cross-feature test).
+
+servers:
+  - url: /api
+    description: Same-origin (ADR-0002)
+
+tags:
+  - name: Reports
+    description: Report catalog and the four parameterized report types
+
+paths:
+
+  /reports/catalog:
+    get:
+      tags: [Reports]
+      operationId: getReportCatalog
+      summary: Describe the available reports and the parameters each requires
+      description: >
+        Drives a **dynamic, self-describing** report-selection UI — the frontend builds each parameter form
+        from these descriptors rather than hard-coding four forms, so adding a fifth report later needs no
+        new form code.
+
+        Descriptors are **role-annotated**: a TeamMember sees Team Performance marked "self only".
+        Returns a plain array (four fixed entries — nothing to page).
+
+        **Not audited** — it exposes metadata only, no project or task data.
+      responses:
+        '200':
+          description: One descriptor per report type.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReportDescriptor' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /reports/project-progress:
+    get:
+      tags: [Reports]
+      operationId: getProjectProgressReport
+      summary: Per-project progress over a date window
+      description: >
+        One row per in-scope project: completion %, open/closed counts, overdue, and a projected completion
+        date. **`overdueTasks` must equal the overdue count 005 Dashboard shows the same caller.**
+
+        A caller with no visible projects receives `200` with an empty `rows` array — never 403. But a
+        **named** out-of-scope `projectScope` returns **403**; `projectScope=all` is silently narrowed to
+        the caller's visible set.
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { $ref: '#/components/parameters/ProjectScope' }
+      responses:
+        '200':
+          description: The report. One `ReportGenerated` audit row was written.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ProjectProgressReport' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /reports/task-completion:
+    get:
+      tags: [Reports]
+      operationId: getTaskCompletionReport
+      summary: Task-completion trend, bucketed by day / week / month
+      description: >
+        The historical time-series the Dashboard deliberately does not show. A task counts in the bucket of
+        its **`closed_at`** date; a task later **re-opened** has its `closed_at` cleared and therefore
+        **drops out of the buckets** until re-completed — the identical rule Project Progress applies to
+        `closedTasks`.
+
+        The series is **zero-filled and continuous**: every period in the window is present, so a chart
+        renders a zero rather than a gap.
+
+        An `assigneeId` filter is honoured for Admin/ProjectManager within scope; for a **TeamMember it is
+        constrained to themselves** — they cannot trend a colleague.
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - name: groupBy
+          in: query
+          required: true
+          schema: { type: string, enum: [day, week, month] }
+        - { $ref: '#/components/parameters/ProjectScope' }
+        - { name: assigneeId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The report. One `ReportGenerated` audit row was written.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskCompletionReport' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /reports/team-performance:
+    get:
+      tags: [Reports]
+      operationId: getTeamPerformanceReport
+      summary: Per-member throughput, workload, and overdue count
+      description: >
+        The people-facing report, and the sharpest least-privilege boundary in the product.
+
+        **A TeamMember always receives exactly one row — their own — regardless of any `userId` supplied,
+        and never a 403.** Returning 403 for a colleague's id would *confirm that the colleague exists and
+        is outside their scope*, which is precisely the inference a peer-comparison report must not permit.
+        For **Admin and ProjectManager**, a named out-of-scope `userId` **does** return 403 — they are
+        entitled to know their own scope boundary.
+
+        A member with no activity in the window appears as a **row of zeros** rather than being omitted, so
+        absence is visible. A deactivated member with in-window throughput is still shown, flagged.
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { $ref: '#/components/parameters/ProjectScope' }
+        - name: userId
+          in: query
+          description: 'Admin/ProjectManager: narrows to that member, or 403 if out of scope. **TeamMember: ignored — their own row is returned.**'
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The report. A TeamMember always receives a single-row body.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TeamPerformanceReport' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /reports/activity:
+    get:
+      tags: [Reports]
+      operationId: getActivityReport
+      summary: Filtered, paginated activity excerpt over a window
+      description: >
+        The audit-facing report. Read **through `IActivityLogService.QueryScopedAsync`** — never by querying
+        `activity_logs` directly — inheriting 001's guarantee that entries carry no secrets.
+
+        The **only** report that can be large, so it is the one guarded by the row threshold: a window whose
+        result set would exceed `Reports:LargeReportRowThreshold` (~10,000) returns **422** with a
+        narrow-your-range message, **before** anything is materialized. The export pipeline is entirely
+        client-side, so an unbounded set would attempt to render in the user's browser.
+
+        Mild and accepted reflexivity: running this report writes a `ReportGenerated` row that will appear
+        in *future* Activity Reports.
+      parameters:
+        - { $ref: '#/components/parameters/From' }
+        - { $ref: '#/components/parameters/To' }
+        - { name: projectId,  in: query, schema: { type: string, format: uuid } }
+        - { name: entityType, in: query, schema: { type: string, enum: [User, Project, Task, TeamMember, Report] } }
+        - { name: actorId,    in: query, schema: { type: string, format: uuid } }
+        - { name: page,       in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize,   in: query, description: Clamped to the maximum, never rejected., schema: { type: integer, minimum: 1, default: 20, maximum: 100 } }
+      responses:
+        '200':
+          description: A scoped page of activity. One `ReportGenerated` audit row was written.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ActivityReport' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '422':
+          description: >
+            The window is too large — the result set would exceed the configured row threshold. **Narrow the
+            date range.** Deliberately not 400: the request is well-formed and every parameter is
+            individually valid; it is the *result size* that cannot be processed.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              example:
+                title: Report window too large
+                status: 422
+                detail: Narrow the date range; this window exceeds the export row limit.
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+components:
+
+  parameters:
+    From:
+      name: from
+      in: query
+      required: true
+      description: Window start, inclusive. Evaluated in **UTC** — fixed, so a report is reproducible across viewers.
+      schema: { type: string, format: date, example: '2026-07-01' }
+    To:
+      name: to
+      in: query
+      required: true
+      description: Window end, inclusive. Evaluated in **UTC**. `from > to` returns 400.
+      schema: { type: string, format: date, example: '2026-07-31' }
+    ProjectScope:
+      name: projectScope
+      in: query
+      description: >
+        Either the literal `all`, **or a comma-separated list of one or more project ids** (a single id is
+        just a list of one). Matches the catalog descriptor's `projectIds|all` type and spec FR-002.
+
+        **`all` is silently narrowed** to the caller's visible set — never a 403, because nothing was named.
+        When ids **are** named, **every** id must be within the caller's scope: if *any* one is not, the
+        request returns **403** as a whole. It is not partially fulfilled, because silently dropping an
+        out-of-scope id would misrepresent the report as covering everything asked for.
+
+        A malformed id, or an empty list, returns **400**.
+      schema:
+        type: string
+        example: 4d9b1e77-8c31-4a52-9f0e-2b7a51c6e3c3,7c2f0a19-5e64-4b8d-9a71-3d05f8e2b6a4
+      examples:
+        allVisible:
+          value: all
+          summary: Every project the caller may see (auto-narrowed)
+        singleProject:
+          value: 4d9b1e77-8c31-4a52-9f0e-2b7a51c6e3c3
+          summary: One named project
+        severalProjects:
+          value: 4d9b1e77-8c31-4a52-9f0e-2b7a51c6e3c3,7c2f0a19-5e64-4b8d-9a71-3d05f8e2b6a4
+          summary: A named subset — all ids must be in scope, else 403
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token issued by 001, carrying a single `role` claim.
+
+  schemas:
+
+    ReportType:
+      type: string
+      enum: [ProjectProgress, TaskCompletion, TeamPerformance, Activity]
+      description: Exactly four report types in v1 (OQ-006-06). More may be added later via the catalog.
+
+    ReportDescriptor:
+      type: object
+      required: [type, title, parameters, formats]
+      properties:
+        type:  { $ref: '#/components/schemas/ReportType' }
+        title: { type: string, example: Project Progress }
+        note:  { type: string, nullable: true, description: 'Role annotation, e.g. "self only" on Team Performance for a TeamMember.' }
+        parameters:
+          type: array
+          items:
+            type: object
+            required: [name, type, required]
+            properties:
+              name:     { type: string, example: groupBy }
+              type:     { type: string, example: day|week|month }
+              required: { type: boolean }
+        formats:
+          type: array
+          items: { type: string, enum: [json, pdf, csv] }
+          description: '**Client render targets, not API parameters.** The API returns JSON only; pdf/csv are produced in the browser.'
+
+    ReportEnvelope:
+      type: object
+      required: [reportType, generatedAt, scope, window, timeZone]
+      properties:
+        reportType:  { $ref: '#/components/schemas/ReportType' }
+        generatedAt: { type: string, format: date-time }
+        scope:       { type: string, enum: [Admin, ProjectManager, TeamMember] }
+        window:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: string, format: date }
+            to:   { type: string, format: date }
+        timeZone:
+          type: string
+          enum: [UTC]
+          description: Always `UTC` in v1 — shown in the report header so the applied zone is explicit.
+
+    ProjectProgressRow:
+      type: object
+      required: [projectId, projectName, status, totalTasks, openTasks, closedTasks, overdueTasks, completionPercent]
+      properties:
+        projectId:   { type: string, format: uuid }
+        projectName: { type: string }
+        status:      { type: string, enum: [Planning, Active, OnHold, Completed, Cancelled] }
+        totalTasks:  { type: integer, minimum: 0 }
+        openTasks:   { type: integer, minimum: 0, description: 'status != Done' }
+        closedTasks: { type: integer, minimum: 0, description: 'status = Done. A re-opened task is excluded.' }
+        overdueTasks:
+          type: integer
+          minimum: 0
+          description: '`due_date < today (UTC)` and not Done. **Must equal 005''s overdue count for this caller.**'
+        completionPercent:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: '`closed ÷ total × 100`. **`0` when total = 0** — never a divide-by-zero.'
+        projectedCompletion:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            `today(UTC) + ceil(openTasks ÷ avgClosedPerDay)`, where
+            `avgClosedPerDay = closedTasksInWindow ÷ windowDays`. **`null`** when there is no recent
+            throughput or no open tasks — a directional estimate, not a commitment.
+
+    ProjectProgressReport:
+      allOf:
+        - $ref: '#/components/schemas/ReportEnvelope'
+        - type: object
+          required: [rows, totals]
+          properties:
+            rows: { type: array, items: { $ref: '#/components/schemas/ProjectProgressRow' } }
+            totals:
+              type: object
+              required: [projects, avgCompletionPercent]
+              properties:
+                projects:             { type: integer, minimum: 0 }
+                avgCompletionPercent: { type: number, format: double }
+
+    TaskCompletionBucket:
+      type: object
+      required: [periodStart, periodLabel, completedCount]
+      properties:
+        periodStart:    { type: string, format: date, description: Bucket start (UTC), per `groupBy`. }
+        periodLabel:    { type: string, example: 2026-W30 }
+        completedCount: { type: integer, minimum: 0, description: Tasks whose `closed_at` falls in this bucket, in scope. Re-opened tasks excluded. }
+
+    TaskCompletionReport:
+      allOf:
+        - $ref: '#/components/schemas/ReportEnvelope'
+        - type: object
+          required: [groupBy, buckets, totals]
+          properties:
+            groupBy: { type: string, enum: [day, week, month] }
+            buckets:
+              type: array
+              items: { $ref: '#/components/schemas/TaskCompletionBucket' }
+              description: '**Zero-filled and continuous** — every period in the window is present, so a chart shows a zero rather than a gap.'
+            totals:
+              type: object
+              required: [completed]
+              properties:
+                completed: { type: integer, minimum: 0 }
+
+    TeamPerformanceRow:
+      type: object
+      required: [userId, fullName, isActive, throughput, workload, overdueCount]
+      properties:
+        userId:       { type: string, format: uuid }
+        fullName:     { type: string }
+        isActive:     { type: boolean, description: Inactive members with in-window throughput are still shown, flagged. }
+        throughput:   { type: integer, minimum: 0, description: Tasks whose `closed_at` is in the window, assigned to this member, in scope. }
+        workload:     { type: integer, minimum: 0, description: Tasks currently assigned and **not** Done. }
+        overdueCount: { type: integer, minimum: 0, description: Assigned, open, `due_date < today (UTC)`. }
+
+    TeamPerformanceReport:
+      allOf:
+        - $ref: '#/components/schemas/ReportEnvelope'
+        - type: object
+          required: [rows]
+          properties:
+            rows:
+              type: array
+              items: { $ref: '#/components/schemas/TeamPerformanceRow' }
+              description: >
+                One row per member in scope — **exactly one (the caller's own) for a TeamMember**, whatever
+                `userId` they supply. Members with no activity appear as rows of zeros.
+
+    ActivityReportRow:
+      type: object
+      required: [id, timestamp, action, entityType, entityId, changeSummary]
+      properties:
+        id:            { type: string, format: uuid }
+        timestamp:     { type: string, format: date-time, description: UTC. }
+        actorId:       { type: string, format: uuid, nullable: true, description: '`null` = system/seed.' }
+        actorName:     { type: string, nullable: true }
+        action:        { type: string, example: TaskStatusChanged }
+        entityType:    { type: string, example: Task }
+        entityId:      { type: string }
+        changeSummary: { type: string, description: Human-readable before → after. Never contains secrets (001 guarantees this at write time). }
+
+    ActivityReport:
+      allOf:
+        - $ref: '#/components/schemas/ReportEnvelope'
+        - type: object
+          required: [items, page, pageSize, totalCount, totalPages]
+          properties:
+            items:      { type: array, items: { $ref: '#/components/schemas/ActivityReportRow' } }
+            page:       { type: integer }
+            pageSize:   { type: integer }
+            totalCount: { type: integer, description: '**Scoped to the caller.**' }
+            totalPages: { type: integer }
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807 — the only error shape this API emits (ADR-0003, shared-contracts §1).
+      properties:
+        type:     { type: string, format: uri-reference }
+        title:    { type: string }
+        status:   { type: integer, format: int32 }
+        detail:   { type: string }
+        instance: { type: string, format: uri-reference }
+        traceId:  { type: string }
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties: { type: array, items: { type: string } }
+
+  responses:
+
+    ValidationProblem:
+      description: Missing window, `from > to`, invalid `groupBy`, or bad paging. Nothing is generated and nothing is audited.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ValidationProblemDetails' } } }
+
+    UnauthorizedProblem:
+      description: Authentication required, or the access token is missing/invalid/expired.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    ForbiddenProblem:
+      description: >
+        A **named** out-of-scope `projectScope`, or (for Admin/ProjectManager) a named out-of-scope
+        `userId`. Note a TeamMember naming a colleague on Team Performance receives **their own row**, not
+        a 403 — a denial there would confirm the colleague exists.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    UnexpectedProblem:
+      description: Unexpected server error. Never contains a stack trace in production.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+security:
+  - bearerAuth: []

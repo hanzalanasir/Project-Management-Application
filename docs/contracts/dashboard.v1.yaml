@@ -1,0 +1,247 @@
+openapi: 3.0.3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHORED BY HAND. This file is the CONTRACT; the code is validated against it
+# (Constitution X.2, API-first). Do NOT regenerate from Swashbuckle.
+#
+# Feature .... 005 Dashboard  (specs/005-dashboard/spec.md)
+# Version .... OpenAPI 3.0.3 — matches Swashbuckle's default output (ADR-0007 §1)
+# Drift gate . oasdiff breaking docs/contracts/dashboard.v1.yaml <generated> --fail-on ERR
+#
+# THREE ABSENCES ARE DELIBERATE AND MUST NOT BE "FIXED":
+#   * No 403 and no 404, on either endpoint. The dashboard names no resource —
+#     it asks "summarize what I can see", which always has a valid answer,
+#     including "nothing". An empty scope returns 200 with zeros. This is the
+#     stated exception to 002's out-of-scope-403 convention. (research R-3)
+#   * No write endpoint, anywhere. Not even "mark activity as read".
+#   * No paging on /summary. It is a fixed-N set of scalar and enum-keyed
+#     metrics; only the unbounded feed pages. (research R-5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: ProjectManagementApp API — Dashboard
+  version: "1.0.0"
+  description: >
+    Role-scoped, strictly read-only aggregation over the entities owned by 001–004. Every number is scoped
+    **at the source of the query** — out-of-scope data is never loaded, counted, or revealed through a
+    total. Metric definitions here are shared verbatim with 006 Reports, which is required to produce
+    identical values for the same caller.
+
+servers:
+  - url: /api
+    description: Same-origin (ADR-0002)
+
+tags:
+  - name: Dashboard
+    description: Read-only summary and activity feed
+
+paths:
+
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardSummary
+      summary: Role-scoped summary tiles, including the caller's personal task slice
+      description: >
+        One round trip for the whole summary. Admin aggregates across all projects; a ProjectManager across
+        projects they own; a TeamMember across projects they are a member of — with their **task and
+        overdue tiles counting only tasks assigned to them** (personal view).
+
+        **A caller with an empty visible scope receives 200 with every count zero** and every breakdown
+        present-but-empty — never 403, never 404. Enum-keyed maps always contain **every** enum key, zeros
+        included, so this is a stable typed contract rather than a variable dictionary.
+
+        Values are computed **live per request** in v1; there is no staleness window. `overdueTaskCount`
+        uses `due_date < today` evaluated in **UTC** and `status != Done` — both fixed, because 006 Reports
+        must produce identical numbers for the same caller.
+      responses:
+        '200':
+          description: The caller's scoped summary. Same shape for an empty scope, with zeros.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardSummary' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /dashboard/activity:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardActivity
+      summary: Paginated, role-scoped recent-activity feed
+      description: >
+        Turns 001's audit trail into a readable "what changed" feed, scoped to entities in the caller's
+        visible-project set. Read **through `IActivityLogService`**, never by querying `activity_logs`
+        directly — which inherits 001's guarantee that audit entries carry no secrets.
+
+        Shows **all visible entries** (no mutation-only filter); 001–004 audit only meaningful writes, so
+        there is no read-noise to exclude. Strictly read-only: there is no "mark as read" affordance, by
+        design.
+
+        Activity on a project the caller can no longer see (no longer owned, or deleted — audit rows
+        survive) is **scoped out for non-Admins** and remains visible to Admin.
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - name: pageSize
+          in: query
+          description: Values above the maximum are **clamped**, not rejected (Constitution VI.4).
+          schema: { type: integer, minimum: 1, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: A page of activity within the caller's scope. Empty page when there is none.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedActivityEntry' }
+        '400':
+          description: Non-numeric or negative paging values.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ValidationProblemDetails' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token issued by 001, carrying a single `role` claim.
+
+  schemas:
+
+    ProjectStatus:
+      type: string
+      enum: [Planning, Active, OnHold, Completed, Cancelled]
+
+    TaskStatus:
+      type: string
+      enum: [ToDo, InProgress, InReview, Done, Blocked]
+
+    ProjectStatusCounts:
+      type: object
+      required: [Planning, Active, OnHold, Completed, Cancelled]
+      additionalProperties: false
+      properties:
+        Planning:  { type: integer, minimum: 0 }
+        Active:    { type: integer, minimum: 0 }
+        OnHold:    { type: integer, minimum: 0 }
+        Completed: { type: integer, minimum: 0 }
+        Cancelled: { type: integer, minimum: 0 }
+      description: >
+        **Every key is required, zeros included.** A status with no rows appears as `0` rather than being
+        omitted — this is what makes the payload a stable typed contract instead of a free-form dictionary,
+        and it is why the frontend needs no null-guards.
+
+    TaskStatusCounts:
+      type: object
+      required: [ToDo, InProgress, InReview, Done, Blocked]
+      additionalProperties: false
+      properties:
+        ToDo:       { type: integer, minimum: 0 }
+        InProgress: { type: integer, minimum: 0 }
+        InReview:   { type: integer, minimum: 0 }
+        Done:       { type: integer, minimum: 0 }
+        Blocked:    { type: integer, minimum: 0 }
+      description: Every key required, zeros included — as above.
+
+    PersonalTaskSummary:
+      type: object
+      required: [assignedTotal, byStatus, overdueCount]
+      properties:
+        assignedTotal: { type: integer, minimum: 0 }
+        byStatus:      { $ref: '#/components/schemas/TaskStatusCounts' }
+        overdueCount:  { type: integer, minimum: 0 }
+      description: >
+        Tasks assigned to the caller, within their visible-project set. For a TeamMember this **is** the
+        number shown in the summary's task tiles (personal view); for a manager it is typically empty.
+
+    DashboardSummary:
+      type: object
+      required:
+        [generatedAt, scope, visibleProjectCount, projectsByStatus, tasksByStatus,
+         overdueTaskCount, completionRate, blockedTaskCount, visibleTeamMemberCount, personalTasks]
+      properties:
+        generatedAt: { type: string, format: date-time, description: Computation time (UTC). Values are live per request. }
+        scope:
+          type: string
+          enum: [Admin, ProjectManager, TeamMember]
+          description: The role scope applied, for labelling the view. Not an authorization signal.
+        visibleProjectCount: { type: integer, minimum: 0 }
+        projectsByStatus:    { $ref: '#/components/schemas/ProjectStatusCounts' }
+        tasksByStatus:       { $ref: '#/components/schemas/TaskStatusCounts' }
+        overdueTaskCount:
+          type: integer
+          minimum: 0
+          description: '`due_date < today (UTC)` AND `status != Done`, within scope. **Must equal 006''s overdue count for the same caller.**'
+        completionRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: 'Done ÷ total tasks in scope. **`0` when there are no tasks** — never a divide-by-zero.'
+        blockedTaskCount:
+          type: integer
+          minimum: 0
+          description: Derived from `tasksByStatus.Blocked` — no additional query.
+        visibleTeamMemberCount:
+          type: integer
+          minimum: 0
+          description: Distinct headcount across visible projects — a user on several counts **once**.
+        personalTasks: { $ref: '#/components/schemas/PersonalTaskSummary' }
+
+    ActivityEntry:
+      type: object
+      required: [id, action, entityType, entityId, timestamp, changeSummary]
+      properties:
+        id:            { type: string, format: uuid }
+        actorName:     { type: string, nullable: true, description: '`null` for system/seed actions.' }
+        action:        { type: string, example: TaskStatusChanged }
+        entityType:    { type: string, example: Task }
+        entityId:      { type: string, example: 9ac41f02-6d18-4c7b-9a2e-51f0c8e4b3e5 }
+        timestamp:     { type: string, format: date-time }
+        changeSummary: { type: string, example: 'InProgress → InReview', description: Never contains secrets — guaranteed by 001 at write time. }
+
+    PagedActivityEntry:
+      type: object
+      required: [items, page, pageSize, totalCount, totalPages]
+      properties:
+        items:      { type: array, items: { $ref: '#/components/schemas/ActivityEntry' } }
+        page:       { type: integer }
+        pageSize:   { type: integer }
+        totalCount: { type: integer, description: '**Scoped to the caller** — a TeamMember never learns the system-wide activity volume.' }
+        totalPages: { type: integer }
+      description: The shared `PagedResult<T>` envelope (shared-contracts §4).
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807 — the only error shape this API emits (ADR-0003, shared-contracts §1).
+      properties:
+        type:     { type: string, format: uri-reference }
+        title:    { type: string }
+        status:   { type: integer, format: int32 }
+        detail:   { type: string }
+        instance: { type: string, format: uri-reference }
+        traceId:  { type: string }
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties: { type: array, items: { type: string } }
+
+  responses:
+
+    UnauthorizedProblem:
+      description: Authentication required, or the access token is missing/invalid/expired.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    UnexpectedProblem:
+      description: Unexpected server error. Never contains a stack trace in production.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+security:
+  - bearerAuth: []

@@ -1,0 +1,441 @@
+openapi: 3.0.3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHORED BY HAND. This file is the CONTRACT; the code is validated against it
+# (Constitution X.2, API-first). Do NOT regenerate this file from Swashbuckle.
+#
+# Feature .... 003 Task Management  (specs/003-tasks/spec.md)
+# Version .... OpenAPI 3.0.3 — matches Swashbuckle's default output (001 R-5).
+# Drift gate . oasdiff breaking docs/contracts/tasks.v1.yaml <generated> --fail-on ERR
+#
+# THE CENTRAL IDEA — graduated authorization. Passing the scope gate does not
+# grant a whole write. A TeamMember assigned to a task may change its STATUS and
+# nothing else. That is enforced twice: by narrow endpoints binding narrow
+# request bodies (structural), and by CanMutateAsync(TaskMutation) (behavioural).
+# The /status and /assignee sub-resources exist for exactly this reason — they
+# are not convenience routes.
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: ProjectManagementApp API — Tasks
+  version: "1.0.0"
+  description: >
+    Task lifecycle within a project, and the **graduated authorization model**: role gate by attribute,
+    row scope by policy, and per-mutation-kind permission resolved inside the slice handler. Sub-resource
+    routes use nouns (`/status`, `/assignee`), never verbs (Constitution II.3).
+
+servers:
+  - url: /api
+    description: Same-origin (ADR-0002)
+
+tags:
+  - name: Tasks
+    description: The unit of work
+
+paths:
+
+  /projects/{projectId}/tasks:
+    parameters:
+      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+
+    get:
+      tags: [Tasks]
+      operationId: listProjectTasks
+      summary: List the tasks of one project (role-scoped, paged)
+      description: >
+        Scoped at the query source: Admin sees all; a ProjectManager sees tasks in projects they own;
+        a TeamMember sees **only tasks assigned to them** — not every task on a project they belong to.
+        Because this route **names a project**, an unknown id is 404 and an out-of-scope one is 403.
+      parameters:
+        - { name: page,       in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize,   in: query, description: Clamped to the maximum, never rejected., schema: { type: integer, minimum: 1, default: 20, maximum: 100 } }
+        - { name: status,     in: query, schema: { $ref: '#/components/schemas/TaskStatus' } }
+        - { name: assigneeId, in: query, schema: { type: string, format: uuid } }
+        - { name: search,     in: query, description: Case-insensitive substring match on title., schema: { type: string, maxLength: 200 } }
+        - name: sort
+          in: query
+          description: Closed whitelist — any other value returns 400.
+          schema: { type: string, enum: [dueDate, -dueDate, priority, -priority, status, -status, title, -title, createdAt, -createdAt], default: dueDate }
+      responses:
+        '200':
+          description: A page of tasks within the caller's scope.
+          content: { application/json: { schema: { $ref: '#/components/schemas/PagedTaskSummary' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+    post:
+      tags: [Tasks]
+      operationId: createTask
+      summary: Create a task inside a project
+      description: >
+        Requires Admin or ProjectManager (`TaskMutation.Create`); a TeamMember is refused at the role gate.
+        **`projectId` comes from the route and is never read from the body**, so a task cannot be smuggled
+        into another project. An assignee, when supplied, MUST be an **active team member of this project**.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateTaskRequest' } } }
+      responses:
+        '201':
+          description: Created.
+          headers:
+            Location: { description: URI of the created task, schema: { type: string, format: uri-reference, example: /api/tasks/9ac41f02-6d18-4c7b-9a2e-51f0c8e4b3e5 } }
+            ETag:     { description: Row version, for a subsequent If-Match., schema: { type: string, example: '"5187"' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskDetail' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: List tasks across all projects the caller may see ("my work")
+      description: >
+        Same handler and same scope predicate as the nested route — only the `projectId` filter differs.
+        Because this route **names no resource**, scope shapes *content*: there is no 403 and no 404, and an
+        empty scope yields `200` with an empty page. A filter can only narrow a scope, never widen it — a
+        TeamMember passing another user's `assigneeId` receives an empty page, not a 403.
+      parameters:
+        - { name: page,       in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize,   in: query, schema: { type: integer, minimum: 1, default: 20, maximum: 100 } }
+        - { name: projectId,  in: query, schema: { type: string, format: uuid } }
+        - { name: status,     in: query, schema: { $ref: '#/components/schemas/TaskStatus' } }
+        - { name: assigneeId, in: query, schema: { type: string, format: uuid } }
+        - { name: search,     in: query, schema: { type: string, maxLength: 200 } }
+        - { name: sort,       in: query, schema: { type: string, enum: [dueDate, -dueDate, priority, -priority, status, -status, title, -title, createdAt, -createdAt], default: dueDate } }
+      responses:
+        '200':
+          description: A page of tasks within the caller's scope.
+          content: { application/json: { schema: { $ref: '#/components/schemas/PagedTaskSummary' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /tasks/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+
+    get:
+      tags: [Tasks]
+      operationId: getTaskById
+      summary: Get one task
+      responses:
+        '200':
+          description: The task.
+          headers:
+            ETag: { description: 'Row version. Send back as `If-Match` on any PUT.', schema: { type: string, example: '"5187"' } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskDetail' } } }
+        '400': { description: Malformed (non-GUID) id., content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } } }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+    put:
+      tags: [Tasks]
+      operationId: updateTask
+      summary: Full edit of a task's details
+      description: >
+        `TaskMutation.FullEdit` — Admin or ProjectManager only. **A TeamMember is refused 403 even on a task
+        assigned to them**; that refusal, paired with their success on `PUT /tasks/{id}/status`, is the
+        acceptance test for the graduated model. `projectId` is **not** editable — a task never moves
+        between projects.
+      parameters: [ { $ref: '#/components/parameters/IfMatch' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTaskRequest' } } }
+      responses:
+        '200':
+          description: Updated.
+          headers: { ETag: { description: The new row version., schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskDetail' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403':
+          description: Role gate, scope gate, or **mutation-kind** denial — the message names the narrower right the caller does have.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              example:
+                title: Forbidden
+                status: 403
+                detail: You may update the status of this task, but not its details.
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '409': { $ref: '#/components/responses/ConflictProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+    delete:
+      tags: [Tasks]
+      operationId: deleteTask
+      summary: Delete a task
+      description: >
+        `TaskMutation.Delete` — Admin or ProjectManager only; a TeamMember, **including the assignee**, is
+        refused. The `TaskDeleted` audit row is written **before** removal and is never cascaded away.
+        **No `If-Match` is required**: a delete has no lost-update failure mode, and a second delete
+        correctly observes 404 (research R-5).
+      responses:
+        '204': { description: Deleted; audit row retained. }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /tasks/{id}/status:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Tasks]
+      operationId: updateTaskStatus
+      summary: Update a task's status (the assignee-level write)
+      description: >
+        `TaskMutation.StatusChange` — permitted for **all three roles**, including the TeamMember assignee.
+        This is the single most frequent write in the product and the one that keeps dashboards honest.
+
+        The request body binds **status only**. Extra fields such as `title` or `assigneeId` are
+        *structurally* incapable of taking effect — there is no property to bind them to — so privilege
+        cannot be widened by payload.
+
+        **`closedAt` is a derived side effect**, never accepted: moving to `Done` sets it; moving away
+        clears it. Any status may move to any other in v1, including out of `Done`.
+      parameters: [ { $ref: '#/components/parameters/IfMatch' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTaskStatusRequest' } } }
+      responses:
+        '200':
+          description: Status updated; `closedAt` set or cleared if the `Done` boundary was crossed.
+          headers: { ETag: { description: The new row version., schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskDetail' } } }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { description: The caller is not the assignee, owner, or an Admin (scope denial)., content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } } }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '409': { $ref: '#/components/responses/ConflictProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /tasks/{id}/assignee:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [Tasks]
+      operationId: reassignTask
+      summary: Assign or reassign a task
+      description: >
+        `TaskMutation.Reassign` — Admin or ProjectManager only. **A TeamMember cannot reassign their own
+        task, not even to themselves.** The candidate MUST be an **active team member of this task's
+        project**; otherwise 400. `null` unassigns the task, which makes it invisible to every TeamMember.
+
+        The previous assignee's access ends immediately — their next read re-evaluates scope and returns
+        403. There is no grace period and no notification.
+      parameters: [ { $ref: '#/components/parameters/IfMatch' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReassignTaskRequest' } } }
+      responses:
+        '200':
+          description: Reassigned; audited from → to.
+          headers: { ETag: { description: The new row version., schema: { type: string } } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/TaskDetail' } } }
+        '400':
+          description: Candidate is not a team member of this project, or is deactivated.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ValidationProblemDetails' }
+              example:
+                title: Validation failed
+                status: 400
+                errors: { assigneeId: ['User is not a team member on this project.'] }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '409': { $ref: '#/components/responses/ConflictProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+components:
+
+  parameters:
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: >
+        The `ETag` from the preceding GET. **Absent → 400**; stale → **409**. Silent last-write-wins is
+        never acceptable (ADR-0004). Required on all three PUTs; deliberately **not** on DELETE.
+      schema: { type: string, example: '"5187"' }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token issued by 001, carrying a single `role` claim.
+
+  schemas:
+
+    TaskStatus:
+      type: string
+      enum: [ToDo, InProgress, InReview, Done, Blocked]
+      default: ToDo
+      description: '`Done` is the only completion state — it drives `closedAt`, overdue, and all 005/006 metrics.'
+
+    TaskPriority:
+      type: string
+      enum: [Low, Medium, High, Critical]
+      default: Medium
+
+    UserRef:
+      type: object
+      required: [id, fullName]
+      properties:
+        id:       { type: string, format: uuid }
+        fullName: { type: string, example: Sam Okafor }
+        isActive: { type: boolean, description: A deactivated assignee is still shown, flagged. }
+
+    TaskSummary:
+      type: object
+      required: [id, projectId, title, status, priority]
+      properties:
+        id:        { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        title:     { type: string, example: Draft rollout checklist }
+        status:    { $ref: '#/components/schemas/TaskStatus' }
+        priority:  { $ref: '#/components/schemas/TaskPriority' }
+        dueDate:   { type: string, format: date, nullable: true }
+        assignee:  { allOf: [ { $ref: '#/components/schemas/UserRef' } ], nullable: true }
+
+    TaskDetail:
+      allOf:
+        - $ref: '#/components/schemas/TaskSummary'
+        - type: object
+          required: [createdAt, updatedAt]
+          properties:
+            description: { type: string, nullable: true, maxLength: 2000 }
+            closedAt:
+              type: string
+              format: date-time
+              nullable: true
+              description: >
+                **Read-only, server-derived.** Set when status becomes `Done`, cleared on re-open. Never
+                accepted in any request body — 006 Reports relies on it being untamperable.
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+      description: The row version travels as `ETag`/`If-Match`, not as a body property (002 R-2).
+
+    PagedTaskSummary:
+      type: object
+      required: [items, page, pageSize, totalCount, totalPages]
+      properties:
+        items:      { type: array, items: { $ref: '#/components/schemas/TaskSummary' } }
+        page:       { type: integer }
+        pageSize:   { type: integer }
+        totalCount: { type: integer, description: '**Scoped to the caller** — never a system-wide total.' }
+        totalPages: { type: integer }
+      description: The shared `PagedResult<T>` envelope (shared-contracts §4).
+
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      additionalProperties: false
+      properties:
+        title:       { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000, nullable: true }
+        priority:    { $ref: '#/components/schemas/TaskPriority' }
+        dueDate:     { type: string, format: date, nullable: true, description: When set, MUST fall within the parent project's start/end window (400 otherwise). }
+        assigneeId:  { type: string, format: uuid, nullable: true, description: 'Optional — a task may be created unassigned. When set, MUST be an active team member of this project.' }
+      description: '`projectId` is deliberately absent — it comes from the route (FR-003).'
+
+    UpdateTaskRequest:
+      type: object
+      required: [title, priority]
+      additionalProperties: false
+      properties:
+        title:       { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000, nullable: true }
+        priority:    { $ref: '#/components/schemas/TaskPriority' }
+        dueDate:     { type: string, format: date, nullable: true }
+      description: >
+        Deliberately excludes `status`, `assigneeId`, and `projectId` — each has its own endpoint or is
+        immutable. This narrowness *is* the authorization design, not an oversight.
+
+    UpdateTaskStatusRequest:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status: { $ref: '#/components/schemas/TaskStatus' }
+      description: >
+        **Status only.** The narrowest write surface in the product — this shape is what makes it
+        structurally impossible for a TeamMember to widen a status change into a title or assignee change.
+
+    ReassignTaskRequest:
+      type: object
+      required: [assigneeId]
+      additionalProperties: false
+      properties:
+        assigneeId:
+          type: string
+          format: uuid
+          nullable: true
+          description: '`null` unassigns the task, making it invisible to all TeamMembers.'
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807 — the only error shape this API emits (ADR-0003, shared-contracts §1).
+      properties:
+        type:     { type: string, format: uri-reference }
+        title:    { type: string }
+        status:   { type: integer, format: int32 }
+        detail:   { type: string }
+        instance: { type: string, format: uri-reference }
+        traceId:  { type: string }
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties: { type: array, items: { type: string } }
+
+  responses:
+
+    ValidationProblem:
+      description: >
+        Validation failed — invalid enum value, due date outside the project window, assignee not in the
+        project's team pool, deactivated assignee, bad paging, unrecognized `sort`, or a **missing
+        `If-Match` header**. Nothing is persisted.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ValidationProblemDetails' } } }
+
+    UnauthorizedProblem:
+      description: Authentication required, or the access token is missing/invalid/expired.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    ForbiddenProblem:
+      description: >
+        The **role gate**, the **scope gate**, or the **mutation gate** refused the operation. Where a
+        narrower right exists, the detail names it.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    NotFoundProblem:
+      description: No task (or parent project) exists with that id.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+    ConflictProblem:
+      description: Stale row version — the task changed since it was read. Reload and reapply; never a silent overwrite.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          example: { title: Conflict, status: 409, detail: This task was modified by someone else. Reload and try again. }
+
+    UnexpectedProblem:
+      description: Unexpected server error. Never contains a stack trace in production.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetails' } } }
+
+security:
+  - bearerAuth: []

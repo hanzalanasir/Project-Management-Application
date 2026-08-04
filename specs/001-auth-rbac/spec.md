@@ -513,9 +513,19 @@ public interface ITokenService {          // token signing/validation — used b
 }
 
 public interface IActivityLogService {    // Constitution IV.4 — every write to Users audited
+    // WRITE — used by every feature that mutates a domain entity.
     Task LogAsync(Guid? actorId, string action, string entityType, string entityId,
                   string changeSummary, CancellationToken ct);
+
+    // SCOPED READ — consumed by 005 (activity feed) and 006 (Activity Report). Both are forbidden
+    // from querying activity_logs directly, so the read must live here, on the service that owns the
+    // table. Scope is derived from the caller, never passed in a request body.
+    Task<PagedResult<ActivityEntry>> QueryScopedAsync(
+        ActivityScope scope, int page, int pageSize, CancellationToken ct);
 }
+// ActivityScope { IReadOnlyCollection<Guid> VisibleProjectIds; bool Unscoped; }  // Unscoped = Admin
+// ActivityEntry { Guid Id; Guid? ActorId; string ActorName; string Action; string EntityType;
+//                 string EntityId; DateTimeOffset Timestamp; string ChangeSummary; }
 
 public interface IDataSeeder {            // US-001-06 — a startup routine, invoked once at boot, NOT a request slice
     Task SeedAsync(CancellationToken ct); // ensure roles, then ensure one user per role; idempotent, no duplicates

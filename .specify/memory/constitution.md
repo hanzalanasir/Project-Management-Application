@@ -1,5 +1,5 @@
 <!--
-v1.3.0 — ratified 2026-07-20, last amended 2026-07-29.
+v1.4.0 — ratified 2026-07-20, last amended 2026-08-04.
   v1.0.0  Initial adoption: principles I–XI + Governance.
   v1.1.0  VII.1/VII.2 amended — Angular feature areas are standalone + route-level lazy
           loading instead of @NgModule. Rationale, alternatives, and backward-compatibility
@@ -42,6 +42,14 @@ v1.3.0 — ratified 2026-07-20, last amended 2026-07-29.
           before /speckit.plan runs against them. MINOR: a new Governance sub-item is added
           (§3's own definition of MINOR); IX.1 alone is a clarification, but the higher bump
           governs. No existing compliant work invalidated (no code written).
+  v1.4.0  MINOR — IX (Testing Standards) gains new sub-item IX.5: tests are written before
+          implementation and MUST fail first (red-green-refactor); a task list ordering
+          implementation before its own tests is non-compliant. This formalizes, rather than
+          changes, existing practice — every one of specs 001–006's tasks.md files already
+          sequences test tasks before the implementation tasks they cover. MINOR under §3:
+          existing guidance materially expanded (a new enforceable sub-item), not redefined;
+          no existing compliant work invalidated (all six task lists already comply as
+          written).
 On amendment: bump the version (semver) and "Last Amended" date below, and re-check
 .specify/templates/{plan,spec,tasks}-template.md for consistency.
 -->
@@ -267,6 +275,12 @@ amendment to this constitution or an ADR.
 4. Test data is created via builders or factories, not inline object literals scattered
    across files.
 
+5. Tests are written before implementation and MUST fail first (red-green-refactor). A
+   task list that orders implementation tasks before the tests that cover them is
+   non-compliant — this is already the pattern followed across specs 001–006's `tasks.md`
+   files, and this sub-item formalizes that existing practice as a constitutional
+   requirement.
+
 ### X. Documentation Requirements
 
 1. The repository root contains a `README.md` with: project overview, prerequisites, setup
@@ -336,4 +350,4 @@ amendment to this constitution or an ADR.
    section), running `/speckit.plan` against it is a **blocking MUST violation** under the §4
    compliance gate.
 
-**Version**: 1.3.0 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-07-29
+**Version**: 1.4.0 | **Ratified**: 2026-07-20 | **Last Amended**: 2026-08-04

@@ -1,0 +1,365 @@
+openapi: 3.0.3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHORED BY HAND. This file is the CONTRACT; the code is validated against it
+# (Constitution X.2, API-first). Do NOT regenerate this file from Swashbuckle.
+#
+# Feature .... 002 Project Management  (specs/002-projects/spec.md)
+# Version .... OpenAPI 3.0.3 — matches Swashbuckle's default output version so
+#              `oasdiff` reports real differences, not dialect noise (001 R-5).
+# Drift gate . CI runs:
+#                dotnet swagger tofile --output artifacts/openapi/generated.json <Api.dll> v1
+#                oasdiff breaking docs/contracts/projects.v1.yaml artifacts/openapi/generated.json --fail-on ERR
+#
+# The five routes below are fixed by the assignment brief and Constitution VI.6
+# and MUST exist exactly as named.
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: ProjectManagementApp API — Projects
+  version: "1.0.0"
+  description: >
+    Project lifecycle management and the two-layer authorization model the rest of the product follows:
+    a coarse **role gate** declared by attribute, plus a fine-grained **ownership/assignment scope gate**
+    applied inside the slice handler. Scope is folded into the SQL query, so out-of-scope projects are
+    never loaded, counted, or revealed through paging metadata.
+
+servers:
+  - url: /api
+    description: Same-origin (the API serves the Angular bundle; `ng serve` proxies /api — ADR-0002)
+
+tags:
+  - name: Projects
+    description: CRUD and role-scoped listing for the anchor domain entity
+
+paths:
+  /projects:
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      summary: List, search, and page the projects the caller may see
+      description: >
+        **Role-scoped at the query source.** Admin sees all projects; a ProjectManager sees only projects
+        they own; a TeamMember sees only projects they are assigned to. `totalCount` is always scoped to
+        the caller — a ProjectManager can never learn how many projects exist system-wide. An empty scope
+        returns an empty page, never an error.
+      parameters:
+        - { name: page,     in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - name: pageSize
+          in: query
+          description: Values above the configured maximum are **clamped**, not rejected (Constitution VI.4).
+          schema: { type: integer, minimum: 1, default: 20, maximum: 100 }
+        - { name: search, in: query, description: Case-insensitive substring match on name and description., schema: { type: string, maxLength: 200 } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ProjectStatus' } }
+        - name: sort
+          in: query
+          description: Closed whitelist — any other value returns 400 (research R-3).
+          schema:
+            type: string
+            enum: [name, -name, startDate, -startDate, endDate, -endDate, status, -status, createdAt, -createdAt]
+            default: -createdAt
+      responses:
+        '200':
+          description: A page of projects within the caller's scope.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedProjectSummary' }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+    post:
+      tags: [Projects]
+      operationId: createProject
+      summary: Create a project
+      description: >
+        Requires Admin or ProjectManager. For a **ProjectManager the owner is always the caller** — any
+        `ownerId` in the body is ignored, so ownership cannot be forged. An **Admin** may set `ownerId`
+        explicitly; that user MUST hold ProjectManager or Admin, else 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProjectRequest' }
+      responses:
+        '201':
+          description: Created.
+          headers:
+            Location:
+              description: URI of the created project
+              schema: { type: string, format: uri-reference, example: /api/projects/4d9b1e77-8c31-4a52-9f0e-2b7a51c6e3c3 }
+            ETag:
+              description: Row version of the new project, for a subsequent `If-Match` (research R-2).
+              schema: { type: string, example: '"4212"' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectDetail' }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /projects/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+
+    get:
+      tags: [Projects]
+      operationId: getProjectById
+      summary: Get one project
+      description: >
+        Returns **403** when the project exists but lies outside the caller's scope, and **404** when the
+        id is genuinely unknown. That distinction is deliberate (spec OQ-002-03) and is maskable to 404 by
+        configuration if resource enumeration ever becomes a concern.
+      responses:
+        '200':
+          description: The project.
+          headers:
+            ETag:
+              description: >
+                Opaque row version (`xmin`). **Send it back as `If-Match` on PUT** — without it the update
+                is rejected with 400 (research R-2).
+              schema: { type: string, example: '"4212"' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectDetail' }
+        '400':
+          description: Malformed (non-GUID) id.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+    put:
+      tags: [Projects]
+      operationId: updateProject
+      summary: Update a project
+      description: >
+        Requires Admin or ProjectManager; a ProjectManager may update **only projects they own**, re-checked
+        at write time. **Optimistic concurrency is mandatory**: `If-Match` carries the `ETag` from the
+        preceding GET. Ownership transfer (`ownerId`) is **Admin-only**, and the new owner MUST hold
+        ProjectManager or Admin.
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          description: >
+            The `ETag` returned by GET. **Absent → 400**; stale → **409**. Silent last-write-wins is never
+            acceptable (ADR-0004).
+          schema: { type: string, example: '"4212"' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProjectRequest' }
+      responses:
+        '200':
+          description: Updated; `updated_at` refreshed.
+          headers:
+            ETag:
+              description: The **new** row version — use this for the next update.
+              schema: { type: string, example: '"4290"' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectDetail' }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '409':
+          description: >
+            Stale row version — the project changed since it was read. The client should reload and
+            reapply. Never a silent overwrite.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              example:
+                title: Conflict
+                status: 409
+                detail: This project was modified by someone else. Reload and try again.
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+    delete:
+      tags: [Projects]
+      operationId: deleteProject
+      summary: Delete a project (cascades)
+      description: >
+        Hard delete. **Cascades** to the project's tasks (003) and team-member assignments (004) — explicit
+        and intentional per Constitution IV.3. The `ProjectDeleted` audit row is written **before** removal
+        and is never cascaded away, so the history of a deleted project survives for Reports (006).
+      responses:
+        '204':
+          description: Deleted; dependents cascaded; audit row retained.
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token issued by 001 (`docs/contracts/auth.v1.yaml`), carrying a single `role` claim.
+
+  schemas:
+
+    ProjectStatus:
+      type: string
+      enum: [Planning, Active, OnHold, Completed, Cancelled]
+      default: Planning
+
+    OwnerRef:
+      type: object
+      required: [id, fullName]
+      properties:
+        id:       { type: string, format: uuid }
+        fullName: { type: string, example: Priya Nair }
+        isActive: { type: boolean, description: A deactivated owner is still shown, flagged. }
+
+    ProjectSummary:
+      type: object
+      required: [id, name, status, startDate, owner]
+      properties:
+        id:        { type: string, format: uuid }
+        name:      { type: string, example: Apollo Rollout }
+        status:    { $ref: '#/components/schemas/ProjectStatus' }
+        startDate: { type: string, format: date }
+        endDate:   { type: string, format: date, nullable: true }
+        owner:     { $ref: '#/components/schemas/OwnerRef' }
+
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProjectSummary'
+        - type: object
+          required: [createdAt, updatedAt]
+          properties:
+            description: { type: string, nullable: true, maxLength: 2000 }
+            createdAt:   { type: string, format: date-time }
+            updatedAt:   { type: string, format: date-time }
+      description: >
+        The row version is deliberately **not** a body property — it travels as the `ETag`/`If-Match`
+        header (research R-2). Adding it here would be a contract change the drift gate will surface.
+
+    PagedProjectSummary:
+      type: object
+      required: [items, page, pageSize, totalCount, totalPages]
+      properties:
+        items:      { type: array, items: { $ref: '#/components/schemas/ProjectSummary' } }
+        page:       { type: integer, example: 1 }
+        pageSize:   { type: integer, example: 20 }
+        totalCount: { type: integer, description: '**Scoped to the caller** — never a system-wide total.', example: 3 }
+        totalPages: { type: integer, example: 1 }
+      description: The shared `PagedResult<T>` envelope (docs/shared-contracts.md §4).
+
+    CreateProjectRequest:
+      type: object
+      required: [name, startDate]
+      additionalProperties: false
+      properties:
+        name:        { type: string, minLength: 1, maxLength: 200, example: Apollo Rollout }
+        description: { type: string, maxLength: 2000, nullable: true }
+        startDate:   { type: string, format: date, example: '2026-08-01' }
+        endDate:     { type: string, format: date, nullable: true, description: When present MUST NOT precede startDate (400 otherwise). }
+        status:      { $ref: '#/components/schemas/ProjectStatus' }
+        ownerId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            **Admin only.** Ignored entirely for a ProjectManager, whose ownership is taken from the token.
+            A supplied owner MUST hold ProjectManager or Admin — a TeamMember owner is rejected with 400.
+
+    UpdateProjectRequest:
+      type: object
+      required: [name, startDate, status]
+      additionalProperties: false
+      properties:
+        name:        { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000, nullable: true }
+        startDate:   { type: string, format: date }
+        endDate:     { type: string, format: date, nullable: true }
+        status:      { $ref: '#/components/schemas/ProjectStatus' }
+        ownerId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Ownership transfer — **Admin only**; rejected with 403 for a ProjectManager. The new owner MUST
+            hold ProjectManager or Admin, else 400.
+
+    ProblemDetails:
+      type: object
+      description: RFC 7807 — the only error shape this API emits (ADR-0003, shared-contracts §1).
+      properties:
+        type:     { type: string, format: uri-reference }
+        title:    { type: string }
+        status:   { type: integer, format: int32 }
+        detail:   { type: string }
+        instance: { type: string, format: uri-reference }
+        traceId:  { type: string }
+
+    ValidationProblemDetails:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetails'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties: { type: array, items: { type: string } }
+              example:
+                endDate: ['End date must not precede start date.']
+                ownerId: ['The owner must hold the ProjectManager or Admin role.']
+
+  responses:
+
+    ValidationProblem:
+      description: >
+        Validation failed — includes date-order violations, an ineligible owner, out-of-range paging, an
+        unrecognized `sort` value, and a **missing `If-Match` header** on update. Nothing is persisted.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ValidationProblemDetails' }
+
+    UnauthorizedProblem:
+      description: Authentication required, or the access token is missing/invalid/expired.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+    ForbiddenProblem:
+      description: >
+        Either the **role gate** refused the operation (a TeamMember attempting any write), or the
+        **scope gate** refused this specific project (a ProjectManager acting on one they do not own).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          example:
+            title: Forbidden
+            status: 403
+            detail: You do not have access to this project.
+
+    NotFoundProblem:
+      description: No project exists with that id.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+    UnexpectedProblem:
+      description: Unexpected server error. Never contains a stack trace in production.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+# Authenticated by default (Constitution V.1). Every route here requires a valid JWT;
+# the per-role gate is declared on the endpoint with [Authorize(Roles = "...")].
+security:
+  - bearerAuth: []

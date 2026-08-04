@@ -95,11 +95,12 @@ policies (`IProjectAccessPolicy` / `ITaskAccessPolicy`), and 003/004 read 002's 
 other's entities. Left unstated, that reuse could be read as one feature depending on another feature's
 Application layer — the exact coupling vertical slices exist to prevent.
 
-**Decision (refinement of this ADR):** cross-cutting **services** and **scope-authorization policies**
-are **shared-kernel** abstractions. Their *interfaces* live in the shared kernel — declared in
-`docs/shared-contracts.md` (§2 `ICurrentUserService`, §3 the access policies, §6 `IActivityLogService`)
-— even though the *implementation* of a policy's scope rules stays with the feature that owns the
-resource (002 implements `IProjectAccessPolicy`, etc.). A feature folder may therefore depend on:
+**Decision (refinement of this ADR):** cross-cutting **services**, **scope-authorization policies**, and
+the **persistence-access interface** are **shared-kernel** abstractions. Their *interfaces* live in the
+shared kernel — declared in `docs/shared-contracts.md` (§2 `ICurrentUserService`, §3 the access policies,
+§6 `IActivityLogService`, §7 `IApplicationDbContext`) — even though the *implementation* stays with the
+layer or feature that owns it (002 implements `IProjectAccessPolicy`, Infrastructure implements
+`IApplicationDbContext`, etc.). A feature folder may therefore depend on:
 
 1. a **shared-kernel contract** declared in `docs/shared-contracts.md`, or
 2. a **shared Domain entity** (the five constitution entities, created in the initial migration),

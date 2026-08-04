@@ -329,7 +329,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Consolidated Data Model (review-level; final physical schema at implementation)
 
-> Code-First (EF Core 10 + Npgsql). PostgreSQL identifiers are **snake_case** (Constitution VIII.2). `users` / `activity_logs` (001), `projects` (002), and `team_members` (004) are **referenced, not redefined** — all five constitution entities are created in the initial migration; a feature owns an entity's API/UI/rules, not its table's existence. Migration name: `AddTasksTable`.
+> Code-First (EF Core 10 + Npgsql). PostgreSQL identifiers are **snake_case** (Constitution VIII.2). `users` / `activity_logs` (001), `projects` (002), and `team_members` (004) are **referenced, not redefined** — all five constitution entities are created in the initial migration; a feature owns an entity's API/UI/rules, not its table's existence. Migration name: **`AddTaskIndexes`** — this feature adds **indexes only**; the `tasks` table (including `closed_at`) comes from 001's `InitialCreate`.
 >
 > **CLR naming note**: the entity type is **`TaskItem`**, not `Task`, to avoid colliding with `System.Threading.Tasks.Task` throughout an async codebase. It maps to the `tasks` table.
 
@@ -520,7 +520,7 @@ DELETE /api/tasks/9ac41f02-…-e5      Authorization: Bearer eyJ…  (role=Proje
 > Everything the team needs to build this feature: concrete schema, enums, service interfaces, configuration, error model, NFRs, the audit catalog, and the Definition of Done.
 
 ### B.1 Concrete schema (DDL-level intent; expressed as an EF Core migration)
-> PostgreSQL 18 via Npgsql. snake_case identifiers. Timestamps `timestamptz` (UTC); calendar dates `date`. Migration name: `AddTasksTable`.
+> PostgreSQL 18 via Npgsql. snake_case identifiers. Timestamps `timestamptz` (UTC); calendar dates `date`. Migration name: **`AddTaskIndexes`** — this feature adds **indexes only**. The `tasks` **table**, including the `closed_at` column, is created by 001's `InitialCreate` (all five constitution entities are created there — see Assumptions). A migration that tried to create this table would fail against an existing schema.
 
 **`tasks`** (CLR type `TaskItem`)
 - `id` uuid **PK**
@@ -531,7 +531,7 @@ DELETE /api/tasks/9ac41f02-…-e5      Authorization: Bearer eyJ…  (role=Proje
 - `priority` varchar(20) **NOT NULL DEFAULT 'Medium'** (see B.2)
 - `due_date` date **NULL** — application-level rule: within the parent project's `start_date`…`end_date` window when both are set
 - `assignee_id` uuid **NULL** FK→`users(id)` **ON DELETE RESTRICT**
-- `closed_at` timestamptz **NULL** — completion timestamp; **set to now when `status` transitions to `Done`, cleared to null when the task is re-opened** (status moves away from `Done`). **Not user-settable** — it is a side effect of the status-change mutation (US-003-05), never accepted from a request body. Included in the `AddTasksTable` migration.
+- `closed_at` timestamptz **NULL** — completion timestamp; **set to now when `status` transitions to `Done`, cleared to null when the task is re-opened** (status moves away from `Done`). **Not user-settable** — it is a side effect of the status-change mutation (US-003-05), never accepted from a request body. Created with the table in 001's `InitialCreate` migration (not by this feature's `AddTaskIndexes`).
 - `created_at` timestamptz **NOT NULL** · `updated_at` timestamptz **NOT NULL**
 - **Concurrency**: PostgreSQL `xmin` mapped as an EF Core row-version token (ADR-0004); stale write → **409**
 - **INDEX** (`project_id`), (`assignee_id`), (`status`), (`project_id`,`status`), (`assignee_id`,`status`); text index on `title` for search

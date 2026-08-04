@@ -258,7 +258,7 @@ The three roles are defined in [001 Auth & RBAC](../001-auth-rbac/spec.md) — e
 
 ## Consolidated Data Model (review-level; final physical schema at implementation)
 
-> Code-First (EF Core 10 + Npgsql). PostgreSQL identifiers are **snake_case** (Constitution VIII.2). `users` and `activity_logs` are defined by [001 Auth & RBAC](../001-auth-rbac/spec.md) and are **referenced here, not redefined**. Every schema change is an EF Core migration with a descriptive name (Constitution IV.2), e.g. `AddProjectsTable`.
+> Code-First (EF Core 10 + Npgsql). PostgreSQL identifiers are **snake_case** (Constitution VIII.2). `users` and `activity_logs` are defined by [001 Auth & RBAC](../001-auth-rbac/spec.md) and are **referenced here, not redefined**. Every schema change is an EF Core migration with a descriptive name (Constitution IV.2), e.g. `AddProjectIndexes`. **The `projects` table itself is created by 001's `InitialCreate`** — see Assumptions.
 
 | Entity | Table | Purpose | Key fields (type · req/null) | Relationships |
 |---|---|---|---|---|
@@ -410,7 +410,7 @@ DELETE /api/projects/4d9b1e77-...-c3  Authorization: Bearer eyJ...
 > Everything the team needs to build this feature: concrete schema, enums, service interfaces, configuration, error model, NFRs, the audit catalog, and the Definition of Done.
 
 ### B.1 Concrete schema (DDL-level intent; expressed as an EF Core migration)
-> PostgreSQL 18 via Npgsql. snake_case identifiers. Timestamps `timestamptz` (UTC); calendar dates `date`. Migration name: `AddProjectsTable`.
+> PostgreSQL 18 via Npgsql. snake_case identifiers. Timestamps `timestamptz` (UTC); calendar dates `date`. Migration name: **`AddProjectIndexes`** — this feature adds **indexes only**. The `projects` **table** (columns, FKs, cascade behaviour, `xmin`) is created by 001's `InitialCreate`, because all five constitution entities are created in the initial migration (see Assumptions). A migration that tried to create this table would fail against an existing schema.
 
 **`projects`**
 - `id` uuid **PK**
