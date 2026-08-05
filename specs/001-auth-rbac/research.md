@@ -448,7 +448,7 @@ this repo's convention of marking OQ items "Resolved" rather than deleting them)
 ## R-15 — `ETagExtensions` is a shared helper created by 001, not duplicated per feature
 
 **Decision.** `src/ProjectManagementApp.Api/Common/ETagExtensions.cs` is created **once, here in 001**
-(T115) — reading `If-Match`, writing `ETag` from a row's `xmin`, and returning **400** when a required
+(T117, unit-tested at T114) — reading `If-Match`, writing `ETag` from a row's `xmin`, and returning **400** when a required
 `If-Match` is absent (ADR-0007 §3) — and used by `UsersController`'s two new mutating endpoints. **002's
 T017/T018 are corrected to *verify and reuse* this shared helper instead of creating a second
 implementation**; 002's plan.md's Source Code listing and research R-2 are updated to match (both edited

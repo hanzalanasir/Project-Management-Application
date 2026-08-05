@@ -164,7 +164,7 @@ src/
 │
 ├── ProjectManagementApp.Api/
 │   ├── Controllers/ProjectsController.cs         # NEW — five thin endpoints, one Send() each
-│   └── Common/ETagExtensions.cs                  # EXISTS (001 T115) — reused, not created here (research R-2, 2026-08-06 correction)
+│   └── Common/ETagExtensions.cs                  # EXISTS (001 T117) — reused, not created here (research R-2, 2026-08-06 correction)
 │
 └── ProjectManagementApp.Web/src/app/
     ├── core/services/projects.service.ts         # NEW
@@ -242,7 +242,7 @@ the database because `IApplicationDbContext` is a shared-kernel Application abst
    concerns; the seeder's one-user-per-role contract stays a product concern and is unchanged.
 5. ~~**`ETagExtensions.cs` was about to be built twice.**~~ **✅ RESOLVED 2026-08-06.** 001 added its own
    `xmin`-guarded mutating endpoints (Admin user management, added 2026-08-05) and, being built first,
-   needed the shared `ETagExtensions` helper before 002 does — so 001 now creates it (001 T115, research
+   needed the shared `ETagExtensions` helper before 002 does — so 001 now creates it (001 T117, research
    R-15). **002's T017/T018 were corrected to verify and reuse it, not recreate it**; this plan's Source
    Code listing above is updated to match. R-2's transport *design* (`ETag`/`If-Match`, 400/409 semantics)
    is unchanged — only which feature owns the implementing file moved.

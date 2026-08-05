@@ -224,17 +224,18 @@ still receives 403 if the request is forced.
 - [ ] T078 [P] [US4] Write the 401/403 matrix integration test in `tests/ProjectManagementApp.Api.Tests/Authorization/RoleMatrixTests.cs` — no token → 401; TeamMember → 403; ProjectManager → 403; Admin → 200 (Constitution IX.1)
 - [ ] T079 [P] [US4] Write integration test in `tests/ProjectManagementApp.Api.Tests/Authorization/AnonymousEndpointTests.cs` asserting register/login/refresh/health succeed without a token and that **no other endpoint does** (FR-007)
 - [ ] T080 [P] [US4] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/GetCurrentUserTests.cs` asserting `GET /api/auth/me` returns 200 with the token's identity and 401 without a token
-- [ ] T081 [P] [US4] Write an architecture test in `tests/ProjectManagementApp.Api.Tests/Architecture/NoInlineRoleChecksTests.cs` failing the build if any controller or handler contains an ad-hoc role comparison — roles must be attribute-declared only (Constitution V.2, quickstart V8). **Also write the NFR-002 statelessness test** in `tests/ProjectManagementApp.Api.Tests/Authorization/StatelessAuthTests.cs` — hook an EF Core `DbCommand` interceptor into the `WebApplicationFactory`, call `GET /api/auth/me` with a valid token, and assert **zero** SQL statements execute; `GetCurrentUserQueryHandler` projects `UserDto` directly from `ICurrentUserService`'s token-derived claims, never from `IApplicationDbContext` (`/speckit.analyze` finding E1 — this claim in spec NFR-002 and plan.md's Performance Goals previously had no verifying task)
+- [ ] T081 [P] [US4] Write an architecture test in `tests/ProjectManagementApp.Api.Tests/Architecture/NoInlineRoleChecksTests.cs` failing the build if any controller or handler contains an ad-hoc role comparison — roles must be attribute-declared only (Constitution V.2, quickstart V8)
+- [ ] T082 [P] [US4] Write the NFR-002 statelessness test in `tests/ProjectManagementApp.Api.Tests/Authorization/StatelessAuthTests.cs` — hook an EF Core `DbCommand` interceptor into the `WebApplicationFactory`, call `GET /api/auth/me` with a valid token, and assert **zero** SQL statements execute; `GetCurrentUserQueryHandler` projects `UserDto` directly from `ICurrentUserService`'s token-derived claims, never from `IApplicationDbContext` (`/speckit.analyze` finding E1 — this claim in spec NFR-002 and plan.md's Performance Goals previously had no verifying task)
 
 ### Implementation for User Story 4
 
-- [ ] T082 [US4] Verify and document the global fallback authorization policy in `src/ProjectManagementApp.Api/Program.cs` so an endpoint with no attribute still requires authentication, and confirm exactly four `[AllowAnonymous]` endpoints exist
-- [ ] T083 [US4] Create `GetCurrentUserQuery` and its handler in `src/ProjectManagementApp.Application/Features/Auth/GetCurrentUser/` reading identity from `ICurrentUserService` — never from a parameter
-- [ ] T084 [US4] Add the thin `GET /api/auth/me` endpoint to `src/ProjectManagementApp.Api/Controllers/AuthController.cs` with `[Authorize]`, matching the contract's `getCurrentUser` operation
-- [ ] T085 [US4] Add an Admin-only probe endpoint in `src/ProjectManagementApp.Api/Controllers/` annotated `[Authorize(Roles = "Admin")]` to exercise the role matrix in tests
-- [ ] T086 [P] [US4] Implement the functional auth guard in `src/ProjectManagementApp.Web/src/app/core/guards/auth.guard.ts` (`CanActivateFn`) redirecting unauthenticated users to login
-- [ ] T087 [P] [US4] Implement the functional role guard in `src/ProjectManagementApp.Web/src/app/core/guards/role.guard.ts` (`CanMatchFn`) reading the role from NgRx so a lazy chunk is **not downloaded** when the role fails
-- [ ] T088 [US4] Apply the guards in `src/ProjectManagementApp.Web/src/app/app.routes.ts` and confirm no component contains redirect logic — guards are the only navigation block (Constitution VII.5)
+- [ ] T083 [US4] Verify and document the global fallback authorization policy in `src/ProjectManagementApp.Api/Program.cs` so an endpoint with no attribute still requires authentication, and confirm exactly four `[AllowAnonymous]` endpoints exist
+- [ ] T084 [US4] Create `GetCurrentUserQuery` and its handler in `src/ProjectManagementApp.Application/Features/Auth/GetCurrentUser/` reading identity from `ICurrentUserService` — never from a parameter
+- [ ] T085 [US4] Add the thin `GET /api/auth/me` endpoint to `src/ProjectManagementApp.Api/Controllers/AuthController.cs` with `[Authorize]`, matching the contract's `getCurrentUser` operation
+- [ ] T086 [US4] Add an Admin-only probe endpoint in `src/ProjectManagementApp.Api/Controllers/` annotated `[Authorize(Roles = "Admin")]` to exercise the role matrix in tests
+- [ ] T087 [P] [US4] Implement the functional auth guard in `src/ProjectManagementApp.Web/src/app/core/guards/auth.guard.ts` (`CanActivateFn`) redirecting unauthenticated users to login
+- [ ] T088 [P] [US4] Implement the functional role guard in `src/ProjectManagementApp.Web/src/app/core/guards/role.guard.ts` (`CanMatchFn`) reading the role from NgRx so a lazy chunk is **not downloaded** when the role fails
+- [ ] T089 [US4] Apply the guards in `src/ProjectManagementApp.Web/src/app/app.routes.ts` and confirm no component contains redirect logic — guards are the only navigation block (Constitution VII.5)
 
 **Checkpoint**: RBAC is enforced end-to-end. Verifiable against quickstart V7, V8, V14.1.
 
@@ -250,17 +251,17 @@ calling it again still returns 204; the revoked token can no longer refresh.
 
 ### Tests for User Story 3
 
-- [ ] T089 [P] [US3] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/LogoutEndpointTests.cs` asserting 204, `revoked_at` set in the database, the cookie cleared, and a `UserLoggedOut` audit row written
-- [ ] T090 [P] [US3] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/LogoutIdempotencyTests.cs` asserting logout with an already-expired or absent refresh token still succeeds
-- [ ] T091 [P] [US3] Write unit tests for `LogoutCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/LogoutCommandHandlerTests.cs` covering the revoke and already-revoked branches
+- [ ] T090 [P] [US3] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/LogoutEndpointTests.cs` asserting 204, `revoked_at` set in the database, the cookie cleared, and a `UserLoggedOut` audit row written
+- [ ] T091 [P] [US3] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/LogoutIdempotencyTests.cs` asserting logout with an already-expired or absent refresh token still succeeds
+- [ ] T092 [P] [US3] Write unit tests for `LogoutCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/LogoutCommandHandlerTests.cs` covering the revoke and already-revoked branches
 
 ### Implementation for User Story 3
 
-- [ ] T092 [US3] Create `LogoutCommand` in `src/ProjectManagementApp.Application/Features/Auth/Logout/LogoutCommand.cs` carrying the user id and the presented refresh token
-- [ ] T093 [US3] Implement `LogoutCommandHandler` in `src/ProjectManagementApp.Application/Features/Auth/Logout/LogoutCommandHandler.cs` — set `RevokedAt`, write the `UserLoggedOut` audit row in the same transaction, and succeed idempotently when no live token is found
-- [ ] T094 [US3] Add the thin `POST /api/auth/logout` endpoint to `src/ProjectManagementApp.Api/Controllers/AuthController.cs` with `[Authorize]`, reading the refresh cookie and emitting `Set-Cookie: refresh_token=; Max-Age=0` on 204
-- [ ] T095 [P] [US3] Add the logout control to the app shell in `src/ProjectManagementApp.Web/src/app/core/` dispatching the NgRx logout action (Constitution VII — a `core/` singleton provided once)
-- [ ] T096 [US3] Implement the NgRx logout effect in `src/ProjectManagementApp.Web/src/app/core/store/auth/` clearing auth state and routing to login
+- [ ] T093 [US3] Create `LogoutCommand` in `src/ProjectManagementApp.Application/Features/Auth/Logout/LogoutCommand.cs` carrying the user id and the presented refresh token
+- [ ] T094 [US3] Implement `LogoutCommandHandler` in `src/ProjectManagementApp.Application/Features/Auth/Logout/LogoutCommandHandler.cs` — set `RevokedAt`, write the `UserLoggedOut` audit row in the same transaction, and succeed idempotently when no live token is found
+- [ ] T095 [US3] Add the thin `POST /api/auth/logout` endpoint to `src/ProjectManagementApp.Api/Controllers/AuthController.cs` with `[Authorize]`, reading the refresh cookie and emitting `Set-Cookie: refresh_token=; Max-Age=0` on 204
+- [ ] T096 [P] [US3] Add the logout control to the app shell in `src/ProjectManagementApp.Web/src/app/core/` dispatching the NgRx logout action (Constitution VII — a `core/` singleton provided once)
+- [ ] T097 [US3] Implement the NgRx logout effect in `src/ProjectManagementApp.Web/src/app/core/store/auth/` clearing auth state and routing to login
 
 **Checkpoint**: Sessions can be deliberately ended. Verifiable against quickstart V10.
 
@@ -276,22 +277,22 @@ pair and rotates the cookie; replaying the previous refresh token returns 401.
 
 ### Tests for User Story 5
 
-- [ ] T097 [P] [US5] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/RefreshEndpointTests.cs` asserting 200, a new access token, a rotated `Set-Cookie`, and `replaced_by_token` linking old → new
-- [ ] T098 [P] [US5] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/RefreshReplayTests.cs` asserting a replayed (already-rotated) refresh token returns **401** (single-use rotation, FR-006)
-- [ ] T099 [P] [US5] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/RefreshRevokedTests.cs` asserting expired, revoked, and unknown refresh tokens each return 401
-- [ ] T100 [P] [US5] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/RefreshDeactivatedTests.cs` asserting a valid refresh token whose user was deactivated is denied (FR-004)
-- [ ] T101 [P] [US5] Write unit tests for `RefreshCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/RefreshCommandHandlerTests.cs` covering valid, expired, revoked, replayed, and inactive-user branches
-- [ ] T102 [P] [US5] Write an atomicity test in `tests/ProjectManagementApp.Infrastructure.Tests/Tokens/RotationAtomicityTests.cs` asserting revoke-old + insert-new + audit commit as one transaction — a failure mid-rotation must never leave two live tokens (data-model.md §5)
+- [ ] T098 [P] [US5] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/RefreshEndpointTests.cs` asserting 200, a new access token, a rotated `Set-Cookie`, and `replaced_by_token` linking old → new
+- [ ] T099 [P] [US5] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/RefreshReplayTests.cs` asserting a replayed (already-rotated) refresh token returns **401** (single-use rotation, FR-006)
+- [ ] T100 [P] [US5] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/RefreshRevokedTests.cs` asserting expired, revoked, and unknown refresh tokens each return 401
+- [ ] T101 [P] [US5] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/RefreshDeactivatedTests.cs` asserting a valid refresh token whose user was deactivated is denied (FR-004)
+- [ ] T102 [P] [US5] Write unit tests for `RefreshCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/RefreshCommandHandlerTests.cs` covering valid, expired, revoked, replayed, and inactive-user branches
+- [ ] T103 [P] [US5] Write an atomicity test in `tests/ProjectManagementApp.Infrastructure.Tests/Tokens/RotationAtomicityTests.cs` asserting revoke-old + insert-new + audit commit as one transaction — a failure mid-rotation must never leave two live tokens (data-model.md §5)
 
 ### Implementation for User Story 5
 
-- [ ] T103 [US5] Add `ValidateRefreshTokenAsync` to `src/ProjectManagementApp.Infrastructure/Identity/TokenService.cs` — hash the presented value and look it up; return null when expired, revoked, or unknown
-- [ ] T104 [US5] Create `RefreshCommand` in `src/ProjectManagementApp.Application/Features/Auth/Refresh/RefreshCommand.cs` carrying the presented refresh token (from the cookie, never the body)
-- [ ] T105 [US5] Implement `RefreshCommandHandler` in `src/ProjectManagementApp.Application/Features/Auth/Refresh/RefreshCommandHandler.cs` — validate, reject inactive users, revoke the old token and set `ReplacedByToken`, issue a new pair, write the `TokenRefreshed` audit row, all in one transaction
-- [ ] T106 [US5] Add the thin `POST /api/auth/refresh` endpoint to `src/ProjectManagementApp.Api/Controllers/AuthController.cs` as `[AllowAnonymous]` reading the cookie and emitting the rotated `Set-Cookie`
-- [ ] T107 [US5] Implement the functional 401 interceptor in `src/ProjectManagementApp.Web/src/app/core/interceptors/error.interceptor.ts` — on 401 call refresh **once** with single-flight de-duplication, retry the original request, and dispatch logout on refresh failure (Constitution VII.4)
-- [ ] T108 [P] [US5] Write a Jasmine test in `src/ProjectManagementApp.Web/src/app/core/interceptors/error.interceptor.spec.ts` asserting that several concurrent 401s produce **exactly one** refresh call (quickstart V14.3)
-- [ ] T109 [US5] Add anti-forgery/CSRF protection for the cookie-authenticated `/api/auth/refresh` and `/api/auth/logout` endpoints in `src/ProjectManagementApp.Api/Program.cs` (FR-016)
+- [ ] T104 [US5] Add `ValidateRefreshTokenAsync` to `src/ProjectManagementApp.Infrastructure/Identity/TokenService.cs` — hash the presented value and look it up; return null when expired, revoked, or unknown
+- [ ] T105 [US5] Create `RefreshCommand` in `src/ProjectManagementApp.Application/Features/Auth/Refresh/RefreshCommand.cs` carrying the presented refresh token (from the cookie, never the body)
+- [ ] T106 [US5] Implement `RefreshCommandHandler` in `src/ProjectManagementApp.Application/Features/Auth/Refresh/RefreshCommandHandler.cs` — validate, reject inactive users, revoke the old token and set `ReplacedByToken`, issue a new pair, write the `TokenRefreshed` audit row, all in one transaction
+- [ ] T107 [US5] Add the thin `POST /api/auth/refresh` endpoint to `src/ProjectManagementApp.Api/Controllers/AuthController.cs` as `[AllowAnonymous]` reading the cookie and emitting the rotated `Set-Cookie`
+- [ ] T108 [US5] Implement the functional 401 interceptor in `src/ProjectManagementApp.Web/src/app/core/interceptors/error.interceptor.ts` — on 401 call refresh **once** with single-flight de-duplication, retry the original request, and dispatch logout on refresh failure (Constitution VII.4)
+- [ ] T109 [P] [US5] Write a Jasmine test in `src/ProjectManagementApp.Web/src/app/core/interceptors/error.interceptor.spec.ts` asserting that several concurrent 401s produce **exactly one** refresh call (quickstart V14.3)
+- [ ] T110 [US5] Add anti-forgery/CSRF protection for the cookie-authenticated `/api/auth/refresh` and `/api/auth/logout` endpoints in `src/ProjectManagementApp.Api/Program.cs` (FR-016)
 
 **Checkpoint**: All six stories complete. Verifiable against quickstart V9, V10, V14.
 
@@ -313,51 +314,52 @@ return 409.
 
 ### Tests for User Story 7
 
-- [ ] T110 [P] [US7] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ListUsersEndpointTests.cs` asserting an Admin sees all seeded users incl. any deactivated one (flagged `isActive:false`), and a non-Admin caller receives **403**
-- [ ] T111 [P] [US7] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/GetUserByIdEndpointTests.cs` asserting a known id returns **200** with an `ETag` header, and an unknown id returns **404**
-- [ ] T112 [P] [US7] Write unit tests for `ListUsersQueryHandler`/`GetUserByIdQueryHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/AdminUsersQueryHandlerTests.cs` covering the unscoped-list and unknown-id branches
+- [ ] T111 [P] [US7] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ListUsersEndpointTests.cs` asserting an Admin sees all seeded users incl. any deactivated one (flagged `isActive:false`), and a non-Admin caller receives **403**
+- [ ] T112 [P] [US7] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/GetUserByIdEndpointTests.cs` asserting a known id returns **200** with an `ETag` header, and an unknown id returns **404**
+- [ ] T113 [P] [US7] Write unit tests for `ListUsersQueryHandler`/`GetUserByIdQueryHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/AdminUsersQueryHandlerTests.cs` covering the unscoped-list and unknown-id branches
+- [ ] T114 [P] [US7] Unit-test the shared `ETagExtensions` helper itself (round-trip, malformed value, absent-header 400) in `tests/ProjectManagementApp.Api.Tests/Common/ETagExtensionsTests.cs` — moved here from US8 (was bundled into the old T122) because it tests a shared-kernel helper, not `ChangeUserRole`-specific behavior; written before T117 creates that helper (Constitution IX.5; research.md R-15)
 
 ### Implementation for User Story 7
 
-- [ ] T113 [US7] Create `ListUsersQuery`/`GetUserByIdQuery` and the `AdminUserSummary`/`AdminUserDetail`/`PagedAdminUserSummary` DTOs in `src/ProjectManagementApp.Application/Features/Auth/ListUsers/` and `.../GetUserById/` matching `docs/contracts/auth.v1.yaml`
-- [ ] T114 [US7] Implement `ListUsersQueryHandler` (paged, clamped `pageSize`, **no scope predicate** — Admin-only makes the role gate the entire authorization surface, spec US-001-07 7Cs) and `GetUserByIdQueryHandler` (404 if unknown) in the same folders
-- [ ] T115 [US7] Create the **shared** `ETagExtensions` in `src/ProjectManagementApp.Api/Common/ETagExtensions.cs` — write the `xmin` row version as a strong `ETag` on responses, read/parse `If-Match` from requests, return **400** when required but absent (ADR-0007 §3; research.md R-15 — promoted here from 002's original plan, since 001 is the first feature that needs it; **002's T017/T018 now verify and reuse this file instead of creating a second one**). Then create `src/ProjectManagementApp.Api/Controllers/UsersController.cs` with the thin `GET /api/users` and `GET /api/users/{id}` endpoints — `[Authorize(Roles="Admin")]`, using `ETagExtensions` to write the `ETag` header on the detail response
-- [ ] T116 [P] [US7] Build the admin users list component in `src/ProjectManagementApp.Web/src/app/features/auth/admin-users/list/` — a table with an "inactive" badge for deactivated users
-- [ ] T117 [P] [US7] Build the admin user detail component in `src/ProjectManagementApp.Web/src/app/features/auth/admin-users/detail/` — hosts the role-change control (US8) and the status toggle (US9)
-- [ ] T118 [US7] Implement `AdminUsersService` in `src/ProjectManagementApp.Web/src/app/core/services/admin-users.service.ts` and add the `admin-users` sub-route to the existing `auth` route group in `src/ProjectManagementApp.Web/src/app/features/auth/auth.routes.ts`, gated by the functional role guard (Admin-only)
+- [ ] T115 [US7] Create `ListUsersQuery`/`GetUserByIdQuery` and the `AdminUserSummary`/`AdminUserDetail`/`PagedAdminUserSummary` DTOs in `src/ProjectManagementApp.Application/Features/Auth/ListUsers/` and `.../GetUserById/` matching `docs/contracts/auth.v1.yaml`
+- [ ] T116 [US7] Implement `ListUsersQueryHandler` (paged, clamped `pageSize`, **no scope predicate** — Admin-only makes the role gate the entire authorization surface, spec US-001-07 7Cs) and `GetUserByIdQueryHandler` (404 if unknown) in the same folders
+- [ ] T117 [US7] Create the **shared** `ETagExtensions` in `src/ProjectManagementApp.Api/Common/ETagExtensions.cs` (unit-tested at T114, written first) — write the `xmin` row version as a strong `ETag` on responses, read/parse `If-Match` from requests, return **400** when required but absent (ADR-0007 §3; research.md R-15 — promoted here from 002's original plan, since 001 is the first feature that needs it; **002's T017/T018 now verify and reuse this file instead of creating a second one**). Then create `src/ProjectManagementApp.Api/Controllers/UsersController.cs` with the thin `GET /api/users` and `GET /api/users/{id}` endpoints — `[Authorize(Roles="Admin")]`, using `ETagExtensions` to write the `ETag` header on the detail response
+- [ ] T118 [P] [US7] Build the admin users list component in `src/ProjectManagementApp.Web/src/app/features/auth/admin-users/list/` — a table with an "inactive" badge for deactivated users
+- [ ] T119 [P] [US7] Build the admin user detail component in `src/ProjectManagementApp.Web/src/app/features/auth/admin-users/detail/` — hosts the role-change control (US8) and the status toggle (US9)
+- [ ] T120 [US7] Implement `AdminUsersService` in `src/ProjectManagementApp.Web/src/app/core/services/admin-users.service.ts` and add the `admin-users` sub-route to the existing `auth` route group in `src/ProjectManagementApp.Web/src/app/features/auth/auth.routes.ts`, gated by the functional role guard (Admin-only)
 
 **Checkpoint**: Admin can list and view every user. Verifiable against quickstart V15.
 
 ### Tests for User Story 8
 
-- [ ] T119 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleEndpointTests.cs` asserting an Admin promoting a **different** user's role returns **200** and writes a `UserRoleChanged` (from→to) audit row
-- [ ] T120 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleSelfTests.cs` asserting an Admin changing **their own** role returns **409**
-- [ ] T121 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleLastAdminTests.cs` asserting a change that would leave **zero** Admins returns **409**, exercised at the handler level (research.md R-12 — under the current one-Admin seed, no distinct-caller HTTP path reaches this independently of the self-check)
-- [ ] T122 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleConcurrencyTests.cs` asserting a missing `If-Match` returns **400** and a stale `If-Match` returns **409**. **Also unit-test the shared `ETagExtensions` itself** (round-trip, malformed value, absent-header 400) in `tests/ProjectManagementApp.Api.Tests/Common/ETagExtensionsTests.cs` — this is the one place that helper is unit-tested at all, now that it is created here rather than in 002 (research.md R-15)
-- [ ] T123 [P] [US8] Write unit tests for `ChangeUserRoleCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/ChangeUserRoleCommandHandlerTests.cs` covering success, self-refusal, last-Admin-refusal, and same-role (400) branches — this is the primary place the last-Admin invariant is proven independently of the self-check (research.md R-12)
+- [ ] T121 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleEndpointTests.cs` asserting an Admin promoting a **different** user's role returns **200** and writes a `UserRoleChanged` (from→to) audit row
+- [ ] T122 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleSelfTests.cs` asserting an Admin changing **their own** role returns **409**
+- [ ] T123 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleLastAdminTests.cs` asserting a change that would leave **zero** Admins returns **409**, exercised at the handler level (research.md R-12 — under the current one-Admin seed, no distinct-caller HTTP path reaches this independently of the self-check)
+- [ ] T124 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleConcurrencyTests.cs` asserting a missing `If-Match` returns **400** and a stale `If-Match` returns **409** (the shared `ETagExtensions` helper itself is unit-tested separately at T114)
+- [ ] T125 [P] [US8] Write unit tests for `ChangeUserRoleCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/ChangeUserRoleCommandHandlerTests.cs` covering success, self-refusal, last-Admin-refusal, and same-role (400) branches — this is the primary place the last-Admin invariant is proven independently of the self-check (research.md R-12)
 
 ### Implementation for User Story 8
 
-- [ ] T124 [US8] Create `ChangeUserRoleCommand` and `ChangeUserRoleCommandValidator` (role present, valid `Role` enum value) in `src/ProjectManagementApp.Application/Features/Auth/ChangeUserRole/`
-- [ ] T125 [US8] Implement `ChangeUserRoleCommandHandler` in the same folder — self-check (`callerId == targetId` → 409) → last-Admin count check (post-change Admin count would be zero → 409, independent of the self-check per research.md R-12) → same-role check (400) → `UserManager.RemoveFromRoleAsync`/`AddToRoleAsync` → audit `UserRoleChanged` (from→to), all in one transaction
-- [ ] T126 [US8] Add the thin `PUT /api/users/{id}/role` endpoint to `UsersController` — `[Authorize(Roles="Admin")]`, requires `If-Match`, writes a rotated `ETag` on success
-- [ ] T127 [P] [US8] Add the role-change control (a role select + confirmation dialog) to the admin user detail component (T117), surfacing either 409 message verbatim
+- [ ] T126 [US8] Create `ChangeUserRoleCommand` and `ChangeUserRoleCommandValidator` (role present, valid `Role` enum value) in `src/ProjectManagementApp.Application/Features/Auth/ChangeUserRole/`
+- [ ] T127 [US8] Implement `ChangeUserRoleCommandHandler` in the same folder — self-check (`callerId == targetId` → 409) → last-Admin count check (post-change Admin count would be zero → 409, independent of the self-check per research.md R-12) → same-role check (400) → `UserManager.RemoveFromRoleAsync`/`AddToRoleAsync` → audit `UserRoleChanged` (from→to), all in one transaction
+- [ ] T128 [US8] Add the thin `PUT /api/users/{id}/role` endpoint to `UsersController` — `[Authorize(Roles="Admin")]`, requires `If-Match`, writes a rotated `ETag` on success
+- [ ] T129 [P] [US8] Add the role-change control (a role select + confirmation dialog) to the admin user detail component (T119), surfacing either 409 message verbatim
 
 **Checkpoint**: Admin can change any other user's role, with both safety invariants enforced. Verifiable against quickstart V16.
 
 ### Tests for User Story 9
 
-- [ ] T128 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusEndpointTests.cs` asserting an Admin deactivating a **different**, active user returns **200**, sets `is_active = false`, and revokes **every** active `refresh_tokens` row for that user
-- [ ] T129 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusSelfTests.cs` asserting an Admin attempting to deactivate **themselves** returns **409**
-- [ ] T130 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusReactivateTests.cs` asserting reactivating a deactivated user returns **200**, sets `is_active = true`, writes `UserReactivated`, and that a **pre-deactivation** refresh token remains **401** after reactivation (tokens stay revoked)
-- [ ] T131 [P] [US9] Write unit tests for `ChangeUserStatusCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/ChangeUserStatusCommandHandlerTests.cs` covering deactivate (incl. the bulk token revoke), reactivate, self-refusal, and same-status (400) branches
+- [ ] T130 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusEndpointTests.cs` asserting an Admin deactivating a **different**, active user returns **200**, sets `is_active = false`, and revokes **every** active `refresh_tokens` row for that user
+- [ ] T131 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusSelfTests.cs` asserting an Admin attempting to deactivate **themselves** returns **409**
+- [ ] T132 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusReactivateTests.cs` asserting reactivating a deactivated user returns **200**, sets `is_active = true`, writes `UserReactivated`, and that a **pre-deactivation** refresh token remains **401** after reactivation (tokens stay revoked)
+- [ ] T133 [P] [US9] Write unit tests for `ChangeUserStatusCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/ChangeUserStatusCommandHandlerTests.cs` covering deactivate (incl. the bulk token revoke), reactivate, self-refusal, and same-status (400) branches
 
 ### Implementation for User Story 9
 
-- [ ] T132 [US9] Create `ChangeUserStatusCommand` and `ChangeUserStatusCommandValidator` (`isActive` present) in `src/ProjectManagementApp.Application/Features/Auth/ChangeUserStatus/`
-- [ ] T133 [US9] Implement `ChangeUserStatusCommandHandler` in the same folder — self-check on deactivation (409) → same-status check (400) → flip `IsActive`; **on deactivate**, set `RevokedAt = now` on every active `RefreshToken` row for the user — the **same** field `LogoutCommandHandler` (T093) and `RefreshCommandHandler` (T105) already use, not a new mechanism (research.md R-13) — then audit `UserDeactivated`; **on reactivate**, audit `UserReactivated` only (tokens stay revoked), all in one transaction
-- [ ] T134 [US9] Add the thin `PUT /api/users/{id}/status` endpoint to `UsersController` — `[Authorize(Roles="Admin")]`, requires `If-Match`, writes a rotated `ETag` on success
-- [ ] T135 [P] [US9] Add the deactivate/reactivate toggle to the admin user detail component (T117) — a confirmation dialog naming the user and, for deactivation, warning that active sessions end immediately
+- [ ] T134 [US9] Create `ChangeUserStatusCommand` and `ChangeUserStatusCommandValidator` (`isActive` present) in `src/ProjectManagementApp.Application/Features/Auth/ChangeUserStatus/`
+- [ ] T135 [US9] Implement `ChangeUserStatusCommandHandler` in the same folder — self-check on deactivation (409) → same-status check (400) → flip `IsActive`; **on deactivate**, set `RevokedAt = now` on every active `RefreshToken` row for the user — the **same** field `LogoutCommandHandler` (T094) and `RefreshCommandHandler` (T106) already use, not a new mechanism (research.md R-13) — then audit `UserDeactivated`; **on reactivate**, audit `UserReactivated` only (tokens stay revoked), all in one transaction
+- [ ] T136 [US9] Add the thin `PUT /api/users/{id}/status` endpoint to `UsersController` — `[Authorize(Roles="Admin")]`, requires `If-Match`, writes a rotated `ETag` on success
+- [ ] T137 [P] [US9] Add the deactivate/reactivate toggle to the admin user detail component (T119) — a confirmation dialog naming the user and, for deactivation, warning that active sessions end immediately
 
 **Checkpoint**: Admin user management is complete — list/view, role change, and deactivate/reactivate all
 work end-to-end with their safety invariants enforced. Verifiable against quickstart V15–V18.
@@ -368,21 +370,21 @@ work end-to-end with their safety invariants enforced. Verifiable against quicks
 
 **Purpose**: Deliverables, hardening, and proving the gates actually work.
 
-- [ ] T136 [P] Write the repository `README.md` with overview, prerequisites, backend/frontend setup, migration commands, test commands, and end-to-end run instructions (Constitution X.1)
-- [ ] T137 [P] Generate the entity-relationship diagram from `InitialCreate` and commit it to `docs/erd.md` (Constitution X.4)
-- [ ] T138 **Prove the contract gate fails**: temporarily rename a response property (e.g. `accessToken` → `token`), run `dotnet build -p:CheckApiContract=true`, confirm the build **fails** with an `oasdiff` breaking report, then revert (quickstart V13)
-- [ ] T139 Execute the full quickstart validation V1–V18 in `specs/001-auth-rbac/quickstart.md` and record results (extended 2026-08-05 to include V15–V18, the Admin user-management scenarios)
-- [ ] T140 [P] Add the CI pipeline running restore → build with `-p:CheckApiContract=true` → `dotnet test` → `npm test`, failing the merge on any failure (Constitution IX.3)
-- [ ] T141 [P] Add an architecture test in `tests/ProjectManagementApp.Application.Tests/Architecture/LayerDependencyTests.cs` asserting Domain references no project, and Application references neither Infrastructure nor Api (research.md R-1)
-- [ ] T142 [P] Audit Serilog output across all endpoints confirming no password, raw refresh token, or signing key is ever logged (Constitution V.3, NFR-003)
-- [ ] T143 [P] Add test-data builders/factories in `tests/ProjectManagementApp.Application.Tests/Builders/` replacing any inline object literals (Constitution IX.4)
-- [ ] T144 [P] Add XML doc comments to public controllers, handlers, and service interfaces (Constitution VIII.3)
-- [ ] T145 Remove all commented-out code, `Console.WriteLine`, and `console.log` across `src/` (Constitution VIII.4)
-- [ ] T146 [P] Verify the Angular production build (`ng build --configuration production`) emits into the API's `wwwroot/` and the app runs same-origin (ADR-0002, Constitution XI.1)
-- [ ] T147 [P] Write IIS deployment instructions in `docs/deployment.md` covering the self-contained publish and `appsettings.{Environment}.json` (Constitution XI.1/XI.3)
-- [ ] T148 Run a security review against spec 001 §Security Rules — deny-by-default, attribute-only role gates, hashed passwords and refresh tokens, secrets absent from source control, **including the Admin user-management endpoints added 2026-08-05** (self-restriction and last-Admin invariants, `If-Match` enforcement, bulk token revocation on deactivation)
+- [ ] T138 [P] Write the repository `README.md` with overview, prerequisites, backend/frontend setup, migration commands, test commands, and end-to-end run instructions (Constitution X.1)
+- [ ] T139 [P] Generate the entity-relationship diagram from `InitialCreate` and commit it to `docs/erd.md` (Constitution X.4)
+- [ ] T140 **Prove the contract gate fails**: temporarily rename a response property (e.g. `accessToken` → `token`), run `dotnet build -p:CheckApiContract=true`, confirm the build **fails** with an `oasdiff` breaking report, then revert (quickstart V13)
+- [ ] T141 Execute the full quickstart validation V1–V18 in `specs/001-auth-rbac/quickstart.md` and record results (extended 2026-08-05 to include V15–V18, the Admin user-management scenarios)
+- [ ] T142 [P] Add the CI pipeline running restore → build with `-p:CheckApiContract=true` → `dotnet test` → `npm test`, failing the merge on any failure (Constitution IX.3)
+- [ ] T143 [P] Add an architecture test in `tests/ProjectManagementApp.Application.Tests/Architecture/LayerDependencyTests.cs` asserting Domain references no project, and Application references neither Infrastructure nor Api (research.md R-1)
+- [ ] T144 [P] Audit Serilog output across all endpoints confirming no password, raw refresh token, or signing key is ever logged (Constitution V.3, NFR-003)
+- [ ] T145 [P] Add test-data builders/factories in `tests/ProjectManagementApp.Application.Tests/Builders/` replacing any inline object literals (Constitution IX.4)
+- [ ] T146 [P] Add XML doc comments to public controllers, handlers, and service interfaces (Constitution VIII.3)
+- [ ] T147 Remove all commented-out code, `Console.WriteLine`, and `console.log` across `src/` (Constitution VIII.4)
+- [ ] T148 [P] Verify the Angular production build (`ng build --configuration production`) emits into the API's `wwwroot/` and the app runs same-origin (ADR-0002, Constitution XI.1)
+- [ ] T149 [P] Write IIS deployment instructions in `docs/deployment.md` covering the self-contained publish and `appsettings.{Environment}.json` (Constitution XI.1/XI.3)
+- [ ] T150 Run a security review against spec 001 §Security Rules — deny-by-default, attribute-only role gates, hashed passwords and refresh tokens, secrets absent from source control, **including the Admin user-management endpoints added 2026-08-05** (self-restriction and last-Admin invariants, `If-Match` enforcement, bulk token revocation on deactivation)
 
-- [ ] T149 Verify [`docs/adr/0007-implementation-conventions.md`](../../docs/adr/0007-implementation-conventions.md) still describes what was actually built — the contract drift gate, Testcontainers-only test database, `ETag`/`If-Match` concurrency transport, and builder-based test fixtures — and amend the ADR if the implementation diverged (Constitution X.3)
+- [ ] T151 Verify [`docs/adr/0007-implementation-conventions.md`](../../docs/adr/0007-implementation-conventions.md) still describes what was actually built — the contract drift gate, Testcontainers-only test database, `ETag`/`If-Match` concurrency transport, and builder-based test fixtures — and amend the ADR if the implementation diverged (Constitution X.3)
 
 ---
 
@@ -466,12 +468,12 @@ demonstrable: a seeded database, a user who can register, and a user who can log
   001's four tables will silently break 002's very first scope test (research.md R-10).
 - **Do not substitute EF InMemory for Testcontainers.** InMemory cannot express `xmin` and evaluates LINQ
   in memory, so a fetch-then-filter bug would *pass* the suite (research.md R-7).
-- **T138 is not optional ceremony.** A contract gate that has never been observed to fail is
+- **T140 is not optional ceremony.** A contract gate that has never been observed to fail is
   indistinguishable from one that does not work.
 - **Do not build a second token-revocation mechanism for US9.** Deactivation reuses `RefreshToken.RevokedAt`
-  — the exact field US-001-03 (logout, T093) and US-001-05 (refresh rotation, T105) already set. A new
+  — the exact field US-001-03 (logout, T094) and US-001-05 (refresh rotation, T106) already set. A new
   flag or column would create two independent places a token's validity depends on (research.md R-13).
-- **T115 *does* create the shared `ETagExtensions` helper** (`src/ProjectManagementApp.Api/Common/ETagExtensions.cs`) — this reverses R-14's original inline-only decision. **002's T017/T018 have been corrected to verify/reuse it, not recreate it** (research.md R-15). If 002's tasks.md is ever regenerated from scratch, re-apply this correction rather than letting T017 silently re-create a second implementation.
+- **T117 *does* create the shared `ETagExtensions` helper** (`src/ProjectManagementApp.Api/Common/ETagExtensions.cs`) — this reverses R-14's original inline-only decision. **002's T017/T018 have been corrected to verify/reuse it, not recreate it** (research.md R-15). If 002's tasks.md is ever regenerated from scratch, re-apply this correction rather than letting T017 silently re-create a second implementation.
 
 ---
 

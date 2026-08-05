@@ -108,7 +108,7 @@ so this is a genuine open decision.
 
 **Implementation-vehicle note (2026-08-06).** The **design decision** above — `ETag`/`If-Match`, not a body
 field, 400-absent/409-stale — is unchanged and still 002's to apply first. But the **shared helper class**
-that implements it, `ETagExtensions.cs`, is now **created by 001** (001 T115, 001 research R-15), not by
+that implements it, `ETagExtensions.cs`, is now **created by 001** (001 T117, 001 research R-15), not by
 002: 001 added its own `xmin`-guarded mutating endpoints (Admin user management, added 2026-08-05) and,
 being built first, became the feature that actually needs this machinery before 002 does. 002's T017/T018
 were corrected accordingly — see 002 tasks.md T017/T018 and 002 plan.md's Source Code listing. This is a
