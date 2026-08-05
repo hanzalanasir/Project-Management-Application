@@ -20,6 +20,8 @@ info:
     Access tokens are short-lived JWTs carrying exactly one `role` claim. Refresh tokens are
     opaque, stored hashed server-side, and transported **only** as an httpOnly Secure
     SameSite=Strict cookie — never in a response body, never readable by JavaScript.
+    Also owns Admin-only user management (list/view, role change, deactivate/reactivate —
+    US-001-07/08/09, added 2026-08-05 per `/speckit.analyze` finding F1).
 
 servers:
   - url: /api
@@ -28,6 +30,8 @@ servers:
 tags:
   - name: Auth
     description: Registration, session lifecycle, and current-user lookup
+  - name: Users
+    description: Admin-only user administration — list/view, role change, deactivate/reactivate
   - name: System
     description: Liveness / readiness
 
@@ -176,6 +180,151 @@ paths:
         '401': { $ref: '#/components/responses/UnauthorizedProblem' }
         '500': { $ref: '#/components/responses/UnexpectedProblem' }
 
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: List every user account (Admin-only)
+      description: >
+        Unscoped — an Admin sees **every** user regardless of role or active status. Deactivated
+        users are included and flagged, never filtered out. There is no equivalent view for any
+        other role (US-001-07).
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: page,     in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - name: pageSize
+          in: query
+          description: Values above the configured maximum are **clamped**, not rejected (Constitution VI.4).
+          schema: { type: integer, minimum: 1, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: A page of all users.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedAdminUserSummary' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      operationId: getUserById
+      summary: View a single user's detail (Admin-only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: User detail, including `isActive`.
+          headers:
+            ETag:
+              description: Row version (`xmin`), for a subsequent `If-Match` on role/status change.
+              schema: { type: string, example: '"4212"' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserDetail' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /users/{id}/role:
+    put:
+      tags: [Users]
+      operationId: changeUserRole
+      summary: Change a user's role (Admin-only)
+      description: >
+        Narrow, single-field command (matching 003's status-only pattern) — no field but `role` is
+        bindable through this route. Refused with **409** if the target is the caller's own account,
+        or if the change would leave zero Admins in the system (both checks independent — see
+        spec US-001-08 Edge cases). Requesting the target's current role returns **400**.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: If-Match
+          in: header
+          required: true
+          description: The `ETag` from a prior read. Absent → 400; stale → 409 (ADR-0007 §3).
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangeUserRoleRequest' }
+      responses:
+        '200':
+          description: Role changed.
+          headers:
+            ETag: { description: Rotated row version., schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserDetail' }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '409':
+          description: Self role-change, last-Admin protection, or a stale `If-Match`.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              examples:
+                self:      { value: { title: Conflict, status: 409, detail: 'You cannot change your own role.' } }
+                lastAdmin: { value: { title: Conflict, status: 409, detail: 'At least one Admin must remain.' } }
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
+  /users/{id}/status:
+    put:
+      tags: [Users]
+      operationId: changeUserStatus
+      summary: Deactivate or reactivate a user (Admin-only)
+      description: >
+        Narrow, single-field command. Deactivating sets `is_active = false` **and** revokes every
+        active refresh token belonging to the user — reusing the same `RevokedAt` mechanism
+        `/auth/logout` and `/auth/refresh` already use, not a second one (US-001-09). Refused with
+        **409** if the target is the caller's own account. Reactivating does **not** restore any
+        previously-revoked token.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: If-Match
+          in: header
+          required: true
+          description: The `ETag` from a prior read. Absent → 400; stale → 409 (ADR-0007 §3).
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangeUserStatusRequest' }
+      responses:
+        '200':
+          description: Status changed.
+          headers:
+            ETag: { description: Rotated row version., schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserDetail' }
+        '400': { $ref: '#/components/responses/ValidationProblem' }
+        '401': { $ref: '#/components/responses/UnauthorizedProblem' }
+        '403': { $ref: '#/components/responses/ForbiddenProblem' }
+        '404': { $ref: '#/components/responses/NotFoundProblem' }
+        '409':
+          description: Self-deactivation, or a stale `If-Match`.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetails' }
+              example:
+                title: Conflict
+                status: 409
+                detail: You cannot deactivate your own account.
+        '500': { $ref: '#/components/responses/UnexpectedProblem' }
+
   /health:
     get:
       tags: [System]
@@ -274,6 +423,61 @@ components:
         status:  { type: string, enum: [Healthy, Degraded, Unhealthy], example: Healthy }
         version: { type: string, example: 1.0.0 }
 
+    AdminUserSummary:
+      type: object
+      required: [id, fullName, email, role, isActive, createdAt]
+      properties:
+        id:        { type: string, format: uuid }
+        fullName:  { type: string, example: Dana Rivera }
+        email:     { type: string, format: email, example: dana@example.com }
+        role:      { $ref: '#/components/schemas/Role' }
+        isActive:  { type: boolean, description: 'Deactivated users are included and flagged, never filtered out.' }
+        createdAt: { type: string, format: date-time }
+      description: The Admin-only user projection — unlike `UserDto`, it exposes `isActive` (US-001-07).
+
+    AdminUserDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminUserSummary'
+        - type: object
+          required: [updatedAt]
+          properties:
+            updatedAt: { type: string, format: date-time }
+      description: >
+        The row version is deliberately **not** a body property — it travels as the `ETag`/`If-Match`
+        header (ADR-0007 §3), the same convention 002's `ProjectDetail` uses.
+
+    PagedAdminUserSummary:
+      type: object
+      required: [items, page, pageSize, totalCount, totalPages]
+      properties:
+        items:      { type: array, items: { $ref: '#/components/schemas/AdminUserSummary' } }
+        page:       { type: integer, example: 1 }
+        pageSize:   { type: integer, example: 20 }
+        totalCount: { type: integer, description: 'Unscoped — every user in the system.', example: 3 }
+        totalPages: { type: integer, example: 1 }
+      description: The shared `PagedResult<T>` envelope (docs/shared-contracts.md §4).
+
+    ChangeUserRoleRequest:
+      type: object
+      required: [role]
+      additionalProperties: false
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+      description: >
+        Narrow, single-field body — no other field of the target user is editable through this route
+        (matching 003's status-only endpoint pattern).
+
+    ChangeUserStatusRequest:
+      type: object
+      required: [isActive]
+      additionalProperties: false
+      properties:
+        isActive:
+          type: boolean
+          description: >
+            `false` deactivates (blocks login/refresh, immediately revokes every active refresh token
+            for the user); `true` reactivates (does **not** restore revoked tokens).
+
     ProblemDetails:
       type: object
       description: RFC 7807. The only error shape this API emits (ADR-0003, shared-contracts §1).
@@ -309,6 +513,24 @@ components:
 
     UnauthorizedProblem:
       description: Authentication required, or the access token is missing/invalid/expired.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+
+    ForbiddenProblem:
+      description: >
+        The role gate refused the operation — every `/users*` endpoint is Admin-only; there is no
+        partial or self-scoped view for any other role (US-001-07/08/09, first use of 403 in this contract).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          example:
+            title: Forbidden
+            status: 403
+            detail: This endpoint requires the Admin role.
+
+    NotFoundProblem:
+      description: No user exists with that id (first use of 404 in this contract — US-001-07/08/09).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/ProblemDetails' }

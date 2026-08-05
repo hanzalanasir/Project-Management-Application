@@ -106,6 +106,15 @@ so this is a genuine open decision.
 **Testability note.** This is provable only against real PostgreSQL — `xmin` does not exist elsewhere
 (001 R-7). The 409 path is an integration test, not a unit test.
 
+**Implementation-vehicle note (2026-08-06).** The **design decision** above — `ETag`/`If-Match`, not a body
+field, 400-absent/409-stale — is unchanged and still 002's to apply first. But the **shared helper class**
+that implements it, `ETagExtensions.cs`, is now **created by 001** (001 T115, 001 research R-15), not by
+002: 001 added its own `xmin`-guarded mutating endpoints (Admin user management, added 2026-08-05) and,
+being built first, became the feature that actually needs this machinery before 002 does. 002's T017/T018
+were corrected accordingly — see 002 tasks.md T017/T018 and 002 plan.md's Source Code listing. This is a
+credit-and-location change only; 002 still relies on this exact transport for `ProjectsController`'s own
+writes (T033, T057, T062, T065).
+
 ---
 
 ## R-3 — Search uses `ILIKE` over a **`pg_trgm` GIN index**; sorting uses a **whitelist**

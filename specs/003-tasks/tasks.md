@@ -32,8 +32,8 @@ spec 003 B.8 DoD #13. **Docker required** — Testcontainers PostgreSQL, never E
 | **001** | **`TaskMutation`** enum (T020) | the graduated matrix — *without it nothing compiles* |
 | **001** | `AuditAction` incl. `TaskCreated/Updated/StatusChanged/Reassigned/Deleted` (T018) | every write |
 | **001** | `IApplicationDbContext`, `Result`, `PagedResult<T>`, `IActivityLogService` | every slice |
+| **001** | **`ETagExtensions`** (T115, `Api/Common/`) | reused verbatim by all three PUTs — created by 001, not 002; 002's T017 only verifies it (corrected 2026-08-06) |
 | **002** | **`pg_trgm` extension** (`AddProjectIndexes`) | the title search index — 003 does **not** re-enable it |
-| **002** | **`ETagExtensions`** (002 T017) | reused verbatim by all three PUTs |
 | **002** | `Project` entity + ownership rule | the ProjectManager scope predicate |
 | **004** | `team_members` **table** (from 001's `InitialCreate`) | assignee validation — **read-only; 004's rules are not needed** |
 

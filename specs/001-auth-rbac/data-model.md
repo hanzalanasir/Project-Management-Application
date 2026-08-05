@@ -50,7 +50,16 @@ Identity supplies `Id`, `UserName`, `NormalizedUserName`, `Email`, `NormalizedEm
 **Business rule — exactly one role per user.** `user_roles` is physically a many-to-many join (Identity's
 shape), but the domain permits exactly one row per user. Enforced by the registration/seed paths and
 asserted by test; it is **not** a database constraint, and that is deliberate — Identity's own store APIs
-assume the join table.
+assume the join table. **US-001-08 (change a user's role) is the first feature capability to *change* an
+existing `user_roles` row rather than only insert one at registration/seed time**, and it preserves this
+same one-role invariant (remove the old row, add the new one, in the same transaction).
+
+**No new column for US-001-07/08/09.** Admin user management operates entirely on fields already listed
+above: `IsActive` (already present, default `true` — US-001-09 is simply the first and only place that
+*sets* it administratively; nothing else in 001–006 ever flips it) and `Version`/`xmin` (already present —
+US-001-08/09's writes are the first in 001 to require `If-Match`, since 001 predates ADR-0007's
+concurrency convention; see research R-14 for why this is handled inline rather than via a shared helper).
+No migration beyond `InitialCreate` is needed.
 
 ### `ApplicationRole : IdentityRole<Guid>`
 No added properties. Exactly three rows, seeded: `Admin`, `ProjectManager`, `TeamMember`.
@@ -95,10 +104,14 @@ respectively. 001 adds no rules to them.
 | Enum | Values | Persisted as |
 |---|---|---|
 | `Role` | `Admin, ProjectManager, TeamMember` | Identity `roles` rows (not a column) |
-| `AuditAction` | **All 18 values across 001–006** — see note below | `activity_logs.action` string |
-| `TokenType` | `Access, Refresh` | internal only, never persisted |
+| `AuditAction` | **All 20 values across 001–006** — see note below | `activity_logs.action` string |
 | **`TaskMutation`** | `Create, FullEdit, StatusChange, Reassign, Delete` | **never persisted** — authorization vocabulary |
 | `ProjectStatus`, `TaskStatus`, `TaskPriority` | per 002 B.2 / 003 B.2 | string columns |
+
+> **`TokenType` removed 2026-08-05** (`/speckit.analyze` finding C1): this table previously listed a
+> `TokenType` (`Access, Refresh`) enum. It was created by no task and referenced by no interface signature
+> anywhere in spec 001 or this file — vestigial from an earlier draft. Simpler to remove than to carry a
+> type nothing consumes.
 
 > **`AuditAction` is one shared enum carrying every feature's values**, created here in full — exactly like
 > `ProjectStatus`/`TaskStatus`/`TaskPriority`, which 001 also creates on behalf of 002/003. Later features
@@ -106,17 +119,19 @@ respectively. 001 adds no rules to them.
 >
 > | Feature | Values |
 > |---|---|
-> | 001 | `UserRegistered, UserLoggedIn, UserLoggedOut, TokenRefreshed, UserDeactivated, UserSeeded` |
+> | 001 | `UserRegistered, UserLoggedIn, UserLoggedOut, TokenRefreshed, UserDeactivated, UserSeeded, UserRoleChanged, UserReactivated` |
 > | 002 | `ProjectCreated, ProjectUpdated, ProjectDeleted, ProjectOwnerChanged` |
 > | 003 | `TaskCreated, TaskUpdated, TaskStatusChanged, TaskReassigned, TaskDeleted` |
 > | 004 | `TeamMemberAdded, TeamMemberRemoved` |
 > | 005 | *(none — writes nothing)* |
 > | 006 | `ReportGenerated` |
 >
-> Creating it with only 001's six values would break 002's very first audited write. Found during 006's
-> planning pre-flight; it is the same shared-member-consumed-later pattern as `TaskMutation` and
+> Creating it with only 001's six original values would break 002's very first audited write. Found during
+> 006's planning pre-flight; it is the same shared-member-consumed-later pattern as `TaskMutation` and
 > `QueryScopedAsync`, which the §2/§3/§6/§7 sweep missed because `AuditAction` is a Domain enum rather
-> than a shared-contracts type.
+> than a shared-contracts type. **`UserRoleChanged`/`UserReactivated` added 2026-08-05** alongside
+> US-001-07/08/09 (`/speckit.analyze` finding F1's remediation) — bringing 001's own count from six to
+> eight, and the shared total from 18 to 20.
 
 > **`TaskMutation` lives in `.Application/Common/Models/`, not `Domain/Enums/`**, beside `AccessDecision` —
 > its sibling in the very same method signature. It is authorization vocabulary, never domain state, and it

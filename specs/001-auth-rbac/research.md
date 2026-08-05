@@ -353,6 +353,127 @@ Cascade rules fixed here (IV.3, from 002/003/004's data models): `tasks.project_
 
 ---
 
+## R-11 — Admin user management lives in 001, not a separate feature (`/speckit.analyze` finding F1)
+
+**Decision.** US-001-07/08/09 (list/view all users, change a user's role, deactivate/reactivate) are added
+to **this** feature, not to a new feature or to 004 Team.
+
+**Rationale.** `/speckit.analyze` found that 001's own Clarifications and Actors section had, since the
+spec was first drafted, attributed this capability to "feature 004" — but 004's actual scope is project
+**team membership** (`team_members`) and explicitly excludes any per-project or global role capability. The
+attribution was never true; the capability simply hadn't been built anywhere. Since 001 already owns
+`Users`, `user_roles`, and the `IsActive` flag, adding the capability here requires no new shared-kernel
+interface and no cross-feature dependency — it is a same-feature extension, not a new one.
+
+**Alternatives considered.**
+- *Leave it unbuilt, just correct the spec's wording* — rejected: the Actors section makes a first-class
+  claim ("the only role that can create/deactivate users"); leaving it as prose with nothing behind it is
+  exactly the documented-but-unbuilt gap finding F1 flagged, not a fix for it.
+- *A new feature 007* — rejected: needless indirection for CRUD-adjacent operations on an entity 001
+  already owns outright; every other feature's user-facing operations on an entity they don't own (e.g.
+  003 reading `team_members`) are read-only, never a write — this would be the first and only exception,
+  and for no benefit.
+- *Fold it into 004 for real* — rejected: 004's whole design (T.2, "membership is a link, not a role") is
+  built around **not** introducing a role dimension. Adding role-elevation there would directly contradict
+  its own load-bearing decision.
+
+---
+
+## R-12 — Self-role-change and last-Admin protection are enforced independently, belt-and-braces
+
+**Decision.** `ChangeUserRoleCommandHandler` runs two separate checks before allowing a role change:
+(1) the caller is not the target (`callerId != targetId`), and (2) the change would not leave zero Admins
+in the system (a `COUNT` over users in the `Admin` role, evaluated after the hypothetical change). Both
+return **409**; neither is derived from the other.
+
+**Rationale.** Under the current constraint — only an Admin may call this endpoint — the two checks are, in
+every reachable case, the same request: a role change targeting the sole remaining Admin can only be
+performed by that Admin, since there is no second Admin to do it instead. Implementing only the self-check
+would be sufficient **today**, but would silently stop protecting the invariant the moment any future
+capability (a bulk operation, a differently-scoped admin action, a script using an internal API) lets one
+Admin act on another's role without the self-identity check being the thing that fires first. Keeping the
+count check independent means the "at least one Admin" guarantee is a property of the **data**, not an
+accident of the current caller-must-be-Admin constraint.
+
+**Alternatives considered.**
+- *Self-check only, rely on it also covering the count case* — rejected for the reason above: correct
+  today, fragile against any future change to who may call this endpoint.
+- *Count-check only, no explicit self-check* — rejected: an Admin targeting their own account would then
+  get a generic "at least one Admin must remain" message even when there are five other Admins, which is
+  a worse, less specific error for the far more common accidental-self-click case. The self-check exists
+  for **message quality**, not just correctness.
+
+---
+
+## R-13 — Deactivation reuses `RefreshToken.RevokedAt`; no second revocation mechanism
+
+**Decision.** `ChangeUserStatusCommandHandler`, on deactivation, sets `RevokedAt = now` on **every** row in
+`refresh_tokens` for the target user where `IsActive` (computed: `RevokedAt is null && ExpiresAt > now`) is
+still true — the exact field `LogoutCommandHandler` (US-001-03) and `RefreshCommandHandler` (US-001-05,
+rotation) already set on a single token. No new column, flag, or table is introduced.
+
+**Rationale.** CFG-004 already anticipated an "all of the user's tokens" variant of revocation for logout
+(config-gated, defaulting to current-device-only); this story is that same underlying operation — mark a
+token row revoked — applied administratively and unconditionally to every row for one user, not gated by
+config. Introducing a second mechanism (e.g. an `IsForceLoggedOut` flag on `ApplicationUser`, checked
+separately from `refresh_tokens.revoked_at`) would mean two independent places a token's validity depends
+on, which is exactly the kind of drift ADR-0007's conventions exist to prevent.
+
+**Alternatives considered.**
+- *A user-level "force logout" flag, checked at refresh time instead of revoking rows* — rejected: it would
+  require `RefreshCommandHandler` to check two things instead of one (the flag AND the row), and a
+  `SELECT` for the flag on every refresh even for users never deactivated. Revoking the rows directly keeps
+  the check exactly where it already is (`RevokedAt`/`ExpiresAt` on the presented row).
+- *Delete the refresh_tokens rows outright rather than revoking* — rejected: it would lose the
+  `ReplacedByToken` rotation chain's history and make the audit trail (which already records `TokenRefreshed`
+  events referencing these rows conceptually) harder to reason about; revocation is reversible-in-record
+  even though it is not reversible-in-effect, consistent with 002/003's "audit, don't destroy history" posture.
+
+---
+
+## R-14 — ETag/If-Match for the new endpoints, implemented inline *(superseded by R-15, 2026-08-06)*
+
+**Original decision (no longer in effect).** `UsersController`'s `PUT .../role` and `PUT .../status`
+actions would read `If-Match` and write `ETag` locally, rather than creating a shared
+`src/ProjectManagementApp.Api/Common/ETagExtensions.cs`, specifically to avoid touching 002's files in a
+pass that was not scoped to edit them.
+
+**Why superseded.** That scoping constraint no longer applies — the follow-up was deliberately flagged
+(not silently resolved) precisely so it could be picked up explicitly, and it now has been. **R-15 is the
+decision in effect**; this entry is kept, marked superseded, so the reasoning trail isn't lost (matching
+this repo's convention of marking OQ items "Resolved" rather than deleting them).
+
+---
+
+## R-15 — `ETagExtensions` is a shared helper created by 001, not duplicated per feature
+
+**Decision.** `src/ProjectManagementApp.Api/Common/ETagExtensions.cs` is created **once, here in 001**
+(T115) — reading `If-Match`, writing `ETag` from a row's `xmin`, and returning **400** when a required
+`If-Match` is absent (ADR-0007 §3) — and used by `UsersController`'s two new mutating endpoints. **002's
+T017/T018 are corrected to *verify and reuse* this shared helper instead of creating a second
+implementation**; 002's plan.md's Source Code listing and research R-2 are updated to match (both edited
+2026-08-06, in the same pass as this decision).
+
+**Rationale.** `docs/shared-contracts.md` §5 already lists `users` among the `xmin`-bearing entities, and
+ADR-0007 §3 (`ETag`/`If-Match`) is a repo-wide convention, not a 002-specific one — 002's plan simply
+happened to be where it was *first written down*, because 002 was the first feature planned to need it.
+Since 001 is built before 002 and now has its own mutating, `xmin`-guarded endpoints, the honest owner of
+this shared file is whichever feature the build order reaches first — which is 001. Two independent
+implementations of the same ADR-0007 §3 contract (one per feature) is exactly the drift the shared-kernel
+discipline in ADR-0006/ADR-0007 exists to prevent; R-14's inline version was a deliberately temporary,
+flagged compromise, not a design worth keeping once the file-scope constraint that produced it was lifted.
+
+**Alternatives considered.**
+- *Leave R-14's inline version in place, let 002 build its own `ETagExtensions.cs` in parallel* — rejected:
+  this is precisely the "same mechanism built twice" outcome R-14 flagged as a live risk, not a resolution
+  of it. Accepting known duplication when a clean consolidation is available and low-cost is worse than
+  fixing it now, before either feature is implemented.
+- *Have 002 create `ETagExtensions.cs` and have 001 depend on 002* — rejected outright: it would invert
+  the project's entire build order (001 always precedes 002–006; nothing in 001 may depend on a later
+  feature, per every prior shared-kernel decision in this file).
+
+---
+
 ## Resolved Technical Context unknowns
 
 | Unknown | Resolution | Source |

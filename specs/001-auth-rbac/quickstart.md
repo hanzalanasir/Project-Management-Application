@@ -201,6 +201,84 @@ In the browser at `http://localhost:4200`:
    original request retried and succeeding.
 4. Revoke the refresh token server-side, then trigger a call → session cleared, redirected to login.
 
+### V15 — Admin sees every user, including deactivated ones · *(DoD 11, FR-017)*
+
+```bash
+curl -sS $API/users -H "Authorization: Bearer $ADMIN_TOKEN" -i     # → 200 PagedResult<AdminUserSummary>
+curl -sS $API/users -H "Authorization: Bearer $TEAMMEMBER_TOKEN"   # → 403
+```
+
+**Expect** the Admin's response to include **all three** seeded accounts, each with `isActive` shown
+(`true` for all, at this point). Deactivate one (V17 below), re-list, and **expect it still appears**,
+now `"isActive": false` — never filtered out. `GET /api/users/{id}` on the ProjectManager returns **200**
+with an `ETag` header; save it as `$ETAG` for V16.
+
+### V16 — Role change: self-refusal and the last-Admin invariant · *(DoD 12, FR-018)*
+
+```bash
+curl -sS -X PUT $API/users/$TEAMMEMBER_ID/role -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "If-Match: $ETAG" -H 'Content-Type: application/json' -d '{"role":"ProjectManager"}' -i
+```
+
+**Expect** `200`, the updated `AdminUserDetail` with `"role":"ProjectManager"`, and a `UserRoleChanged`
+row in `activity_logs` recording `TeamMember → ProjectManager`.
+
+Now, as the Admin, attempt to change your **own** role:
+
+```bash
+curl -sS -X PUT $API/users/$ADMIN_ID/role -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "If-Match: $ADMIN_ETAG" -d '{"role":"ProjectManager"}' -i
+```
+
+**Expect `409 Conflict`** — `"You cannot change your own role."` — and nothing changes. Since the seed
+provisions exactly **one** Admin, this same request is *also* the only way to reach the last-Admin
+invariant via the live API, and the self-check refuses it first. **The independent last-Admin count check
+(R-12) is proven at the handler-unit-test level** (`ChangeUserRoleCommandHandlerTests`), not by a second
+curl step here — see research R-12 for why no distinct-caller HTTP scenario for it exists under the
+current one-Admin seed.
+
+### V17 — Deactivation revokes active sessions immediately; self-deactivation refused · *(DoD 13, FR-019)*
+
+```bash
+# Log in as the (now) ProjectManager from V16 first, to hold a live refresh cookie:
+curl -sS -X POST $API/auth/login -c pm-cookies.txt -d '{"email":"...","password":"..."}' \
+  -H 'Content-Type: application/json'
+
+# Admin deactivates that user:
+curl -sS -X PUT $API/users/$TEAMMEMBER_ID/status -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "If-Match: $ETAG2" -d '{"isActive":false}' -i
+```
+
+**Expect** `200`, `is_active = false` in the database, and a `UserDeactivated` audit row. Now attempt to
+refresh using the cookie captured above:
+
+```bash
+curl -sS -X POST $API/auth/refresh -b pm-cookies.txt -i
+```
+
+**Expect `401`** — the token was revoked the moment deactivation committed, not merely on its own next
+natural expiry (proving the bulk-revoke side effect, not just FR-004's existing login/refresh gate).
+
+Then, as the Admin, attempt to deactivate **yourself**: **expect `409 Conflict`**
+(`"You cannot deactivate your own account."`), nothing changes.
+
+### V18 — Reactivation does not resurrect the old session · *(DoD 13, FR-019)*
+
+```bash
+curl -sS -X PUT $API/users/$TEAMMEMBER_ID/status -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "If-Match: $ETAG3" -d '{"isActive":true}' -i
+```
+
+**Expect** `200`, `is_active = true`, and a `UserReactivated` audit row. Now replay the **same** pre-
+deactivation refresh cookie from V17:
+
+```bash
+curl -sS -X POST $API/auth/refresh -b pm-cookies.txt -i    # → still 401
+```
+
+**Expect `401` still** — reactivation restores the ability to **log in fresh**; it does not revive a
+token revoked before it. The user must call `/auth/login` again to obtain a new pair.
+
 ---
 
 ## Test suite
@@ -232,3 +310,6 @@ Merging with a failing test is prohibited (IX.3).
 | 8 — lazy standalone `auth` group, functional interceptors/guards, NgRx | V14 |
 | 9 — API-first contract authored before handlers, code validated against it | V13 |
 | 10 — unit + integration tests pass | Test suite |
+| 11 — Admin sees every user incl. deactivated, flagged; non-Admin refused 403 | V15 |
+| 12 — role change audited, self-refused, last-Admin-refused | V16 (last-Admin also `ChangeUserRoleCommandHandlerTests`, per R-12) |
+| 13 — deactivation revokes active sessions immediately; reactivation does not restore them; self-deactivation refused | V17, V18 |

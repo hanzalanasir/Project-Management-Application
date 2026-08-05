@@ -164,7 +164,7 @@ src/
 │
 ├── ProjectManagementApp.Api/
 │   ├── Controllers/ProjectsController.cs         # NEW — five thin endpoints, one Send() each
-│   └── Common/ETagExtensions.cs                  # NEW — read If-Match, write ETag (research R-2)
+│   └── Common/ETagExtensions.cs                  # EXISTS (001 T115) — reused, not created here (research R-2, 2026-08-06 correction)
 │
 └── ProjectManagementApp.Web/src/app/
     ├── core/services/projects.service.ts         # NEW
@@ -240,6 +240,12 @@ the database because `IApplicationDbContext` is a shared-kernel Application abst
    now recorded as ADR-0007 §4: **test fixtures come from builders under `tests/**/Builders/`, never from
    the production seeder.** 002's second ProjectManager and 003's second TeamMember are both fixture
    concerns; the seeder's one-user-per-role contract stays a product concern and is unchanged.
+5. ~~**`ETagExtensions.cs` was about to be built twice.**~~ **✅ RESOLVED 2026-08-06.** 001 added its own
+   `xmin`-guarded mutating endpoints (Admin user management, added 2026-08-05) and, being built first,
+   needed the shared `ETagExtensions` helper before 002 does — so 001 now creates it (001 T115, research
+   R-15). **002's T017/T018 were corrected to verify and reuse it, not recreate it**; this plan's Source
+   Code listing above is updated to match. R-2's transport *design* (`ETag`/`If-Match`, 400/409 semantics)
+   is unchanged — only which feature owns the implementing file moved.
 
 ---
 

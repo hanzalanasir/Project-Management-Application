@@ -24,8 +24,9 @@ merging with failing tests (IX.3). Spec 001 B.8 DoD #10 requires them explicitly
 
 ## Story ID mapping & implementation order
 
-Spec 001 prioritizes five stories P0 and one P1, so priority alone does not give an order. The order
-below is derived from the **dependency chain stated in each story's `Dependencies` line**:
+Spec 001 prioritizes five stories P0 and one P1 (plus three P1 stories added 2026-08-05), so priority alone
+does not give an order. The order below is derived from the **dependency chain stated in each story's
+`Dependencies` line**:
 
 | Label | Spec story | Title | Priority | Depends on |
 |---|---|---|---|---|
@@ -35,8 +36,11 @@ below is derived from the **dependency chain stated in each story's `Dependencie
 | **US4** | US-001-04 | Role-based route & endpoint protection | P0 | US2 (token with role claim) |
 | **US3** | US-001-03 | Log out | P1 | US2 |
 | **US5** | US-001-05 | Token expiry & refresh | P0 | US2, US3 (rotation reuses revocation) |
+| **US7** | US-001-07 | Admin lists and views user accounts | P1 | US2 (Admin token), US6 (seeded Admin account) |
+| **US8** | US-001-08 | Admin changes a user's role | P1 | US7 (find the target user first), US1 (a non-Admin account to promote) |
+| **US9** | US-001-09 | Admin deactivates or reactivates a user | P1 | US7 (find the target user first), US3/US5 (reuses the token-revocation mechanism) |
 
-**Implementation order: US6 → US1 → US2 → US4 → US3 → US5.**
+**Implementation order: US6 → US1 → US2 → US4 → US3 → US5 → US7 → US8 → US9.**
 Phase numbers follow this order, *not* the numeric story order — read the label, not the phase number.
 
 ---
@@ -73,7 +77,7 @@ Phase numbers follow this order, *not* the numeric story order — read the labe
 - [ ] T015 [P] Create `RefreshToken` entity in `src/ProjectManagementApp.Domain/Entities/RefreshToken.cs` with `TokenHash`, `ExpiresAt`, `RevokedAt`, `ReplacedByToken`, and the computed `IsActive` (data-model.md §2)
 - [ ] T016 [P] Create `ActivityLog` entity in `src/ProjectManagementApp.Domain/Entities/ActivityLog.cs` with nullable `ActorId` (soft FK — no constraint), `Action`, `EntityType`, `EntityId` (string), `Timestamp`, `ChangeSummary`
 - [ ] T017 [P] Create the table-only entities `Project`, `TaskItem`, `TeamMember` in `src/ProjectManagementApp.Domain/Entities/` to the field lists in specs 002/003/004 — **required by research.md R-10**; 001 adds no rules to them
-- [ ] T018 [P] Create enums `Role`, `AuditAction`, `ProjectStatus`, `TaskStatus`, `TaskPriority` in `src/ProjectManagementApp.Domain/Enums/` (data-model.md §3). **`AuditAction` must carry the complete value set for all six features**, not just 001's — `UserRegistered, UserLoggedIn, UserLoggedOut, TokenRefreshed, UserDeactivated, UserSeeded` (001) · `ProjectCreated, ProjectUpdated, ProjectDeleted, ProjectOwnerChanged` (002) · `TaskCreated, TaskUpdated, TaskStatusChanged, TaskReassigned, TaskDeleted` (003) · `TeamMemberAdded, TeamMemberRemoved` (004) · `ReportGenerated` (006). It is one shared enum in `Domain/Enums/`, exactly like `ProjectStatus`/`TaskStatus`, so later features **consume** values rather than editing 001's file
+- [ ] T018 [P] Create enums `Role`, `AuditAction`, `ProjectStatus`, `TaskStatus`, `TaskPriority` in `src/ProjectManagementApp.Domain/Enums/` (data-model.md §3). **`AuditAction` must carry the complete value set for all six features**, not just 001's — `UserRegistered, UserLoggedIn, UserLoggedOut, TokenRefreshed, UserDeactivated, UserSeeded, UserRoleChanged, UserReactivated` (001 — the last two added 2026-08-05 for US-001-08/09) · `ProjectCreated, ProjectUpdated, ProjectDeleted, ProjectOwnerChanged` (002) · `TaskCreated, TaskUpdated, TaskStatusChanged, TaskReassigned, TaskDeleted` (003) · `TeamMemberAdded, TeamMemberRemoved` (004) · `ReportGenerated` (006). It is one shared enum in `Domain/Enums/`, exactly like `ProjectStatus`/`TaskStatus`, so later features **consume** values rather than editing 001's file
 
 ### Application layer — shared kernel
 
@@ -82,10 +86,10 @@ Phase numbers follow this order, *not* the numeric story order — read the labe
 - [ ] T021 [P] Define `IApplicationDbContext` in `src/ProjectManagementApp.Application/Common/Interfaces/IApplicationDbContext.cs` exposing all six `DbSet<T>` properties and `SaveChangesAsync`, **exactly as `docs/shared-contracts.md` §7 now specifies** — the DbContext behind an interface, not a repository (research.md R-3)
 - [ ] T022 [P] Define **all** shared-kernel interfaces in `src/ProjectManagementApp.Application/Common/Interfaces/` per spec 001 B.3 and `docs/shared-contracts.md` §2/§3/§6: `ICurrentUserService`, `ITokenService`, `IDataSeeder`, `IActivityLogService` (**both** `LogAsync` **and** the scoped read `QueryScopedAsync(ActivityScope, page, pageSize, ct)` → `Task<PagedResult<ActivityEntry>>`, required by 005's feed and 006's Activity Report), and the three **scope-authorization policies** `IProjectAccessPolicy`, `ITaskAccessPolicy`, `ITeamAccessPolicy` exactly as §3 declares them. **The policy interfaces belong here, not in 002/003/004** — those features implement the rules, but the interfaces are shared kernel so 005/006 can depend on them without taking a dependency on another feature's Application layer (ADR-0006 addendum)
 - [ ] T023 Verify **every** shared-kernel member declared in `docs/shared-contracts.md` **§2, §3, §4, §6, and §7** exists in `src/ProjectManagementApp.Application/Common/` and matches its declaration verbatim — the interfaces (`IApplicationDbContext`, `ICurrentUserService`, `ITokenService`, `IActivityLogService` incl. `QueryScopedAsync`, `IProjectAccessPolicy`, `ITaskAccessPolicy`, `ITeamAccessPolicy`) **and** the types they reference (`CurrentUser`, `AccessDecision`, `PagedResult<T>`, `TaskMutation`, `ActivityScope`, `ActivityEntry`). Assert no feature-local redefinition exists and **no repository wraps `IApplicationDbContext`**. **Enumerate the sections rather than spot-checking**: this gate previously covered only §2/§6/§7, and that omission is exactly why the §3 access-policy interfaces went uncreated until 005's planning sweep found them (ADR-0006 addendum)
-- [ ] T024 Implement `ValidationBehavior<TRequest,TResponse>` in `src/ProjectManagementApp.Application/Common/Behaviors/ValidationBehavior.cs` — resolves `IEnumerable<IValidator<TRequest>>`, and on failure **short-circuits by returning `Result.Failure(ErrorKind.Validation, fields)`; it MUST NOT throw** (research.md R-4)
-- [ ] T025 Implement `LoggingBehavior<TRequest,TResponse>` in `src/ProjectManagementApp.Application/Common/Behaviors/LoggingBehavior.cs` opening a Serilog scope with request name, user id, correlation id, and elapsed ms — **MUST NOT log request bodies** (they carry plaintext passwords; Constitution V.3)
-- [ ] T026 Create `src/ProjectManagementApp.Application/DependencyInjection.cs` registering MediatR, FluentValidation validators from the assembly, and the two behaviors in the order Logging → Validation (research.md R-4)
-- [ ] T027 [P] Write unit tests for both behaviors in `tests/ProjectManagementApp.Application.Tests/Common/Behaviors/` — assert validation short-circuits with a failed `Result`, and assert no request body is logged
+- [ ] T024 [P] Write unit tests for both MediatR pipeline behaviors in `tests/ProjectManagementApp.Application.Tests/Common/Behaviors/` — assert `ValidationBehavior` short-circuits with a failed `Result` (never throws), and assert `LoggingBehavior` never logs a request body. **Written and run first — expect them to fail** (`ValidationBehavior`/`LoggingBehavior` do not exist yet); Constitution IX.5 (fixed 2026-08-05, `/speckit.analyze` finding D1 — this block previously implemented before testing)
+- [ ] T025 Implement `ValidationBehavior<TRequest,TResponse>` in `src/ProjectManagementApp.Application/Common/Behaviors/ValidationBehavior.cs` — resolves `IEnumerable<IValidator<TRequest>>`, and on failure **short-circuits by returning `Result.Failure(ErrorKind.Validation, fields)`; it MUST NOT throw** (research.md R-4)
+- [ ] T026 Implement `LoggingBehavior<TRequest,TResponse>` in `src/ProjectManagementApp.Application/Common/Behaviors/LoggingBehavior.cs` opening a Serilog scope with request name, user id, correlation id, and elapsed ms — **MUST NOT log request bodies** (they carry plaintext passwords; Constitution V.3)
+- [ ] T027 Create `src/ProjectManagementApp.Application/DependencyInjection.cs` registering MediatR, FluentValidation validators from the assembly, and the two behaviors in the order Logging → Validation (research.md R-4)
 
 ### Infrastructure layer — persistence
 
@@ -95,7 +99,7 @@ Phase numbers follow this order, *not* the numeric story order — read the labe
 - [ ] T031 [P] Add `IEntityTypeConfiguration<T>` classes for `Project`, `TaskItem`, `TeamMember` in `src/ProjectManagementApp.Infrastructure/Persistence/Configurations/` with the exact delete behaviors from data-model.md §4 (CASCADE / RESTRICT / SET NULL)
 - [ ] T032 Generate the `InitialCreate` migration in `src/ProjectManagementApp.Infrastructure/Persistence/Migrations/` — **it MUST create all five constitution entities**, not only 001's (research.md R-10, data-model.md §1)
 - [ ] T033 Implement `ActivityLogService : IActivityLogService` in `src/ProjectManagementApp.Infrastructure/Services/ActivityLogService.cs` — **two deliverables**: (a) `LogAsync` writes the audit row into the caller's unit of work so it commits in the **same** `SaveChangesAsync` (Constitution IV.4); (b) **`QueryScopedAsync`** performs the scoped, paginated read — filter to `ActivityScope` (all entries for an unscoped Admin; otherwise entries whose entity belongs to the caller's visible projects), order newest-first with a stable `(timestamp, id)` tiebreak, clamp `pageSize` to the configured maximum, and return `PagedResult<ActivityEntry>` with a **scope-limited `totalCount`**. Consumed by 005's feed and 006's Activity Report, which are both forbidden from querying `activity_logs` directly (shared-contracts §6/§7, 005 research R-1)
-- [ ] T034 Create `src/ProjectManagementApp.Infrastructure/DependencyInjection.cs` registering `ApplicationDbContext` (as `IApplicationDbContext`), Identity stores, `ActivityLogService`, `TokenService`, and `DataSeeder`
+- [ ] T034 Create `src/ProjectManagementApp.Infrastructure/DependencyInjection.cs` registering `ApplicationDbContext` (as `IApplicationDbContext`), Identity stores, `ActivityLogService`, `TokenService`, and `DataSeeder`. **Includes the `AddIdentity<ApplicationUser, ApplicationRole>(options => ...)` call that binds `Identity:Password:*` and `Identity:Lockout:*` from configuration** — T012 creates those config keys, but no other task consumes them; without this line they are declared and never read (`/speckit.analyze` finding E2)
 - [ ] T035 Create the shared Testcontainers PostgreSQL fixture + Respawn reset helper in `tests/ProjectManagementApp.Infrastructure.Tests/Fixtures/` as an xUnit `ICollectionFixture` (one container per test run) — reused by `.Api.Tests` (research.md R-7)
 
 ### API layer — shell
@@ -220,7 +224,7 @@ still receives 403 if the request is forced.
 - [ ] T078 [P] [US4] Write the 401/403 matrix integration test in `tests/ProjectManagementApp.Api.Tests/Authorization/RoleMatrixTests.cs` — no token → 401; TeamMember → 403; ProjectManager → 403; Admin → 200 (Constitution IX.1)
 - [ ] T079 [P] [US4] Write integration test in `tests/ProjectManagementApp.Api.Tests/Authorization/AnonymousEndpointTests.cs` asserting register/login/refresh/health succeed without a token and that **no other endpoint does** (FR-007)
 - [ ] T080 [P] [US4] Write integration test in `tests/ProjectManagementApp.Api.Tests/Auth/GetCurrentUserTests.cs` asserting `GET /api/auth/me` returns 200 with the token's identity and 401 without a token
-- [ ] T081 [P] [US4] Write an architecture test in `tests/ProjectManagementApp.Api.Tests/Architecture/NoInlineRoleChecksTests.cs` failing the build if any controller or handler contains an ad-hoc role comparison — roles must be attribute-declared only (Constitution V.2, quickstart V8)
+- [ ] T081 [P] [US4] Write an architecture test in `tests/ProjectManagementApp.Api.Tests/Architecture/NoInlineRoleChecksTests.cs` failing the build if any controller or handler contains an ad-hoc role comparison — roles must be attribute-declared only (Constitution V.2, quickstart V8). **Also write the NFR-002 statelessness test** in `tests/ProjectManagementApp.Api.Tests/Authorization/StatelessAuthTests.cs` — hook an EF Core `DbCommand` interceptor into the `WebApplicationFactory`, call `GET /api/auth/me` with a valid token, and assert **zero** SQL statements execute; `GetCurrentUserQueryHandler` projects `UserDto` directly from `ICurrentUserService`'s token-derived claims, never from `IApplicationDbContext` (`/speckit.analyze` finding E1 — this claim in spec NFR-002 and plan.md's Performance Goals previously had no verifying task)
 
 ### Implementation for User Story 4
 
@@ -293,25 +297,92 @@ pair and rotates the cookie; replaying the previous refresh token returns 401.
 
 ---
 
-## Phase 9: Polish & Cross-Cutting Concerns
+## Phase 9: User Stories 7–9 — Admin user management (Priority: P1)
+
+**Goal**: An Admin can list/view any user account (including deactivated ones), change another user's
+role, and deactivate/reactivate an account — each protected by fixed safety invariants (no self-role-change,
+at least one Admin must remain, no self-deactivation) and each write audited. Added 2026-08-05 to close
+`/speckit.analyze` finding F1 — 001's own Clarifications had attributed this capability to "feature 004",
+which never actually held it (004's scope is project team membership only).
+
+**Independent Test**: As the seeded Admin: `GET /api/users` returns all three seeded accounts; `PUT
+.../role` promotes the seeded TeamMember to ProjectManager (200, audited `UserRoleChanged`); `PUT
+.../status` deactivates that same (now ProjectManager) user (200, their refresh tokens revoked, audited
+`UserDeactivated`); the Admin's own attempts to change their own role or deactivate their own account both
+return 409.
+
+### Tests for User Story 7
+
+- [ ] T110 [P] [US7] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ListUsersEndpointTests.cs` asserting an Admin sees all seeded users incl. any deactivated one (flagged `isActive:false`), and a non-Admin caller receives **403**
+- [ ] T111 [P] [US7] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/GetUserByIdEndpointTests.cs` asserting a known id returns **200** with an `ETag` header, and an unknown id returns **404**
+- [ ] T112 [P] [US7] Write unit tests for `ListUsersQueryHandler`/`GetUserByIdQueryHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/AdminUsersQueryHandlerTests.cs` covering the unscoped-list and unknown-id branches
+
+### Implementation for User Story 7
+
+- [ ] T113 [US7] Create `ListUsersQuery`/`GetUserByIdQuery` and the `AdminUserSummary`/`AdminUserDetail`/`PagedAdminUserSummary` DTOs in `src/ProjectManagementApp.Application/Features/Auth/ListUsers/` and `.../GetUserById/` matching `docs/contracts/auth.v1.yaml`
+- [ ] T114 [US7] Implement `ListUsersQueryHandler` (paged, clamped `pageSize`, **no scope predicate** — Admin-only makes the role gate the entire authorization surface, spec US-001-07 7Cs) and `GetUserByIdQueryHandler` (404 if unknown) in the same folders
+- [ ] T115 [US7] Create the **shared** `ETagExtensions` in `src/ProjectManagementApp.Api/Common/ETagExtensions.cs` — write the `xmin` row version as a strong `ETag` on responses, read/parse `If-Match` from requests, return **400** when required but absent (ADR-0007 §3; research.md R-15 — promoted here from 002's original plan, since 001 is the first feature that needs it; **002's T017/T018 now verify and reuse this file instead of creating a second one**). Then create `src/ProjectManagementApp.Api/Controllers/UsersController.cs` with the thin `GET /api/users` and `GET /api/users/{id}` endpoints — `[Authorize(Roles="Admin")]`, using `ETagExtensions` to write the `ETag` header on the detail response
+- [ ] T116 [P] [US7] Build the admin users list component in `src/ProjectManagementApp.Web/src/app/features/auth/admin-users/list/` — a table with an "inactive" badge for deactivated users
+- [ ] T117 [P] [US7] Build the admin user detail component in `src/ProjectManagementApp.Web/src/app/features/auth/admin-users/detail/` — hosts the role-change control (US8) and the status toggle (US9)
+- [ ] T118 [US7] Implement `AdminUsersService` in `src/ProjectManagementApp.Web/src/app/core/services/admin-users.service.ts` and add the `admin-users` sub-route to the existing `auth` route group in `src/ProjectManagementApp.Web/src/app/features/auth/auth.routes.ts`, gated by the functional role guard (Admin-only)
+
+**Checkpoint**: Admin can list and view every user. Verifiable against quickstart V15.
+
+### Tests for User Story 8
+
+- [ ] T119 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleEndpointTests.cs` asserting an Admin promoting a **different** user's role returns **200** and writes a `UserRoleChanged` (from→to) audit row
+- [ ] T120 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleSelfTests.cs` asserting an Admin changing **their own** role returns **409**
+- [ ] T121 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleLastAdminTests.cs` asserting a change that would leave **zero** Admins returns **409**, exercised at the handler level (research.md R-12 — under the current one-Admin seed, no distinct-caller HTTP path reaches this independently of the self-check)
+- [ ] T122 [P] [US8] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserRoleConcurrencyTests.cs` asserting a missing `If-Match` returns **400** and a stale `If-Match` returns **409**. **Also unit-test the shared `ETagExtensions` itself** (round-trip, malformed value, absent-header 400) in `tests/ProjectManagementApp.Api.Tests/Common/ETagExtensionsTests.cs` — this is the one place that helper is unit-tested at all, now that it is created here rather than in 002 (research.md R-15)
+- [ ] T123 [P] [US8] Write unit tests for `ChangeUserRoleCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/ChangeUserRoleCommandHandlerTests.cs` covering success, self-refusal, last-Admin-refusal, and same-role (400) branches — this is the primary place the last-Admin invariant is proven independently of the self-check (research.md R-12)
+
+### Implementation for User Story 8
+
+- [ ] T124 [US8] Create `ChangeUserRoleCommand` and `ChangeUserRoleCommandValidator` (role present, valid `Role` enum value) in `src/ProjectManagementApp.Application/Features/Auth/ChangeUserRole/`
+- [ ] T125 [US8] Implement `ChangeUserRoleCommandHandler` in the same folder — self-check (`callerId == targetId` → 409) → last-Admin count check (post-change Admin count would be zero → 409, independent of the self-check per research.md R-12) → same-role check (400) → `UserManager.RemoveFromRoleAsync`/`AddToRoleAsync` → audit `UserRoleChanged` (from→to), all in one transaction
+- [ ] T126 [US8] Add the thin `PUT /api/users/{id}/role` endpoint to `UsersController` — `[Authorize(Roles="Admin")]`, requires `If-Match`, writes a rotated `ETag` on success
+- [ ] T127 [P] [US8] Add the role-change control (a role select + confirmation dialog) to the admin user detail component (T117), surfacing either 409 message verbatim
+
+**Checkpoint**: Admin can change any other user's role, with both safety invariants enforced. Verifiable against quickstart V16.
+
+### Tests for User Story 9
+
+- [ ] T128 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusEndpointTests.cs` asserting an Admin deactivating a **different**, active user returns **200**, sets `is_active = false`, and revokes **every** active `refresh_tokens` row for that user
+- [ ] T129 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusSelfTests.cs` asserting an Admin attempting to deactivate **themselves** returns **409**
+- [ ] T130 [P] [US9] Write integration test in `tests/ProjectManagementApp.Api.Tests/Users/ChangeUserStatusReactivateTests.cs` asserting reactivating a deactivated user returns **200**, sets `is_active = true`, writes `UserReactivated`, and that a **pre-deactivation** refresh token remains **401** after reactivation (tokens stay revoked)
+- [ ] T131 [P] [US9] Write unit tests for `ChangeUserStatusCommandHandler` in `tests/ProjectManagementApp.Application.Tests/Features/Auth/ChangeUserStatusCommandHandlerTests.cs` covering deactivate (incl. the bulk token revoke), reactivate, self-refusal, and same-status (400) branches
+
+### Implementation for User Story 9
+
+- [ ] T132 [US9] Create `ChangeUserStatusCommand` and `ChangeUserStatusCommandValidator` (`isActive` present) in `src/ProjectManagementApp.Application/Features/Auth/ChangeUserStatus/`
+- [ ] T133 [US9] Implement `ChangeUserStatusCommandHandler` in the same folder — self-check on deactivation (409) → same-status check (400) → flip `IsActive`; **on deactivate**, set `RevokedAt = now` on every active `RefreshToken` row for the user — the **same** field `LogoutCommandHandler` (T093) and `RefreshCommandHandler` (T105) already use, not a new mechanism (research.md R-13) — then audit `UserDeactivated`; **on reactivate**, audit `UserReactivated` only (tokens stay revoked), all in one transaction
+- [ ] T134 [US9] Add the thin `PUT /api/users/{id}/status` endpoint to `UsersController` — `[Authorize(Roles="Admin")]`, requires `If-Match`, writes a rotated `ETag` on success
+- [ ] T135 [P] [US9] Add the deactivate/reactivate toggle to the admin user detail component (T117) — a confirmation dialog naming the user and, for deactivation, warning that active sessions end immediately
+
+**Checkpoint**: Admin user management is complete — list/view, role change, and deactivate/reactivate all
+work end-to-end with their safety invariants enforced. Verifiable against quickstart V15–V18.
+
+---
+
+## Phase 10: Polish & Cross-Cutting Concerns
 
 **Purpose**: Deliverables, hardening, and proving the gates actually work.
 
-- [ ] T110 [P] Write the repository `README.md` with overview, prerequisites, backend/frontend setup, migration commands, test commands, and end-to-end run instructions (Constitution X.1)
-- [ ] T111 [P] Generate the entity-relationship diagram from `InitialCreate` and commit it to `docs/erd.md` (Constitution X.4)
-- [ ] T112 **Prove the contract gate fails**: temporarily rename a response property (e.g. `accessToken` → `token`), run `dotnet build -p:CheckApiContract=true`, confirm the build **fails** with an `oasdiff` breaking report, then revert (quickstart V13)
-- [ ] T113 Execute the full quickstart validation V1–V14 in `specs/001-auth-rbac/quickstart.md` and record results
-- [ ] T114 [P] Add the CI pipeline running restore → build with `-p:CheckApiContract=true` → `dotnet test` → `npm test`, failing the merge on any failure (Constitution IX.3)
-- [ ] T115 [P] Add an architecture test in `tests/ProjectManagementApp.Application.Tests/Architecture/LayerDependencyTests.cs` asserting Domain references no project, and Application references neither Infrastructure nor Api (research.md R-1)
-- [ ] T116 [P] Audit Serilog output across all endpoints confirming no password, raw refresh token, or signing key is ever logged (Constitution V.3, NFR-003)
-- [ ] T117 [P] Add test-data builders/factories in `tests/ProjectManagementApp.Application.Tests/Builders/` replacing any inline object literals (Constitution IX.4)
-- [ ] T118 [P] Add XML doc comments to public controllers, handlers, and service interfaces (Constitution VIII.3)
-- [ ] T119 Remove all commented-out code, `Console.WriteLine`, and `console.log` across `src/` (Constitution VIII.4)
-- [ ] T120 [P] Verify the Angular production build (`ng build --configuration production`) emits into the API's `wwwroot/` and the app runs same-origin (ADR-0002, Constitution XI.1)
-- [ ] T121 [P] Write IIS deployment instructions in `docs/deployment.md` covering the self-contained publish and `appsettings.{Environment}.json` (Constitution XI.1/XI.3)
-- [ ] T122 Run a security review against spec 001 §Security Rules — deny-by-default, attribute-only role gates, hashed passwords and refresh tokens, secrets absent from source control
+- [ ] T136 [P] Write the repository `README.md` with overview, prerequisites, backend/frontend setup, migration commands, test commands, and end-to-end run instructions (Constitution X.1)
+- [ ] T137 [P] Generate the entity-relationship diagram from `InitialCreate` and commit it to `docs/erd.md` (Constitution X.4)
+- [ ] T138 **Prove the contract gate fails**: temporarily rename a response property (e.g. `accessToken` → `token`), run `dotnet build -p:CheckApiContract=true`, confirm the build **fails** with an `oasdiff` breaking report, then revert (quickstart V13)
+- [ ] T139 Execute the full quickstart validation V1–V18 in `specs/001-auth-rbac/quickstart.md` and record results (extended 2026-08-05 to include V15–V18, the Admin user-management scenarios)
+- [ ] T140 [P] Add the CI pipeline running restore → build with `-p:CheckApiContract=true` → `dotnet test` → `npm test`, failing the merge on any failure (Constitution IX.3)
+- [ ] T141 [P] Add an architecture test in `tests/ProjectManagementApp.Application.Tests/Architecture/LayerDependencyTests.cs` asserting Domain references no project, and Application references neither Infrastructure nor Api (research.md R-1)
+- [ ] T142 [P] Audit Serilog output across all endpoints confirming no password, raw refresh token, or signing key is ever logged (Constitution V.3, NFR-003)
+- [ ] T143 [P] Add test-data builders/factories in `tests/ProjectManagementApp.Application.Tests/Builders/` replacing any inline object literals (Constitution IX.4)
+- [ ] T144 [P] Add XML doc comments to public controllers, handlers, and service interfaces (Constitution VIII.3)
+- [ ] T145 Remove all commented-out code, `Console.WriteLine`, and `console.log` across `src/` (Constitution VIII.4)
+- [ ] T146 [P] Verify the Angular production build (`ng build --configuration production`) emits into the API's `wwwroot/` and the app runs same-origin (ADR-0002, Constitution XI.1)
+- [ ] T147 [P] Write IIS deployment instructions in `docs/deployment.md` covering the self-contained publish and `appsettings.{Environment}.json` (Constitution XI.1/XI.3)
+- [ ] T148 Run a security review against spec 001 §Security Rules — deny-by-default, attribute-only role gates, hashed passwords and refresh tokens, secrets absent from source control, **including the Admin user-management endpoints added 2026-08-05** (self-restriction and last-Admin invariants, `If-Match` enforcement, bulk token revocation on deactivation)
 
-- [ ] T123 Verify [`docs/adr/0007-implementation-conventions.md`](../../docs/adr/0007-implementation-conventions.md) still describes what was actually built — the contract drift gate, Testcontainers-only test database, `ETag`/`If-Match` concurrency transport, and builder-based test fixtures — and amend the ADR if the implementation diverged (Constitution X.3)
+- [ ] T149 Verify [`docs/adr/0007-implementation-conventions.md`](../../docs/adr/0007-implementation-conventions.md) still describes what was actually built — the contract drift gate, Testcontainers-only test database, `ETag`/`If-Match` concurrency transport, and builder-based test fixtures — and amend the ADR if the implementation diverged (Constitution X.3)
 
 ---
 
@@ -327,14 +398,16 @@ pair and rotates the cookie; replaying the previous refresh token returns 401.
 - **US4 (Phase 6)** — depends on US2 (needs a token carrying a role claim)
 - **US3 (Phase 7)** — depends on US2
 - **US5 (Phase 8)** — depends on US2 and US3 (rotation reuses revocation)
-- **Polish (Phase 9)** — depends on all stories being complete
+- **US7/8/9 (Phase 9)** — depends on US2 (an Admin must authenticate) and US6 (a seeded Admin account must exist); US8/US9 each depend on US7 (find the target user first) and reuse US1's non-Admin account (US8) and US3/US5's revocation mechanism (US9)
+- **Polish (Phase 10)** — depends on all stories, including US7/8/9, being complete
 
 ### Why these stories are *not* fully independent
 
 Unlike a typical feature, 001's stories form a genuine chain: you cannot log in without an account, cannot
 protect a route without a token, and cannot rotate a token without revocation. This is inherent to an
 authentication feature and is reflected in each story's `Dependencies` line in spec.md. **US6 → US1 → US2
-is a hard sequence**; only US4, US3, and US5 offer parallelism after US2 lands.
+is a hard sequence**; only US4, US3, US5, and US7 (added 2026-08-05) offer parallelism after US2 lands —
+US8 and US9 additionally need US7 to land first, since both operate on a user US7's endpoints locate.
 
 ### Parallel opportunities
 
@@ -343,8 +416,8 @@ is a hard sequence**; only US4, US3, and US5 offer parallelism after US2 lands.
   Infrastructure (T028–T035), API shell (T036–T041), Frontend shell (T042–T045). **T023 is the one
   synchronization point** — it verifies the shared kernel before any story consumes it
 - Within every story, all **[P]** test tasks can be written in parallel before implementation
-- **After US2 completes**, US4, US3, and US5 can proceed in parallel by three developers — with the caveat
-  that US5's rotation logic assumes US3's revocation exists
+- **After US2 completes**, US4, US3, US5, and US7 can proceed in parallel — with the caveat that US5's
+  rotation logic assumes US3's revocation exists, and US8/US9 must wait for US7
 - Nearly all Polish tasks are **[P]**
 
 ---
@@ -383,8 +456,9 @@ demonstrable: a seeded database, a user who can register, and a user who can log
 
 - Add **US4** → RBAC enforced; validate V7, V8 → the security story is now demonstrable
 - Add **US3** → sessions can be ended; validate V10
-- Add **US5** → transparent refresh; validate V9, V14 → the feature is complete
-- Run Phase 9 → deliverables, gate proofs, hardening
+- Add **US5** → transparent refresh; validate V9, V14 → the core feature is complete
+- Add **US7 → US8 → US9** → Admin user management; validate V15–V18 (added 2026-08-05, closes `/speckit.analyze` finding F1)
+- Run Phase 10 → deliverables, gate proofs, hardening
 
 ### Critical warnings
 
@@ -392,8 +466,12 @@ demonstrable: a seeded database, a user who can register, and a user who can log
   001's four tables will silently break 002's very first scope test (research.md R-10).
 - **Do not substitute EF InMemory for Testcontainers.** InMemory cannot express `xmin` and evaluates LINQ
   in memory, so a fetch-then-filter bug would *pass* the suite (research.md R-7).
-- **T112 is not optional ceremony.** A contract gate that has never been observed to fail is
+- **T138 is not optional ceremony.** A contract gate that has never been observed to fail is
   indistinguishable from one that does not work.
+- **Do not build a second token-revocation mechanism for US9.** Deactivation reuses `RefreshToken.RevokedAt`
+  — the exact field US-001-03 (logout, T093) and US-001-05 (refresh rotation, T105) already set. A new
+  flag or column would create two independent places a token's validity depends on (research.md R-13).
+- **T115 *does* create the shared `ETagExtensions` helper** (`src/ProjectManagementApp.Api/Common/ETagExtensions.cs`) — this reverses R-14's original inline-only decision. **002's T017/T018 have been corrected to verify/reuse it, not recreate it** (research.md R-15). If 002's tasks.md is ever regenerated from scratch, re-apply this correction rather than letting T017 silently re-create a second implementation.
 
 ---
 
