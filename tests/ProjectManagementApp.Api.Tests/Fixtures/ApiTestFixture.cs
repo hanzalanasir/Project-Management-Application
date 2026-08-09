@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectManagementApp.Application.Common.Interfaces;
 using ProjectManagementApp.Infrastructure.Tests.Fixtures;
@@ -76,6 +77,34 @@ public class ApiTestFixture : IAsyncLifetime
     }
 
     public HttpClient CreateClient() => _factory.CreateClient();
+
+    /// <summary>
+    /// A client from an independent factory with additional test-only service overrides layered on
+    /// top (e.g. a different <c>IOptions</c> value) — for tests that need a configuration this
+    /// fixture's shared instance doesn't provide (T050's <c>MaskOutOfScopeAs404</c> case). Built as a
+    /// fresh <see cref="WebApplicationFactory{TEntryPoint}"/> (not derived from the already-started
+    /// <see cref="_factory"/>) — deriving via <c>_factory.WithWebHostBuilder(...)</c> re-triggers
+    /// Program.cs's minimal-hosting startup (migrate + seed) concurrently with the original host's
+    /// already-running instance, and both attempting `MigrateAsync()` against the same Testcontainers
+    /// database raced ("relation activity_logs already exists") when trialled directly.
+    /// </summary>
+    public HttpClient CreateClient(Action<IServiceCollection> configureServices)
+    {
+        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            // The shared _factory (or PostgresFixture directly) has already migrated this database;
+            // skip the redundant migration here rather than race it (see Program.cs).
+            builder.ConfigureAppConfiguration((_, config) =>
+                config.AddInMemoryCollection(new Dictionary<string, string?> { ["SkipStartupMigration"] = "true" }));
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton<IInterceptor>(CommandCounter);
+                configureServices(services);
+            });
+        });
+        return factory.CreateClient();
+    }
 
     public IServiceProvider Services => _factory.Services;
 

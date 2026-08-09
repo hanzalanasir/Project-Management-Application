@@ -1,0 +1,60 @@
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (notFound()) {
+  <p>This task could not be found.</p>
+} @else if (forbidden()) {
+  <p>You do not have access to this task.</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (task(); as t) {
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>{{ t.title }}</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (t.description) {
+        <p>{{ t.description }}</p>
+      }
+
+      @if (statusError()) {
+        <p class="error" role="alert">{{ statusError() }}</p>
+      }
+
+      <dl>
+        <dt>Status</dt>
+        <dd>
+          <mat-form-field appearance="outline" class="status-field">
+            <mat-select
+              data-testid="status-control"
+              [ngModel]="t.status"
+              (ngModelChange)="onStatusChange($event)">
+              @for (status of statuses; track status) {
+                <mat-option [value]="status">{{ status }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </dd>
+        <dt>Priority</dt>
+        <dd>{{ t.priority }}</dd>
+        <dt>Due date</dt>
+        <dd>{{ t.dueDate ?? '—' }}</dd>
+        <dt>Assignee</dt>
+        <dd>{{ t.assignee ? t.assignee.fullName + (t.assignee.isActive === false ? ' (inactive)' : '') : 'Unassigned' }}</dd>
+        <dt>Project</dt>
+        <dd><a [routerLink]="['/projects', t.projectId]">View project</a></dd>
+        <dt>Closed</dt>
+        <dd>{{ t.closedAt ?? '—' }}</dd>
+        <dt>Created</dt>
+        <dd>{{ t.createdAt }}</dd>
+        <dt>Last updated</dt>
+        <dd>{{ t.updatedAt }}</dd>
+      </dl>
+
+      @if (canManage()) {
+        <div class="actions">
+          <a mat-stroked-button data-testid="edit-link" [routerLink]="['/tasks', t.id, 'edit']">Edit</a>
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+}

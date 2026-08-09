@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using ProjectManagementApp.Domain.Entities;
 
 namespace ProjectManagementApp.Application.Common.Interfaces;
@@ -20,4 +21,10 @@ public interface IApplicationDbContext
     DbSet<TeamMember> TeamMembers { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct);
+
+    // Exposes exactly the EF surface needed to set an entity's ORIGINAL concurrency-token value —
+    // required so a client-supplied If-Match version (not whatever this context happens to have
+    // loaded) drives the `xmin` check on UPDATE (research R-2, data-model.md §6.4). ApplicationDbContext
+    // (which already derives from DbContext) satisfies this implicitly; no new implementation needed.
+    EntityEntry<TEntity> Entry<TEntity>(TEntity entity) where TEntity : class;
 }

@@ -398,8 +398,20 @@ namespace ProjectManagementApp.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_projects");
 
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_projects_name_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("OwnerId")
                         .HasDatabaseName("ix_projects_owner_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_projects_status");
+
+                    b.HasIndex("OwnerId", "Status")
+                        .HasDatabaseName("ix_projects_owner_id_status");
 
                     b.ToTable("projects", null, t =>
                         {
@@ -522,6 +534,21 @@ namespace ProjectManagementApp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("ix_tasks_project_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_tasks_status");
+
+                    b.HasIndex("Title")
+                        .HasDatabaseName("ix_tasks_title_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Title"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Title"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("AssigneeId", "Status")
+                        .HasDatabaseName("ix_tasks_assignee_id_status");
+
+                    b.HasIndex("ProjectId", "Status")
+                        .HasDatabaseName("ix_tasks_project_id_status");
 
                     b.ToTable("tasks", (string)null);
                 });

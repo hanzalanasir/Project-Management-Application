@@ -30,6 +30,22 @@ public class DataSeederIdempotencyTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SeedAsync_RunTwice_CreatesNoDuplicateDemoProjects_AllOwnedByTheSeededProjectManager()
+    {
+        var seeder = SeederTestHarness.Create(_fixture, out var db, demoDataEnabled: true);
+
+        await seeder.SeedAsync(CancellationToken.None);
+        var countAfterFirstRun = await db.Projects.CountAsync();
+        countAfterFirstRun.Should().BeGreaterThan(0);
+
+        await seeder.SeedAsync(CancellationToken.None);
+        (await db.Projects.CountAsync()).Should().Be(countAfterFirstRun);
+
+        var pm = await db.Users.SingleAsync(u => u.Email == "pm@example.com");
+        (await db.Projects.AllAsync(p => p.OwnerId == pm.Id)).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task SeedAsync_AfterOneSeededUserIsDeleted_RecreatesOnlyTheMissingOne()
     {
         var seeder = SeederTestHarness.Create(_fixture, out var db);

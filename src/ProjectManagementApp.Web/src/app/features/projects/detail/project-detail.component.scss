@@ -1,0 +1,23 @@
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+}
+
+dt {
+  font-weight: 600;
+}
+
+.team-section {
+  margin-top: 16px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.error {
+  color: #b3261e;
+}

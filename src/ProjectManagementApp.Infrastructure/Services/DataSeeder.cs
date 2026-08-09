@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagementApp.Application.Common.Interfaces;
 using ProjectManagementApp.Domain.Entities;
@@ -31,6 +32,16 @@ public class DataSeeder : IDataSeeder
         _options = options.Value;
     }
 
+    // Demo project seed (T079) — checked by name before insert, same idempotency shape as
+    // EnsureUserAsync/EnsureRoleAsync. Only the projects half; demo TASKS arrive with 003
+    // (spec 002 Assumptions).
+    private static readonly (string Name, string? Description, ProjectStatus Status)[] DemoProjectSeeds =
+    [
+        ("Apollo Rollout", "Regional launch of the Apollo product line.", ProjectStatus.Active),
+        ("Griffin Migration", "Legacy platform migration to the new stack.", ProjectStatus.Planning),
+        ("Harbor Refresh", "UX refresh for the customer harbor portal.", ProjectStatus.OnHold),
+    ];
+
     public async Task SeedAsync(CancellationToken ct)
     {
         await EnsureRoleAsync(Role.Admin.ToString());
@@ -38,8 +49,49 @@ public class DataSeeder : IDataSeeder
         await EnsureRoleAsync(Role.TeamMember.ToString());
 
         await EnsureUserAsync(_options.Admin, Role.Admin, ct);
-        await EnsureUserAsync(_options.ProjectManager, Role.ProjectManager, ct);
+        var projectManager = await EnsureUserAsync(_options.ProjectManager, Role.ProjectManager, ct);
         await EnsureUserAsync(_options.TeamMember, Role.TeamMember, ct);
+
+        if (_options.DemoDataEnabled)
+        {
+            await EnsureDemoProjectsAsync(projectManager, ct);
+        }
+    }
+
+    private async Task EnsureDemoProjectsAsync(ApplicationUser owner, CancellationToken ct)
+    {
+        foreach (var (name, description, status) in DemoProjectSeeds)
+        {
+            var exists = await _db.Projects.AnyAsync(p => p.Name == name, ct);
+            if (exists)
+            {
+                continue;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var project = new Project
+            {
+                Id = Guid.NewGuid(),
+                Name = name,
+                Description = description,
+                StartDate = DateOnly.FromDateTime(now.UtcDateTime),
+                Status = status,
+                OwnerId = owner.Id,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+
+            _db.Projects.Add(project);
+
+            await _activityLog.LogAsync(
+                actorId: null,
+                action: nameof(AuditAction.ProjectCreated),
+                entityType: "Project",
+                entityId: project.Id.ToString(),
+                changeSummary: $"Seeded demo project '{name}', owned by {owner.Email}",
+                ct);
+            await _db.SaveChangesAsync(ct);
+        }
     }
 
     private async Task EnsureRoleAsync(string roleName)
@@ -52,12 +104,15 @@ public class DataSeeder : IDataSeeder
         await _roleManager.CreateAsync(new ApplicationRole { Name = roleName });
     }
 
-    private async Task EnsureUserAsync(SeedAccountOptions account, Role role, CancellationToken ct)
+    // Returns the account whether it already existed or was just created — T079's demo project
+    // seed needs a real ProjectManager to own the demo projects, on both the fresh-DB and
+    // already-seeded-instance startup paths.
+    private async Task<ApplicationUser> EnsureUserAsync(SeedAccountOptions account, Role role, CancellationToken ct)
     {
         var existing = await _userManager.FindByEmailAsync(account.Email);
         if (existing is not null)
         {
-            return;
+            return existing;
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -78,9 +133,10 @@ public class DataSeeder : IDataSeeder
         {
             // A concurrent instance may have just won the race on the unique index — re-check
             // rather than throwing, so a losing instance's startup does not fail (research R-9).
-            if (await _userManager.FindByEmailAsync(account.Email) is not null)
+            var winner = await _userManager.FindByEmailAsync(account.Email);
+            if (winner is not null)
             {
-                return;
+                return winner;
             }
 
             var errors = string.Join("; ", createResult.Errors.Select(e => e.Description));
@@ -97,5 +153,7 @@ public class DataSeeder : IDataSeeder
             changeSummary: $"Seeded {role} account {account.Email}",
             ct);
         await _db.SaveChangesAsync(ct);
+
+        return user;
     }
 }

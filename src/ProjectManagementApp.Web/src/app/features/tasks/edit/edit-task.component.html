@@ -1,0 +1,52 @@
+@if (loading()) {
+  <p>Loading…</p>
+} @else {
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>Edit task</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (conflict()) {
+        <div class="conflict-banner" role="alert">
+          <p>This task was modified by someone else since you started editing.</p>
+          <button mat-stroked-button type="button" (click)="reloadAfterConflict()">Reload and try again</button>
+        </div>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Title</mat-label>
+          <input matInput formControlName="title" required />
+          @if (form.get('title')?.touched && form.get('title')?.hasError('required')) {
+            <mat-error>Title is required.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Description</mat-label>
+          <textarea matInput formControlName="description"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Priority</mat-label>
+          <mat-select formControlName="priority">
+            @for (priority of priorities; track priority) {
+              <mat-option [value]="priority">{{ priority }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Due date (optional)</mat-label>
+          <input matInput type="date" formControlName="dueDate" />
+        </mat-form-field>
+
+        <app-error-display [errors]="serverErrors()"></app-error-display>
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="submitting()">
+          Save changes
+        </button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+}

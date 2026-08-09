@@ -10,6 +10,10 @@
     <PackageReference Include="MediatR" Version="14.2.0" />
     <PackageReference Include="MediatR.Contracts" Version="2.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <!-- EF.Functions.ILike only — the substring-search predicate lives here (research R-3),
+         and its extension method ships in this package. No provider/connection code is added;
+         Application still never references the Infrastructure project (shared-contracts §7). -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
 
   <PropertyGroup>

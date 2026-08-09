@@ -3,9 +3,10 @@
 A full-stack project management application: Angular 22 (standalone, NgRx) + .NET 10 Web API
 (vertical-slice + Clean Architecture, MediatR) + PostgreSQL 18, with JWT/RBAC authentication.
 
-This repository currently implements **001 — Auth & RBAC**: registration, login, logout, token
-refresh, role-based access control, and Admin user management. Features 002–006 (Projects, Tasks,
-Team, Dashboard, Reports) are specified under `specs/` but not yet implemented.
+This repository currently implements **001 — Auth & RBAC** (registration, login, logout, token
+refresh, role-based access control, Admin user management) and **002 — Projects** (create, list/
+search, view, edit, delete — role-scoped and audited). Features 003–006 (Tasks, Team, Dashboard,
+Reports) are specified under `specs/` but not yet implemented.
 
 ## Architecture
 
@@ -23,7 +24,11 @@ Team, Dashboard, Reports) are specified under `specs/` but not yet implemented.
 - [Node.js 24](https://nodejs.org/) + npm 11
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (tests use Testcontainers —
   a real PostgreSQL 18 container, never EF InMemory)
-- PostgreSQL 18 (for running the app itself outside of tests — a local instance or a container)
+- PostgreSQL 18 (for running the app itself outside of tests — a local instance or a container).
+  The `pg_trgm` extension is required for 002's project name search (`?search=`) — the
+  `AddProjectIndexes` migration enables it automatically (`CREATE EXTENSION IF NOT EXISTS pg_trgm`),
+  so no manual setup is needed as long as the connecting role can create extensions (true for the
+  default `postgres` superuser role; a restricted role may need this granted separately).
 
 ## Backend setup
 
@@ -91,6 +96,34 @@ dotnet build src/ProjectManagementApp.Api -p:CheckApiContract=true
 
 For a production-style same-origin build (the Angular bundle served by the API itself), see
 `docs/deployment.md`.
+
+## Projects module (002)
+
+Five endpoints under `/api/projects`, all authenticated by default (Constitution V.1) with a
+two-layer authorization model: a coarse role gate declared by `[Authorize(Roles=...)]`, plus a
+finer ownership/assignment scope gate applied inside the slice handler (`IProjectAccessPolicy`).
+
+| Method | Route | Role gate | Notes |
+|---|---|---|---|
+| `GET` | `/api/projects` | any authenticated role | role-scoped, paginated, searchable, sortable |
+| `POST` | `/api/projects` | Admin, ProjectManager | owner taken from the token for a PM; Admin may set it |
+| `GET` | `/api/projects/{id}` | any authenticated role | 403 out-of-scope vs 404 unknown (maskable to 404) |
+| `PUT` | `/api/projects/{id}` | Admin, ProjectManager (owner only) | requires `If-Match`; 409 on stale |
+| `DELETE` | `/api/projects/{id}` | Admin, ProjectManager (owner only) | cascades to tasks/team members; audit row survives |
+
+Configuration keys (`Projects:*` in `appsettings.json` or user-secrets):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Projects:DefaultPageSize` | `20` | List page size when `pageSize` is omitted |
+| `Projects:MaxPageSize` | `100` | List page size is clamped to this, never rejected |
+| `Projects:DefaultStatus` | `Planning` | Status when creating a project without one |
+| `Projects:MaskOutOfScopeAs404` | `false` | Hardening: hide the 403/404 distinction on `GET /api/projects/{id}` |
+| `Projects:AllowOwnershipTransfer` | `true` | Master switch for Admin-only ownership transfer on `PUT` |
+| `Projects:MaxNameLength` | `200` | Validation bound |
+| `Projects:MaxDescriptionLength` | `2000` | Validation bound |
+
+See `specs/002-projects/quickstart.md` for the full manual validation scenarios (V1–V16).
 
 ## Documentation
 

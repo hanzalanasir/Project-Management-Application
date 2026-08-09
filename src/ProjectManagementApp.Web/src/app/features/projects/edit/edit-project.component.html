@@ -1,0 +1,70 @@
+@if (loading()) {
+  <p>Loading…</p>
+} @else {
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>Edit project</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (conflict()) {
+        <div class="conflict-banner" role="alert">
+          <p>This project was modified by someone else since you started editing.</p>
+          <button mat-stroked-button type="button" (click)="reloadAfterConflict()">Reload and try again</button>
+        </div>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Name</mat-label>
+          <input matInput formControlName="name" required />
+          @if (form.get('name')?.touched && form.get('name')?.hasError('required')) {
+            <mat-error>Name is required.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Description</mat-label>
+          <textarea matInput formControlName="description"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Start date</mat-label>
+          <input matInput type="date" formControlName="startDate" required />
+          @if (form.get('startDate')?.touched && form.get('startDate')?.hasError('required')) {
+            <mat-error>Start date is required.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>End date (optional)</mat-label>
+          <input matInput type="date" formControlName="endDate" />
+          @if (form.hasError('dateOrder')) {
+            <mat-error>End date must not precede start date.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Status</mat-label>
+          <mat-select formControlName="status">
+            @for (status of statuses; track status) {
+              <mat-option [value]="status">{{ status }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        @if (isAdmin) {
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Owner ID (Admin only)</mat-label>
+            <input matInput formControlName="ownerId" />
+          </mat-form-field>
+        }
+
+        <app-error-display [errors]="serverErrors()"></app-error-display>
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="submitting()">
+          Save changes
+        </button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+}

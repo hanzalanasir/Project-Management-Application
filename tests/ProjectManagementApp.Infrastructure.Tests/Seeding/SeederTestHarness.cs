@@ -16,7 +16,7 @@ public static class SeederTestHarness
     public const string ProjectManagerPassword = "Manager#Passw0rd!";
     public const string TeamMemberPassword = "Member#Passw0rd!";
 
-    public static DataSeeder Create(PostgresFixture fixture, out ApplicationDbContext db)
+    public static DataSeeder Create(PostgresFixture fixture, out ApplicationDbContext db, bool demoDataEnabled = false)
     {
         db = fixture.CreateDbContext();
 
@@ -34,6 +34,7 @@ public static class SeederTestHarness
         var seedOptions = Options.Create(new SeedOptions
         {
             Enabled = true,
+            DemoDataEnabled = demoDataEnabled,
             Admin = new SeedAccountOptions { Email = "admin@example.com", Password = AdminPassword },
             ProjectManager = new SeedAccountOptions { Email = "pm@example.com", Password = ProjectManagerPassword },
             TeamMember = new SeedAccountOptions { Email = "member@example.com", Password = TeamMemberPassword }

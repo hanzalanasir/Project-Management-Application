@@ -44,13 +44,18 @@ paths:
         the caller — a ProjectManager can never learn how many projects exist system-wide. An empty scope
         returns an empty page, never an error.
       parameters:
-        - { name: page,     in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page,     in: query, schema: { type: integer, format: int32, minimum: 1, default: 1 } }
         - name: pageSize
           in: query
           description: Values above the configured maximum are **clamped**, not rejected (Constitution VI.4).
-          schema: { type: integer, minimum: 1, default: 20, maximum: 100 }
+          schema: { type: integer, format: int32, minimum: 1, default: 20, maximum: 100 }
         - { name: search, in: query, description: Case-insensitive substring match on name and description., schema: { type: string, maxLength: 200 } }
-        - { name: status, in: query, schema: { $ref: '#/components/schemas/ProjectStatus' } }
+        - name: status
+          in: query
+          description: >
+            Filters within the caller's scope; omitted means every status (no default) — this is a
+            filter, not the ProjectStatus type's own "new project" default of Planning.
+          schema: { type: string, enum: [Planning, Active, OnHold, Completed, Cancelled] }
         - name: sort
           in: query
           description: Closed whitelist — any other value returns 400 (research R-3).
@@ -100,12 +105,6 @@ paths:
         '500': { $ref: '#/components/responses/UnexpectedProblem' }
 
   /projects/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-
     get:
       tags: [Projects]
       operationId: getProjectById
@@ -114,6 +113,14 @@ paths:
         Returns **403** when the project exists but lies outside the caller's scope, and **404** when the
         id is genuinely unknown. That distinction is deliberate (spec OQ-002-03) and is maskable to 404 by
         configuration if resource enumeration ever becomes a concern.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: >
+            Deliberately **not** format-constrained to uuid — a malformed id must reach this operation and
+            be reported as a contract-declared 400, not fall through routing to a bare 404.
+          schema: { type: string }
       responses:
         '200':
           description: The project.
@@ -146,6 +153,10 @@ paths:
         preceding GET. Ownership transfer (`ownerId`) is **Admin-only**, and the new owner MUST hold
         ProjectManager or Admin.
       parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
         - name: If-Match
           in: header
           required: true
@@ -193,6 +204,11 @@ paths:
         Hard delete. **Cascades** to the project's tasks (003) and team-member assignments (004) — explicit
         and intentional per Constitution IV.3. The `ProjectDeleted` audit row is written **before** removal
         and is never cascaded away, so the history of a deleted project survives for Reports (006).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
       responses:
         '204':
           description: Deleted; dependents cascaded; audit row retained.

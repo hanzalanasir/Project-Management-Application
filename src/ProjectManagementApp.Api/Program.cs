@@ -55,11 +55,15 @@ builder.Services.AddSwaggerGen(options =>
     options.SupportNonNullableReferenceTypes();
     options.NonNullableReferenceTypesAsRequired();
     options.SchemaFilter<ChangeUserRoleRequestSchemaFilter>();
+    options.SchemaFilter<ProjectStatusSchemaFilter>();
+    options.OperationFilter<ListProjectsOperationFilter>();
 });
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.Configure<ProjectManagementApp.Api.Configuration.RefreshCookieOptions>(builder.Configuration.GetSection("RefreshCookie"));
+builder.Services.Configure<ProjectManagementApp.Application.Common.Options.ProjectsOptions>(builder.Configuration.GetSection("Projects"));
+builder.Services.Configure<ProjectManagementApp.Application.Common.Options.TasksOptions>(builder.Configuration.GetSection("Tasks"));
 
 // CSRF protection for the cookie-authenticated /refresh and /logout endpoints (FR-016) — see
 // Common/CsrfProtection.cs for why this is a custom double-submit-cookie check rather than
@@ -125,7 +129,16 @@ var app = builder.Build();
 using (var startupScope = app.Services.CreateScope())
 {
     var db = startupScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+
+    // Test-only escape hatch: a second WebApplicationFactory<Program> pointed at a database an
+    // earlier factory already migrated (ApiTestFixture.CreateClient(configureServices), T050) would
+    // otherwise race a concurrent CREATE TABLE against the first factory's own startup migration —
+    // observed as a genuine "relation already exists" failure, not a hypothetical one. Default false
+    // in every real environment; never set outside tests.
+    if (!app.Configuration.GetValue("SkipStartupMigration", false))
+    {
+        await db.Database.MigrateAsync();
+    }
 
     if (app.Configuration.GetValue("Seed:Enabled", false))
     {

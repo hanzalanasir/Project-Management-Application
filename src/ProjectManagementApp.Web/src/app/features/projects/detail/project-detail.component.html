@@ -1,0 +1,47 @@
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (notFound()) {
+  <p>This project could not be found.</p>
+} @else if (forbidden()) {
+  <p>You do not have access to this project.</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (project(); as p) {
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>{{ p.name }}</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (p.description) {
+        <p>{{ p.description }}</p>
+      }
+
+      <dl>
+        <dt>Status</dt>
+        <dd>{{ p.status }}</dd>
+        <dt>Start date</dt>
+        <dd>{{ p.startDate }}</dd>
+        <dt>End date</dt>
+        <dd>{{ p.endDate ?? 'Open-ended' }}</dd>
+        <dt>Owner</dt>
+        <dd>{{ p.owner.fullName }}{{ p.owner.isActive === false ? ' (inactive)' : '' }}</dd>
+        <dt>Created</dt>
+        <dd>{{ p.createdAt }}</dd>
+        <dt>Last updated</dt>
+        <dd>{{ p.updatedAt }}</dd>
+      </dl>
+
+      <section class="team-section">
+        <h3>Team</h3>
+        <p><em>Team roster is not available yet (arrives with a later feature).</em></p>
+      </section>
+
+      @if (canManage()) {
+        <div class="actions">
+          <a mat-stroked-button [routerLink]="['/projects', p.id, 'edit']">Edit</a>
+          <button mat-stroked-button color="warn" (click)="deleteProject()">Delete</button>
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+}

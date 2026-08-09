@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectManagementApp.Application.Common.Interfaces;
@@ -16,9 +17,18 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-        services.AddDbContext<ApplicationDbContext>(options => options
+        // The (serviceProvider, options) overload is required, not the single-arg Action<...>: EF
+        // Core's "register interceptors via DI" story (used by tests' CommandCounterInterceptor,
+        // T080) only resolves IInterceptor from the app container when the options delegate is
+        // handed that container. Found during 002 — the single-arg overload silently discarded any
+        // DI-registered interceptor, which is why the pre-existing CommandCounter-based test
+        // (StatelessAuthTests) was passing on a trivial "found 0" assertion no matter what the
+        // endpoint actually did. In production, GetServices<IInterceptor>() returns empty, so this
+        // is a no-op there.
+        services.AddDbContext<ApplicationDbContext>((sp, options) => options
             .UseNpgsql(connectionString)
-            .UseSnakeCaseNamingConvention());
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(sp.GetServices<IInterceptor>()));
 
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
 

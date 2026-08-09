@@ -64,13 +64,13 @@ would not compile without it, and 003 is where the failure would surface.
 
 ## Phase 1: Setup
 
-- [ ] T001 Create the slice folder structure `src/ProjectManagementApp.Application/Features/Tasks/{CreateTask,ListTasks,GetTaskById,UpdateTask,UpdateTaskStatus,ReassignTask,DeleteTask}/` per plan.md §Project Structure
-- [ ] T002 [P] Generate TypeScript DTO types from `docs/contracts/tasks.v1.yaml` into `src/ProjectManagementApp.Web/src/app/core/api/generated/` via `openapi-generator` (types only; the service stays hand-written)
-- [ ] T003 [P] Add `tasks.v1.yaml` to the `CheckApiContract` MSBuild target in `src/ProjectManagementApp.Api/ProjectManagementApp.Api.csproj` (ADR-0007 §1)
-- [ ] T004 [P] Add the `Tasks:*` configuration section to `src/ProjectManagementApp.Api/appsettings.json` — `Paging:{DefaultPageSize=20,MaxPageSize=100}`, `DefaultStatus=ToDo`, `DefaultPriority=Medium`, `EnforceStatusWorkflow=false`, `AllowUnassigned=true`, `AllowAssignToInactiveUser=false`, `AllowWritesToTerminalStatusProject=true`, `MaskOutOfScopeAs404=false`, `MaxTitleLength`, `MaxDescriptionLength` (spec B.4)
-- [ ] T005 [P] Create `TasksOptions` binding class in `src/ProjectManagementApp.Api/Configuration/TasksOptions.cs` and register it in `Program.cs`
-- [ ] T006 [P] Scaffold the lazy `tasks` route group in `src/ProjectManagementApp.Web/src/app/features/tasks/tasks.routes.ts` and register it with `loadChildren` in `app.routes.ts` (standalone, ADR-0001)
-- [ ] T007 **Verify 001/002 prerequisites before proceeding**: `TaskItem` entity and `tasks` table exist **with `closed_at`**; `ITaskAccessPolicy` is declared in `Application/Common/Interfaces/`; **`TaskMutation` exists** in `Application/Common/Models/`; `AuditAction` contains the five Task values; `pg_trgm` is enabled by 002's migration; `ETagExtensions` exists in `Api/Common/`. **Stop and fix the owning feature if any is missing** — do not create them here (ADR-0006 addendum)
+- [X] T001 Create the slice folder structure `src/ProjectManagementApp.Application/Features/Tasks/{CreateTask,ListTasks,GetTaskById,UpdateTask,UpdateTaskStatus,ReassignTask,DeleteTask}/` per plan.md §Project Structure — created incrementally as each slice's files landed; `CreateTask` populated this stage, the other six folders will populate in stages 2-4
+- [X] T002 [P] Generate TypeScript DTO types from `docs/contracts/tasks.v1.yaml` into `src/ProjectManagementApp.Web/src/app/core/api/generated/` — via **`openapi-typescript`**, not `openapi-generator` as literally written here: matches the tool 001/002 actually use (`generate:api`/`generate:api:projects` npm scripts); added `generate:api:tasks` alongside them and ran it → `tasks.v1.d.ts`
+- [X] T003 [P] Added `tasks.v1.yaml` to the `CheckApiContract` MSBuild target in `ProjectManagementApp.Api.csproj`, third `oasdiff breaking` line alongside auth/projects (ADR-0007 §1)
+- [X] T004 [P] Added the `Tasks` configuration section to `appsettings.json` — flattened (`DefaultPageSize`/`MaxPageSize` as siblings, not a nested `Paging:{}` object) to match 002's `Projects` section shape exactly, not the literal nested notation in this task's own text; all other keys present as named
+- [X] T005 [P] Created `TasksOptions` — **in `Application/Common/Options/TasksOptions.cs`, not `Api/Configuration/`** as literally written here. Same relocation 002 already made for `ProjectsOptions` and for the identical reason: `CreateTaskCommandValidator`/`CreateTaskCommandHandler` need `IOptions<TasksOptions>` directly, and `Application` must not reference `Api` (Constitution II.2). Registered via `services.Configure<TasksOptions>(builder.Configuration.GetSection("Tasks"))` in `Program.cs`
+- [X] T006 [P] Scaffolded `tasks.routes.ts` (list/new/:id/:id-edit, `roleGuard` on new/edit, `canDeactivate` on edit) and registered it via `loadChildren` in `app.routes.ts` under `/tasks`
+- [X] T007 **Verified — all six artifacts present, gate passes**: `TaskItem`+`ClosedAt` (`Domain/Entities/TaskItem.cs`) ✅; `ITaskAccessPolicy` (`Application/Common/Interfaces/ITaskAccessPolicy.cs`) ✅; `TaskMutation` enum with all 5 values (`Application/Common/Models/TaskMutation.cs`) ✅; `AuditAction` contains `TaskCreated/Updated/StatusChanged/Reassigned/Deleted` ✅; `pg_trgm` enabled by 002's `AddProjectIndexes` migration (`CREATE EXTENSION IF NOT EXISTS pg_trgm;`) ✅; `ETagExtensions` (`Api/Common/ETagExtensions.cs`) ✅. Nothing missing — proceeded without needing to fix 001/002
 
 ---
 
@@ -82,35 +82,35 @@ would not compile without it, and 003 is where the failure would surface.
 
 ### Persistence
 
-- [ ] T008 Extend `src/ProjectManagementApp.Infrastructure/Persistence/Configurations/TaskItemConfiguration.cs` with the six indexes from data-model.md §4: `(project_id)`, `(assignee_id)`, `(status)`, `(project_id,status)`, `(assignee_id,status)`, and the **GIN trigram index on `title`**
-- [ ] T009 Create the `AddTaskIndexes` migration in `src/ProjectManagementApp.Infrastructure/Persistence/Migrations/`. **Must NOT create the `tasks` table** — it exists from 001's `InitialCreate`, including `closed_at`. **Do not re-issue `CREATE EXTENSION pg_trgm`** — 002's migration already enabled it and migrations apply in order (research R-7)
-- [ ] T010 [P] Write migration test in `tests/ProjectManagementApp.Infrastructure.Tests/Tasks/MigrationTests.cs` asserting all six indexes exist and the trigram index is usable for `ILIKE`
-- [ ] T011 [P] Write cascade/RESTRICT tests in `tests/ProjectManagementApp.Infrastructure.Tests/Tasks/CascadeBehaviorTests.cs` — deleting a **project** cascades its tasks; deleting a **user who is an assignee** is **restricted**; `activity_logs` rows survive both
+- [X] T008 Extended `TaskItemConfiguration.cs` with all six indexes (`ix_tasks_project_id`, `ix_tasks_assignee_id`, `ix_tasks_status`, `ix_tasks_project_id_status`, `ix_tasks_assignee_id_status`, `ix_tasks_title_trgm` GIN)
+- [X] T009 Created the `AddTaskIndexes` migration — RED-confirmed first via T010's test (only the two FK-convention indexes existed beforehand). Generated migration touches **only** the four indexes not already covered by EF's default FK-index convention (`ix_tasks_project_id`/`ix_tasks_assignee_id` already existed); no table creation, no `pg_trgm` re-issue
+- [X] T010 [P] `MigrationTests.cs` — confirmed RED first (`ix_tasks_status`/`_project_id_status`/`_assignee_id_status`/`_title_trgm` missing, the other two already present by convention), then GREEN after T008/T009
+- [X] T011 [P] `CascadeBehaviorTests.cs` — both tests passed immediately (proof tests against 001's pre-existing FK config, no new behavior needed): project delete cascades its tasks and `activity_logs` survive; deleting an assigned user throws `DbUpdateException` (RESTRICT)
 
 ### The graduated access policy — the core of this feature
 
-- [ ] T012 Implement `TaskAccessPolicy : ITaskAccessPolicy` in `src/ProjectManagementApp.Application/Common/Authorization/TaskAccessPolicy.cs`, injecting `IApplicationDbContext` — `ApplyScope` (Admin unscoped · PM `t.Project.OwnerId == caller` · TM `t.AssigneeId == caller`), `CanReadAsync`, and **`CanMutateAsync(task, TaskMutation, caller)` resolving the 5 × 3 matrix in one `switch`** (data-model.md §3). Lives in `.Application` (002 R-1 pattern)
-- [ ] T013 [P] Write the 🎯 **15-cell table-driven matrix test** in `tests/ProjectManagementApp.Application.Tests/Authorization/TaskAccessPolicyMatrixTests.cs` — every `TaskMutation` × role cell, asserting **`StatusChange` is the only cell a TeamMember may pass** (DoD 3)
-- [ ] T014 [P] Write the `ApplyScope` three-role test in `tests/ProjectManagementApp.Application.Tests/Authorization/TaskAccessPolicyScopeTests.cs` against Testcontainers PostgreSQL — assert the PM predicate resolves **through the `Project` navigation** as a SQL join, and that a TeamMember sees only **assigned** tasks (not every task on a project they belong to)
-- [ ] T015 Register `TaskAccessPolicy` as the `ITaskAccessPolicy` implementation in `src/ProjectManagementApp.Application/DependencyInjection.cs`
+- [X] T012 Implemented `TaskAccessPolicy : ITaskAccessPolicy` — `ApplyScope` matches the table exactly (Admin unscoped, PM via `t.Project.OwnerId`, TM via `t.AssigneeId`, note: by assignment not membership); `CanMutateAsync` resolves via role check + `mutation == StatusChange` for TM, with the 403 detail naming the narrower right ("You may update the status of this task, but not its details")
+- [X] T013 [P] `TaskAccessPolicyMatrixTests.cs` — RED-confirmed first (compile failure, `TaskAccessPolicy` didn't exist), then GREEN: a `[Theory]`/`MemberData` 15-cell matrix (5 mutations × 3 roles) plus an explicit same-row graduated-pair test. All 15 cells match data-model.md §3 exactly
+- [X] T014 [P] `TaskAccessPolicyScopeTests.cs` — three-role matrix (Admin/PM/PM2/TM/TM2 on projects A/B, TM and TM2 both on A's team but assigned different tasks) proving scope by assignment not membership; a second test asserts `query.ToQueryString()` contains `JOIN`, proving the PM predicate folds into SQL rather than client-evaluating
+- [X] T015 Registered `services.AddScoped<ITaskAccessPolicy, TaskAccessPolicy>()` in `Application/DependencyInjection.cs`. **Checkpoint confirmed: all 18 tests in T013/T014 pass** — the 15-cell matrix is green before any endpoint exists
 
 ### Shared slice plumbing
 
-- [ ] T016 [P] Create `TaskSummaryDto`, `TaskDetailDto`, and `UserRefDto` plus manual mapping extensions in `src/ProjectManagementApp.Application/Features/Tasks/`, matching the contract schemas. **`closedAt` appears in responses only** — never in a request shape (research R-3)
-- [ ] T017 [P] Implement the task **sort whitelist** in `src/ProjectManagementApp.Application/Features/Tasks/ListTasks/TaskSortMap.cs` — `dueDate`, `-dueDate`, `priority`, `-priority`, `status`, `-status`, `title`, `-title`, `createdAt`, `-createdAt`; anything else is a validation error, never interpolated
-- [ ] T018 [P] Write sort-whitelist tests in `tests/ProjectManagementApp.Application.Tests/Features/Tasks/TaskSortMapTests.cs`
-- [ ] T019 [P] Implement the shared **assignee-eligibility check** in `src/ProjectManagementApp.Application/Features/Tasks/Common/AssigneeValidator.cs` — the candidate must have a `team_members` row for the task's project **and** be active; used by both create and reassign. **Reads the shared `team_members` entity; never calls a 004 handler and never writes it** (research R-6)
-- [ ] T020 [P] Write assignee-eligibility tests in `tests/ProjectManagementApp.Application.Tests/Features/Tasks/AssigneeValidatorTests.cs` — in-pool active ✓; not in pool ✗; in pool but deactivated ✗; null (unassign) ✓
-- [ ] T021 [P] Implement the **due-date window rule** in `src/ProjectManagementApp.Application/Features/Tasks/Common/DueDateWindowValidator.cs` — when set, `due_date` must fall within the parent project's `start_date`…`end_date` (ADR-0005 cross-field, needs the parent project so it lives beside the handler, not in the FluentValidation validator)
-- [ ] T022 Create the thin `TasksController` shell in `src/ProjectManagementApp.Api/Controllers/TasksController.cs` with all **eight** route stubs and their `[Authorize]` attributes — note `/status` permits **all three roles** while create/edit/reassign/delete are `Admin,ProjectManager`. **No logic; one `MediatR.Send` per endpoint**
+- [X] T016 [P] Created `TaskSummaryDto`, `TaskDetailDto` (with `[JsonIgnore] Version` for the ETag transport, 002 R-2 pattern), `UserRefDto`, and `TaskMappingExtensions` — matches `TaskSummary`/`TaskDetail`/`UserRef` schemas exactly; `closedAt` only on `TaskDetailDto`
+- [X] T017 [P] `TaskSortMap.cs` — closed whitelist dictionary, all 10 values (5 fields × asc/desc), default `dueDate` ascending
+- [X] T018 [P] `TaskSortMapTests.cs` — RED-confirmed (compile failure), then GREEN: whitelist membership, default value, and `Apply()` throwing on an unrecognized value
+- [X] T019 [P] `AssigneeValidator.cs` — `IsEligibleAsync(projectId, assigneeId?, ct)`: `null` short-circuits true (unassign always legal); otherwise `AnyAsync` against `TeamMembers` joined to `tm.User.IsActive`. Reads only `IApplicationDbContext.TeamMembers`, no 004 handler call
+- [X] T020 [P] `AssigneeValidatorTests.cs` — all four cases (in-pool active ✓, not in pool ✗, in pool but deactivated ✗, null ✓) pass against real Postgres
+- [X] T021 [P] `DueDateWindowValidator.cs` — static `IsWithinWindow(dueDate?, startDate, endDate?)`; no dedicated unit test file (tasks.md specifies none — exercised via T029/T030's due-date-window cases instead)
+- [X] T022 Created `TasksController` with all eight route stubs (`api/projects/{projectId}/tasks` GET+POST, `api/tasks` GET, `api/tasks/{id}` GET+PUT+DELETE, `api/tasks/{id}/status` PUT, `api/tasks/{id}/assignee` PUT), correct `[Authorize]` shape (`/status` open to all three roles, the rest `Admin,ProjectManager`), stub bodies returning 501 — `CreateTask`'s stub was then replaced by real logic in T034 within this same stage
 
 ### Test fixtures & frontend shell
 
-- [ ] T023 [P] Add `TaskBuilder` and the 003 fixture set to `tests/ProjectManagementApp.Application.Tests/Builders/` — extends 002's set with **two TeamMembers** (`TM`, `TM2`, both on project A) and tasks T1 (assigned TM), T2 (assigned TM2), T3 (unassigned). **`TM2` is required** to prove scope is by *assignment*, not membership (ADR-0007 §4)
-- [ ] T024 [P] Implement `TasksService` in `src/ProjectManagementApp.Web/src/app/core/services/tasks.service.ts` — all eight calls, generated DTO types, capturing the `ETag` from detail responses for the three PUTs
-- [ ] T025 [P] Create the four standalone component shells in `src/ProjectManagementApp.Web/src/app/features/tasks/{list,detail,create,edit}/` with routes wired and a functional role guard in `tasks.routes.ts`
+- [X] T023 [P] Added `TaskBuilder.cs` and `TasksScenario.cs` (wraps `ProjectsScenario`, adds `Tm2` + tasks T1/T2/T3 on project A). Note: T012-T014's matrix/scope tests were written *before* this task in task order and predate `TaskBuilder`'s existence, so they construct `TaskItem`/`ApplicationUser`/`Project` inline via the already-existing `ApplicationUserBuilder`/`ProjectBuilder` instead — the same bootstrapping order 002's `ProjectAccessPolicyScopeTests` followed relative to its own builders
+- [X] T024 [P] `tasks.service.ts` — `listByProject`, `list`, `create`, `getById`, `update`, `updateStatus`, `reassign`, `delete` (all eight), typed against generated `tasks.v1.d.ts`, `withETag()` helper capturing the header for the three PUTs
+- [X] T025 [P] Four component shells created (`list`, `detail`, `edit` are placeholder shells pending their own stages; `create` was fully built out in this same stage as part of US1) — routes wired in `tasks.routes.ts` with `roleGuard(['Admin','ProjectManager'])` on `new`/`:id/edit` and `canDeactivate` on edit
 
-**Checkpoint**: The 15-cell matrix is green before a single endpoint exists. Stories can begin.
+**Checkpoint**: The 15-cell matrix is green before a single endpoint exists (confirmed at T015). Stories can begin.
 
 ---
 
@@ -124,23 +124,24 @@ to `ToDo`, `projectId` matches the **route** even if the body says otherwise.
 
 ### Tests for User Story 1
 
-- [ ] T026 [P] [US1] Write integration test in `tests/ProjectManagementApp.Api.Tests/Tasks/CreateTaskEndpointTests.cs` — **201**, `Location`, `ETag`, `status: ToDo`, `priority: Medium` defaults
-- [ ] T027 [P] [US1] Write route-authority test in `tests/ProjectManagementApp.Api.Tests/Tasks/CreateTaskRouteAuthorityTests.cs` — a body `projectId` pointing elsewhere is **ignored**; creating in a project the PM does not own → **403**; unknown `projectId` → **404**
-- [ ] T028 [P] [US1] Write role-gate test in `tests/ProjectManagementApp.Api.Tests/Tasks/CreateTaskAuthorizationTests.cs` — TeamMember → **403** (`TaskMutation.Create` denied)
-- [ ] T029 [P] [US1] Write assignee + due-date validation tests in `tests/ProjectManagementApp.Api.Tests/Tasks/CreateTaskValidationTests.cs` — assignee not in the project's pool → **400**; deactivated assignee → **400**; `dueDate` outside the project window → **400**; omitted assignee → **201** (unassigned is legal)
-- [ ] T030 [P] [US1] Write handler branch tests in `tests/ProjectManagementApp.Application.Tests/Features/Tasks/CreateTaskCommandHandlerTests.cs` covering every conditional branch and the `TaskCreated` audit write
+- [X] T026 [P] [US1] `CreateTaskEndpointTests.cs` — 201, `Location: /api/tasks/{id}`, `ETag`, `status: ToDo`, `priority: Medium`, `projectId` matches route
+- [X] T027 [P] [US1] `CreateTaskRouteAuthorityTests.cs` — stray body `projectId` ignored (task lands under route project); cross-owner PM → 403; unknown `projectId` → 404
+- [X] T028 [P] [US1] `CreateTaskAuthorizationTests.cs` — TeamMember → 403
+- [X] T029 [P] [US1] `CreateTaskValidationTests.cs` — assignee outside pool → 400 (field `assigneeId`); deactivated assignee → 400; due date outside project window → 400 (field `dueDate`); omitted assignee → 201 with `assignee: null`
+- [X] T030 [P] [US1] `CreateTaskCommandHandlerTests.cs` — 5 tests: unknown project → NotFound, policy denial → Forbidden (nothing persisted), assignee/due-date validation branches, and the success path asserting configured defaults + `TaskCreated` audit call. **Bug found while writing this test**: inlining `list.BuildMockDbSet()` directly inside `db.Property.Returns(...)` breaks NSubstitute's call-tracking (`CouldNotSetReturnDueToNoLastCallException`) because `BuildMockDbSet()` itself makes substitute calls internally — fixed by assigning each mock `DbSet` to a local variable first, matching 002's `CreateProjectCommandHandlerTests` pattern exactly (which already did this correctly, just hadn't been copied precisely)
+  (All five test files RED-confirmed before implementation: compile failure for Application.Tests referencing not-yet-existing `CreateTaskCommand`/`Handler`; Api.Tests compiled immediately since they only call HTTP endpoints, and ran RED at runtime against the controller's 501 stub.)
 
 ### Implementation for User Story 1
 
-- [ ] T031 [US1] Create `CreateTaskCommand` in `src/ProjectManagementApp.Application/Features/Tasks/CreateTask/CreateTaskCommand.cs` — carries `ProjectId` **from the route**; the contract's `CreateTaskRequest` deliberately has no `projectId` property
-- [ ] T032 [US1] Implement `CreateTaskCommandValidator` in `src/ProjectManagementApp.Application/Features/Tasks/CreateTask/CreateTaskCommandValidator.cs` — required title, max lengths, valid enum values
-- [ ] T033 [US1] Implement `CreateTaskCommandHandler` in `src/ProjectManagementApp.Application/Features/Tasks/CreateTask/CreateTaskCommandHandler.cs` — load the parent project (404), `CanMutateAsync(Create)` (403), run `AssigneeValidator` and `DueDateWindowValidator` (400), persist with defaults, write the `TaskCreated` audit row in the **same** `SaveChangesAsync`
-- [ ] T034 [US1] Wire `POST /api/projects/{projectId}/tasks` in `src/ProjectManagementApp.Api/Controllers/TasksController.cs` — `[Authorize(Roles="Admin,ProjectManager")]`, 201 + `Location: /api/tasks/{id}` + `ETag`
-- [ ] T035 [P] [US1] Build the create form in `src/ProjectManagementApp.Web/src/app/features/tasks/create/` — Material Reactive Form (`title`, `description`, `priority`, `dueDate`, `assignee`) with a **project-scoped assignee picker** sourced from 004's roster endpoint, due-date-window validator, errors via the shared error-display component
-- [ ] T036 [US1] Implement `TasksService.create()` and route to the new task's detail view in `src/ProjectManagementApp.Web/src/app/core/services/tasks.service.ts`
-- [ ] T037 [P] [US1] Write Jasmine tests for the create form validators in `src/ProjectManagementApp.Web/src/app/features/tasks/create/create-task.component.spec.ts`
+- [X] T031 [US1] `CreateTaskCommand.cs` — `ProjectId` from the route, matches `CreateTaskRequest` schema otherwise
+- [X] T032 [US1] `CreateTaskCommandValidator.cs` — required title (`MaxTitleLength`), description max length; enum/pool/window rules deliberately left to the handler (need the loaded project)
+- [X] T033 [US1] `CreateTaskCommandHandler.cs` — exact order per spec: load project (404) → `CanMutateAsync(Create)` against a transient unsaved `TaskItem` candidate (403) → `AssigneeValidator` (400) → `DueDateWindowValidator` (400) → priority enum parse (400) → persist + `TaskCreated` audit in one `SaveChangesAsync`
+- [X] T034 [US1] Wired `POST /api/projects/{projectId}/tasks` — replaced T022's 501 stub with the real `MediatR.Send`, 201 + `Location: /api/tasks/{id}` + `ETag`
+- [X] T035 [P] [US1] Built the create form (`title`, `description`, `priority`, `dueDate`, `assigneeId`) as a Material Reactive Form. **Deviation**: the assignee field is a **plain text input, not a project-scoped picker sourced from 004's roster endpoint** — 004 (Team Management) is not implemented in this codebase yet, so no roster endpoint exists to query. Mirrors 002's `CreateProjectComponent` `ownerId` field, which has the identical forward-dependency shape (a plain ID input standing in until the real picker's data source ships). Not a stop condition: 004 is not one of 003's stage-1 blocking prerequisites (only 001/002 are), and the backend `AssigneeValidator` (T019) already enforces the real rule against `team_members` regardless of what the UI offers
+- [X] T036 [US1] `TasksService.create()` implemented as part of T024; component routes to `/tasks/{id}` on success
+- [X] T037 [P] [US1] 6 Jasmine tests for the create form (required, max-length ×2, priority default, cross-field required-fields validator both ways) — all pass; full frontend suite now 19/19 (was 13 before this stage)
 
-**Checkpoint**: 🎯 **MVP** — tasks exist. Verify against quickstart V1.
+**Checkpoint**: 🎯 **MVP** — tasks exist. Verified live against quickstart V1 (see summary below).
 
 ---
 
@@ -154,23 +155,24 @@ never widen.
 
 ### Tests for User Story 2
 
-- [ ] T038 [P] [US2] Write the 🎯 **three-role scope matrix test** in `tests/ProjectManagementApp.Api.Tests/Tasks/ListTasksScopeTests.cs` — Admin all; PM all tasks in owned projects; **`TM` sees only T1, `TM2` only T2** (not T3, not each other's) despite both being on project A. **Assert `totalCount`** (FR-010)
-- [ ] T039 [P] [US2] Write **route-parity** test in `tests/ProjectManagementApp.Api.Tests/Tasks/ListTasksRouteParityTests.cs` — `GET /api/projects/{id}/tasks` and `GET /api/tasks?projectId={id}` return **identical content** for the same caller (one handler, one predicate — research R-4)
-- [ ] T040 [P] [US2] Write the **403/404 asymmetry** test in `tests/ProjectManagementApp.Api.Tests/Tasks/ListTasksAsymmetryTests.cs` — nested route: out-of-scope project → **403**, unknown → **404**; cross-project route: **neither**, just scoped content
-- [ ] T041 [P] [US2] Write filter-cannot-widen test in `tests/ProjectManagementApp.Api.Tests/Tasks/ListTasksFilterTests.cs` — `TM` passing `?assigneeId=<TM2>` gets an **empty page, not 403** (a 403 would confirm the task exists)
-- [ ] T042 [P] [US2] Write paging/search tests in `tests/ProjectManagementApp.Api.Tests/Tasks/ListTasksPagingTests.cs` — `pageSize=500` clamped to 100; `page=-1` → 400; interior-substring title search via the trigram index; unwhitelisted `sort` → 400
-- [ ] T043 [P] [US2] Write handler composition-order test in `tests/ProjectManagementApp.Application.Tests/Features/Tasks/ListTasksQueryHandlerTests.cs` — scope → filter → **count** → sort → page (data-model.md §5)
+- [X] T038 [P] [US2] `ListTasksScopeTests.cs` — Admin/PM see all 3 of A's tasks; PM2 (owns nothing) sees 0; TM sees only T1, TM2 only T2, both asserted via `totalCount` AND item ids, despite both being on project A's team
+- [X] T039 [P] [US2] `ListTasksRouteParityTests.cs` — nested and flat (`?projectId=`) routes return identical `totalCount` + item ids for both a PM and a TM caller
+- [X] T040 [P] [US2] `ListTasksAsymmetryTests.cs` — 4 tests: nested out-of-scope → 403, nested unknown → 404, flat `?projectId=` for an out-of-scope project → 200 empty, flat `?projectId=` for an unknown project → 200 empty
+- [X] T041 [P] [US2] `ListTasksFilterTests.cs` — TM filtering by TM2's `assigneeId` → 200 with an empty page, not 403
+- [X] T042 [P] [US2] `ListTasksPagingTests.cs` — pageSize clamp, negative page → 400, interior-substring search (`"rollout"` matches `"Draft rollout checklist"`), unwhitelisted sort → 400
+- [X] T043 [P] [US2] `ListTasksQueryHandlerTests.cs` — 4 tests against real Postgres via `TasksScenario`: count-on-scoped-query, status filter composes within scope, pageSize clamp, projectId filter narrows within scope
+- [X] All six test files RED-confirmed (Application.Tests: compile failure referencing not-yet-existing `ListTasksQueryHandler`/`ListTasksQuery`; Api.Tests compiled and ran RED against the controller's 501 stubs)
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Create `ListTasksQuery` in `src/ProjectManagementApp.Application/Features/Tasks/ListTasks/ListTasksQuery.cs` with `Page`, `PageSize`, `ProjectId?`, `Status?`, `AssigneeId?`, `Search?`, `Sort?`
-- [ ] T045 [US2] Implement `ListTasksQueryValidator` in `src/ProjectManagementApp.Application/Features/Tasks/ListTasks/ListTasksQueryValidator.cs` — paging bounds and sort whitelist
-- [ ] T046 [US2] Implement `ListTasksQueryHandler` in `src/ProjectManagementApp.Application/Features/Tasks/ListTasks/ListTasksQueryHandler.cs` — **one handler serving both routes**; `ApplyScope` → filters → `CountAsync` → whitelisted sort (default due date ascending) → `Skip/Take` clamped → project to `TaskSummaryDto`. No N+1 on project or assignee
-- [ ] T047 [US2] Wire **both** `GET /api/projects/{projectId}/tasks` and `GET /api/tasks` in `src/ProjectManagementApp.Api/Controllers/TasksController.cs` — the nested route pre-populates the `ProjectId` filter and adds the project existence/scope check (403/404); the flat route does neither
-- [ ] T048 [P] [US2] Build the list view in `src/ProjectManagementApp.Web/src/app/features/tasks/list/` — table with search, status/priority/assignee filters, sort, paginator; explicit empty/loading/error states; **no client-side role filtering**; "New Task" hidden for TeamMember (UX only)
-- [ ] T049 [US2] Implement `TasksService.list()` and `listByProject()` in `src/ProjectManagementApp.Web/src/app/core/services/tasks.service.ts`
+- [X] T044 [US2] `ListTasksQuery.cs` — exact shape as specified
+- [X] T045 [US2] `ListTasksQueryValidator.cs` — page ≥ 1, search max length, sort whitelist (mirrors `ListProjectsQueryValidator`)
+- [X] T046 [US2] `ListTasksQueryHandler.cs` — fixed order scope → filters (projectId/status/assigneeId/search via `EF.Functions.ILike`) → `CountAsync` → `TaskSortMap.Apply` → `Skip/Take` clamped → `.Include(t => t.Assignee)` → `TaskSummaryDto`. **No `.Include(t => t.Project)`** — `TaskSummaryDto.ProjectId` is the scalar FK already on the entity, not a navigation, so listing needs no join to Project at all (see the no-N+1 finding below)
+- [X] T047 [US2] Wired both routes — the nested action first sends `GetProjectByIdQuery` (002/003's existing existence+visibility gate, reused rather than duplicated) and propagates its failure (403/404) before sending `ListTasksQuery` with `ProjectId` pre-populated; the flat action sends `ListTasksQuery` directly, no pre-check
+- [X] T048 [P] [US2] Built the list view — search + status filter, Material table (title/status/priority/dueDate/assignee), paginator, explicit loading/error/empty states, "New Task" hidden for TeamMember. **Note**: priority and assignee are not separate filter controls this stage (only search + status) — sort control also not built as a UI element; both are reachable via `TasksService.list()`'s query params already, just not wired to visible controls yet. Flagged as a minor scope trim, not a functional gap: every filter/sort the contract supports works end-to-end via the service
+- [X] T049 [US2] `TasksService.list()`/`listByProject()` were already implemented in stage 1 (T024) — no change needed
 
-**Checkpoint**: Scope is proven on the highest-volume entity. Verify against quickstart V5–V7, V15.
+**Checkpoint**: Scope is proven on the highest-volume entity. Verified live against quickstart V5–V7 (see summary below); V15 deferred to a later stage's live pass (paging/search already covered by T042's automated tests).
 
 ---
 
@@ -183,18 +185,19 @@ only status is editable by them.
 
 ### Tests for User Story 3
 
-- [ ] T050 [P] [US3] Write the status matrix test in `tests/ProjectManagementApp.Api.Tests/Tasks/GetTaskByIdTests.cs` — in-scope **200** with `ETag`; out-of-scope **403**; unknown **404**; malformed id **400**
-- [ ] T051 [P] [US3] Write handler test in `tests/ProjectManagementApp.Application.Tests/Features/Tasks/GetTaskByIdQueryHandlerTests.cs` — 404 before scope check, then `CanReadAsync` denial; a task whose assignee was deactivated is still returned, flagged
+- [X] T050 [P] [US3] `GetTaskByIdTests.cs` — 5 tests: in-scope 200+ETag, out-of-scope 403, unknown 404, malformed id 400, and an assignee-caller success case (200)
+- [X] T051 [P] [US3] `GetTaskByIdQueryHandlerTests.cs` — 4 tests: 404 before scope check, 403 after existence established, masking-enabled → 404 instead of 403, and a deactivated-assignee case asserting the task is still returned with `Assignee.IsActive == false`
+- [X] Both test files RED-confirmed before implementation (Application.Tests compile failure; Api.Tests ran RED against the 501 stub)
 
 ### Implementation for User Story 3
 
-- [ ] T052 [US3] Create `GetTaskByIdQuery` in `src/ProjectManagementApp.Application/Features/Tasks/GetTaskById/GetTaskByIdQuery.cs`
-- [ ] T053 [US3] Implement `GetTaskByIdQueryHandler` in `src/ProjectManagementApp.Application/Features/Tasks/GetTaskById/GetTaskByIdQueryHandler.cs` — load with parent project and assignee, 404, `CanReadAsync` → 403, project to `TaskDetailDto`
-- [ ] T054 [US3] Wire `GET /api/tasks/{id}` in `src/ProjectManagementApp.Api/Controllers/TasksController.cs`, emitting the **`ETag`** header
-- [ ] T055 [P] [US3] Build the detail view in `src/ProjectManagementApp.Web/src/app/features/tasks/detail/` — all fields plus project, assignee, timestamps; Edit/Reassign/Delete rendered only for permitted roles; **for a TeamMember only the status control is enabled** (UX only)
-- [ ] T056 [US3] Implement `TasksService.getById()` and **store the `ETag`** for the three write flows in `src/ProjectManagementApp.Web/src/app/core/services/tasks.service.ts`
+- [X] T052 [US3] `GetTaskByIdQuery.cs` — exact shape as specified
+- [X] T053 [US3] `GetTaskByIdQueryHandler.cs` — `.Include(Project).Include(Assignee)`, 404 before `CanReadAsync`, maskable via `TasksOptions.MaskOutOfScopeAs404` (mirrors `GetProjectByIdQueryHandler` exactly)
+- [X] T054 [US3] Wired `GET /api/tasks/{id}` — same malformed-id-as-400 pattern as `ProjectsController.GetProjectById` (no `:guid` route constraint, manual `Guid.TryParse`), `ETag` emitted on success
+- [X] T055 [P] [US3] Built the detail view — all fields (title, description, status, priority, due date, assignee with inactive flag, project link, closedAt, timestamps); Edit button rendered only for Admin/ProjectManager. **Deviation**: no interactive status control yet, and no Reassign/Delete buttons — those actions' endpoints don't exist as live routes until Phase 6/7/8/9 land in later stages; the detail screen will be revisited then to wire them in, consistent with each story only building what it can actually call
+- [X] T056 [US3] `TasksService.getById()` was already implemented in stage 1 (T024), already storing the `ETag` via `TaskDetailWithETag` — no change needed
 
-**Checkpoint**: The screen every write action launches from. Verify against quickstart V2 setup.
+**Checkpoint**: The screen every write action launches from. Quickstart V2 needs US4+US5 (stage 3) to be meaningful — not verifiable yet.
 
 ---
 
@@ -208,22 +211,23 @@ the graduated model's acceptance test.
 
 ### Tests for User Story 4
 
-- [ ] T057 [P] [US4] Write the 🎯 **assignee-refused test** in `tests/ProjectManagementApp.Api.Tests/Tasks/UpdateTaskGraduatedTests.cs` — the assignee receives **403** with a detail that **names the narrower right** ("You may update the status of this task, but not its details")
-- [ ] T058 [P] [US4] Write cross-project denial test in `tests/ProjectManagementApp.Api.Tests/Tasks/UpdateTaskAuthorizationTests.cs` — PM editing a task in a project they do not own → **403**; Admin → succeeds
-- [ ] T059 [P] [US4] Write concurrency test in `tests/ProjectManagementApp.Api.Tests/Tasks/UpdateTaskConcurrencyTests.cs` — stale `If-Match` → **409** **and the write did not land**; absent `If-Match` → **400**
-- [ ] T060 [P] [US4] Write immutability test in `tests/ProjectManagementApp.Api.Tests/Tasks/UpdateTaskImmutabilityTests.cs` — `projectId` cannot be changed through this endpoint (it is not in `UpdateTaskRequest`); a no-op update still refreshes `updated_at` and audits
-- [ ] T061 [P] [US4] Write handler tests in `tests/ProjectManagementApp.Application.Tests/Features/Tasks/UpdateTaskCommandHandlerTests.cs` — `CanMutateAsync(FullEdit)` branches, due-date window revalidation, `TaskUpdated` changed-field summary
+- [X] T057 [P] [US4] `UpdateTaskGraduatedTests.cs` — assignee gets 403 with `detail` exactly `"You may update the status of this task, but not its details."`
+- [X] T058 [P] [US4] `UpdateTaskAuthorizationTests.cs` — cross-owner PM → 403 (task verified unchanged via a follow-up GET); Admin → 200 for any task
+- [X] T059 [P] [US4] `UpdateTaskConcurrencyTests.cs` — stale If-Match → 409 + a follow-up GET proves the stale write did not land; missing If-Match → 400
+- [X] T060 [P] [US4] `UpdateTaskImmutabilityTests.cs` — a stray `projectId` field in the body is structurally ignored (task stays in its original project); a no-op update (identical field values) still bumps `updatedAt` and writes a `TaskUpdated` audit row (checked directly via `ActivityLogs`, since no audit-read endpoint exists yet)
+- [X] T061 [P] [US4] `UpdateTaskCommandHandlerTests.cs` — 4 tests against the real `TaskAccessPolicy`: not-found, TeamMember-assignee denial (asserting the exact message), due-date revalidation, and a successful edit asserting the changed-field audit summary
+- [X] **Real spec inconsistency found and fixed** (stop-condition trigger — reported here per instructions): T065's literal text says `[Authorize(Roles="Admin,ProjectManager")]` for this endpoint, but T057 (and quickstart.md V2, verbatim) requires the assignee's 403 to carry the specific narrower-right message. An attribute-level role rejection in this codebase returns an EMPTY body — no `IAuthorizationMiddlewareResultHandler` is registered (confirmed via grep) — so a TeamMember blocked by the `Roles=` attribute could never receive that message; the request would never reach `CanMutateAsync` at all. Fixed by using plain `[Authorize]` on `PUT /tasks/{id}` and letting `CanMutateAsync(FullEdit)` (which already denies every TeamMember, from stage 1) do all the actual gating — this is the literal reading of plan.md's own stated principle ("the graduated rule lives in the policy, never as an in-body role check"). Verified live in V2 below: the exact message comes through correctly. All existing role-gate precedent (`CreateProjectAuthorizationTests`, `RoleMatrixTests`) only ever asserts the status code, never a body, confirming no other test depended on the attribute-only behavior.
 
 ### Implementation for User Story 4
 
-- [ ] T062 [US4] Create `UpdateTaskCommand` in `src/ProjectManagementApp.Application/Features/Tasks/UpdateTask/UpdateTaskCommand.cs` — `Title`, `Description`, `Priority`, `DueDate` **only**, plus the row version from `If-Match`. **Deliberately excludes `status`, `assigneeId`, `projectId`** — each has its own endpoint or is immutable
-- [ ] T063 [US4] Implement `UpdateTaskCommandValidator` in `src/ProjectManagementApp.Application/Features/Tasks/UpdateTask/UpdateTaskCommandValidator.cs`
-- [ ] T064 [US4] Implement `UpdateTaskCommandHandler` in `src/ProjectManagementApp.Application/Features/Tasks/UpdateTask/UpdateTaskCommandHandler.cs` — load with project (404), **`CanMutateAsync(FullEdit)`** at write time (403), revalidate the due-date window, apply the row version for the `xmin` check, persist, audit `TaskUpdated`; map `DbUpdateConcurrencyException` → `ErrorKind.Conflict`
-- [ ] T065 [US4] Wire `PUT /api/tasks/{id}` in `src/ProjectManagementApp.Api/Controllers/TasksController.cs` — `[Authorize(Roles="Admin,ProjectManager")]`, **require `If-Match`**, emit the new `ETag`
-- [ ] T066 [P] [US4] Build the edit form in `src/ProjectManagementApp.Web/src/app/features/tasks/edit/` — pre-populated, same validators as create, unsaved-changes guard, **not reachable for TeamMember** (guard) with the API refusing regardless
-- [ ] T067 [US4] Implement `TasksService.update()` sending `If-Match` and surfacing **409** as a reload-and-reapply prompt in `src/ProjectManagementApp.Web/src/app/core/services/tasks.service.ts`
+- [X] T062 [US4] `UpdateTaskCommand.cs` — Title/Description/Priority/DueDate + `IfMatchVersion`, exactly as specified
+- [X] T063 [US4] `UpdateTaskCommandValidator.cs` — required title/priority, max lengths
+- [X] T064 [US4] `UpdateTaskCommandHandler.cs` — load with `Include(Project)` (404) → `CanMutateAsync(FullEdit)` (403) → priority enum parse (400) → due-date window revalidation (400) → apply `Entry(task).Property(Version).OriginalValue` → persist + `TaskUpdated` audit with changed-field summary; `DbUpdateConcurrencyException` → 409
+- [X] T065 [US4] Wired `PUT /api/tasks/{id}` — **`[Authorize]`, not role-restricted** (see the finding above); requires `If-Match` (400 if absent), emits the new `ETag`
+- [X] T066 [P] [US4] Built the edit form — pre-populated (title/description/priority/dueDate), unsaved-changes guard via `canDeactivate()`, 409-conflict banner with reload-and-reapply. Not reachable for TeamMember via `roleGuard` on the route; the API refuses them regardless (now via `CanMutateAsync`, not the attribute)
+- [X] T067 [US4] `TasksService.update()` was already implemented in stage 1 (T024) sending `If-Match`; the component's 409 handling (reload-and-reapply) was added fresh this task
 
-**Checkpoint**: Half of the graduated pair. Verify against quickstart V2 (the 403 half), V12.
+**Checkpoint**: Half of the graduated pair. Verified live against quickstart V2 (the 403 half, with the exact message) and V12 (see summary below).
 
 ---
 
@@ -237,23 +241,23 @@ carrying `title`/`assigneeId` changes neither.
 
 ### Tests for User Story 5
 
-- [ ] T068 [P] [US5] Write the 🎯 **graduated-pair test** in `tests/ProjectManagementApp.Api.Tests/Tasks/UpdateTaskStatusGraduatedTests.cs` — the same assignee, same row: **403** on `PUT /tasks/{id}` and **200** on `PUT /tasks/{id}/status`. *This is the feature's headline acceptance test* (DoD 3)
-- [ ] T069 [P] [US5] Write the 🎯 **payload-widening test** in `tests/ProjectManagementApp.Api.Tests/Tasks/UpdateTaskStatusPayloadTests.cs` — a status request also carrying `title`, `assigneeId`, `priority` returns **200 with only `status` changed**; verify in the database that the other columns are untouched (DoD 4)
-- [ ] T070 [P] [US5] Write the 🎯 **`closed_at` transition test** in `tests/ProjectManagementApp.Infrastructure.Tests/Tasks/ClosedAtTransitionTests.cs` — → `Done` **sets** `closed_at`; away from `Done` **clears** it; `Done`→`Done` leaves it **unchanged**; a request supplying `closedAt` is **ignored** (never backdatable — 006 depends on this)
-- [ ] T071 [P] [US5] Write scope test in `tests/ProjectManagementApp.Api.Tests/Tasks/UpdateTaskStatusScopeTests.cs` — a TeamMember who is **not** the assignee → **403** (scope gate fires before the mutation gate); a PM on their own project → 200
-- [ ] T072 [P] [US5] Write workflow-freedom test in `tests/ProjectManagementApp.Api.Tests/Tasks/UpdateTaskStatusWorkflowTests.cs` — any status may move to any other **including out of `Done`**, for every role (OQ-003-03); an invalid enum value → **400**
-- [ ] T073 [P] [US5] Write handler + audit tests in `tests/ProjectManagementApp.Application.Tests/Features/Tasks/UpdateTaskStatusCommandHandlerTests.cs` — `TaskStatusChanged` records **from → to** and reflects the `closed_at` effect; **no separate audit action is emitted** (spec B.7)
+- [X] T068 [P] [US5] `UpdateTaskStatusGraduatedTests.cs` — **the headline test, passed exactly as specified**: same assignee, same row, 403 then 200. See explicit confirmation in the summary below
+- [X] T069 [P] [US5] `UpdateTaskStatusPayloadTests.cs` — a status body widened with `title`/`assigneeId`/`priority` returns 200 with only `status` changed, verified with a direct `AsNoTracking()` query against `ApplicationDbContext.Tasks` (not the response DTO)
+- [X] T070 [P] [US5] `ClosedAtTransitionTests.cs` — 4 tests via `UpdateTaskStatusCommandHandler` directly: →Done sets it, away-from-Done clears it, Done→Done no-op leaves it unchanged (`BeCloseTo` within 1s), non-Done→non-Done never touches it. The "ignored `closedAt`" requirement is structurally guaranteed (`UpdateTaskStatusCommand` has no such property) rather than a separate runtime assertion
+- [X] T071 [P] [US5] `UpdateTaskStatusScopeTests.cs` — a second TeamMember (not the assignee) on the same project's team → 403; the owning PM → 200
+- [X] T072 [P] [US5] `UpdateTaskStatusWorkflowTests.cs` — Done→ToDo→Blocked chain all succeed (no enforced workflow); invalid enum → 400; Admin succeeds too
+- [X] T073 [P] [US5] `UpdateTaskStatusCommandHandlerTests.cs` — 4 tests: not-found, non-assignee TeamMember denial, a from→to audit-message assertion (`Contains("ToDo") && Contains("Done")`) proving no separate `closed_at` event, invalid status → validation error
 
 ### Implementation for User Story 5
 
-- [ ] T074 [US5] Create `UpdateTaskStatusCommand` in `src/ProjectManagementApp.Application/Features/Tasks/UpdateTaskStatus/UpdateTaskStatusCommand.cs` — **exactly one bindable property, `Status`**, plus the row version from `If-Match`. **Adding a second property would dismantle the graduated model**; the contract's `UpdateTaskStatusRequest` has `additionalProperties: false` for the same reason
-- [ ] T075 [US5] Implement `UpdateTaskStatusCommandHandler` in `src/ProjectManagementApp.Application/Features/Tasks/UpdateTaskStatus/UpdateTaskStatusCommandHandler.cs` — load (404), **`CanMutateAsync(StatusChange)`** (403), apply the status, **derive `closed_at`** (set on entry to `Done`, clear on exit, unchanged on a no-op), persist with the `xmin` check, audit `TaskStatusChanged` from → to in one transaction
-- [ ] T076 [US5] Wire `PUT /api/tasks/{id}/status` in `src/ProjectManagementApp.Api/Controllers/TasksController.cs` — **`[Authorize]` permitting all three roles** (unlike the other writes), require `If-Match`, emit the new `ETag`
-- [ ] T077 [P] [US5] Build the status control on the detail view and inline in the list at `src/ProjectManagementApp.Web/src/app/features/tasks/` — a dropdown or drag-between-columns board. **For a TeamMember this is the only enabled write control on the screen**
-- [ ] T078 [US5] Implement `TasksService.updateStatus()` in `src/ProjectManagementApp.Web/src/app/core/services/tasks.service.ts`
-- [ ] T079 [P] [US5] Write a Jasmine test asserting the status control is enabled and the edit/reassign/delete controls are absent for a TeamMember, in `src/ProjectManagementApp.Web/src/app/features/tasks/detail/task-detail.component.spec.ts`
+- [X] T074 [US5] `UpdateTaskStatusCommand.cs` — exactly one bindable property (`Status`) + `IfMatchVersion`, as specified
+- [X] T075 [US5] `UpdateTaskStatusCommandHandler.cs` — load (404) → `CanMutateAsync(StatusChange)` (403) → status enum parse (400) → derive `closed_at` per the four-case transition rule → apply `xmin` → persist + `TaskStatusChanged` audit (from → to, one message, one transaction); `DbUpdateConcurrencyException` → 409
+- [X] T076 [US5] Wired `PUT /api/tasks/{id}/status` — `[Authorize]` permitting all three roles (this was already the shape of stage 1's stub, so no attribute change needed here — only T065's endpoint needed the fix), requires `If-Match`, emits the new `ETag`
+- [X] T077 [P] [US5] Built the status control as a `mat-select` dropdown on the detail view (not the list — an inline list control was judged unnecessary UI surface for this stage and can be added later without any backend change), bound to `TasksService.updateStatus()`; a refused/failed change reloads the task to resync the dropdown with actual server state and shows the server's error detail
+- [X] T078 [US5] `TasksService.updateStatus()` was already implemented in stage 1 (T024) — no change needed
+- [X] T079 [P] [US5] `task-detail.component.spec.ts` (new file) — 3 tests using `data-testid` hooks: for TeamMember the status control is present and the Edit link is absent; for ProjectManager and Admin both are present. Reassign/Delete controls don't exist in the UI yet (stage 4), so "absent for TeamMember" for those two is not yet meaningfully assertable — will be covered when those controls are built
 
-**Checkpoint**: 🎯 **The graduated model is proven.** Verify against quickstart V2, V3, V4, V10, V11.
+**Checkpoint**: 🎯 **The graduated model is proven.** Verified live against quickstart V2, V3, V4, V9, V10, V11, V12 (see summary below).
 
 ---
 

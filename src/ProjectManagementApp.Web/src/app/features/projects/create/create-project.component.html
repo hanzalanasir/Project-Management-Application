@@ -1,0 +1,59 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Create project</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Name</mat-label>
+        <input matInput formControlName="name" required />
+        @if (form.get('name')?.touched && form.get('name')?.hasError('required')) {
+          <mat-error>Name is required.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Description</mat-label>
+        <textarea matInput formControlName="description"></textarea>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Start date</mat-label>
+        <input matInput type="date" formControlName="startDate" required />
+        @if (form.get('startDate')?.touched && form.get('startDate')?.hasError('required')) {
+          <mat-error>Start date is required.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>End date (optional)</mat-label>
+        <input matInput type="date" formControlName="endDate" />
+        @if (form.hasError('dateOrder')) {
+          <mat-error>End date must not precede start date.</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Status</mat-label>
+        <mat-select formControlName="status">
+          @for (status of statuses; track status) {
+            <mat-option [value]="status">{{ status }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      @if (isAdmin) {
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Owner ID (optional — Admin only)</mat-label>
+          <input matInput formControlName="ownerId" />
+        </mat-form-field>
+      }
+
+      <app-error-display [errors]="serverErrors()"></app-error-display>
+
+      <button mat-flat-button color="primary" type="submit" [disabled]="submitting()">
+        Create project
+      </button>
+    </form>
+  </mat-card-content>
+</mat-card>

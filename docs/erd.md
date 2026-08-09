@@ -3,7 +3,8 @@
 Generated from `src/ProjectManagementApp.Infrastructure/Persistence/Migrations/*_InitialCreate.cs`
 (Constitution X.4). All five constitution entities are created here (research.md R-10) —
 `projects`, `tasks`, and `team_members` are table-only in 001; their behavior is owned by
-002/003/004 respectively.
+002/003/004 respectively. `projects`' indexes were added afterward by 002's `AddProjectIndexes`
+migration (data-model.md §4) — see Notes below; the table shape itself is unchanged by that migration.
 
 ```mermaid
 erDiagram
@@ -108,3 +109,13 @@ erDiagram
 - The four unused ASP.NET Core Identity tables (`user_claims`, `user_logins`, `user_tokens`,
   `role_claims`) are created by Identity's stores and are intentionally empty in this application
   (data-model.md §6).
+- **`projects` indexes** (002's `AddProjectIndexes` migration, data-model.md §4 — not shown in the
+  diagram above since Mermaid ER syntax has no index notation):
+  - `ix_projects_owner_id` — the ProjectManager scope predicate; the single hottest filter (already
+    existed from 001's FK convention; this migration keeps it explicit rather than duplicating it).
+  - `ix_projects_status` — the `?status=` list filter.
+  - `ix_projects_owner_id_status` — the common composite: a manager filtering their own projects by status.
+  - `ix_projects_name_trgm` — a GIN trigram index (`pg_trgm` extension) on `name`, serving the
+    case-insensitive interior-substring `?search=` filter; a B-tree index cannot serve `%term%`.
+  - Deliberately **no** index for the TeamMember scope on `projects` — that predicate resolves
+    through `team_members`, whose `(project_id, user_id)` unique index (004) is what makes it fast.
