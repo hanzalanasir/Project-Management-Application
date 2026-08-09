@@ -57,9 +57,9 @@ same one-role invariant (remove the old row, add the new one, in the same transa
 **No new column for US-001-07/08/09.** Admin user management operates entirely on fields already listed
 above: `IsActive` (already present, default `true` — US-001-09 is simply the first and only place that
 *sets* it administratively; nothing else in 001–006 ever flips it) and `Version`/`xmin` (already present —
-US-001-08/09's writes are the first in 001 to require `If-Match`, since 001 predates ADR-0007's
-concurrency convention; see research R-14 for why this is handled inline rather than via a shared helper).
-No migration beyond `InitialCreate` is needed.
+US-001-08/09's writes are the first in 001 to require `If-Match`. Since 001 is now the first feature built,
+it is also the first to need the shared `ETagExtensions` helper (`Api/Common/`), so 001 creates it rather
+than 002 — see research R-15). No migration beyond `InitialCreate` is needed.
 
 ### `ApplicationRole : IdentityRole<Guid>`
 No added properties. Exactly three rows, seeded: `Admin`, `ProjectManager`, `TeamMember`.

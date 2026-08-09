@@ -192,11 +192,11 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - { name: page,     in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page,     in: query, schema: { type: integer, format: int32, minimum: 1, default: 1 } }
         - name: pageSize
           in: query
           description: Values above the configured maximum are **clamped**, not rejected (Constitution VI.4).
-          schema: { type: integer, minimum: 1, default: 20, maximum: 100 }
+          schema: { type: integer, format: int32, minimum: 1, default: 20, maximum: 100 }
       responses:
         '200':
           description: A page of all users.
@@ -389,7 +389,14 @@ components:
         fullName:  { type: string, example: Dana Rivera }
         email:     { type: string, format: email, example: dana@example.com }
         role:      { $ref: '#/components/schemas/Role' }
-        createdAt: { type: string, format: date-time }
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Absent a DB round-trip is required to resolve it — `/auth/me` and the `login`/`refresh`
+            token responses always return `null` here (NFR-002); only `/auth/register` supplies a
+            real value.
       description: The safe user projection. Contains no password, no hash, no token — ever.
 
     Role:

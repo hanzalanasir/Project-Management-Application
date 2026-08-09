@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Restore local tools (Swashbuckle CLI, dotnet-ef)
+        run: dotnet tool restore
+
+      - name: Install oasdiff
+        run: |
+          curl -sSL -o oasdiff.tar.gz https://github.com/oasdiff/oasdiff/releases/download/v1.27.0/oasdiff_1.27.0_linux_amd64.tar.gz
+          tar -xzf oasdiff.tar.gz
+          sudo mv oasdiff /usr/local/bin/oasdiff
+          oasdiff --version
+
+      # The CheckApiContract target starts the API host to introspect its OpenAPI document, which
+      # runs the startup migration against ConnectionStrings:DefaultConnection (Program.cs) — so
+      # the gate needs a real, reachable Postgres, not just build artifacts.
+      - name: Start Postgres for the contract gate
+        run: |
+          docker run -d --name pma-ci-postgres -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=pma_ci -p 5432:5432 postgres:18-alpine
+          for i in $(seq 1 30); do docker exec pma-ci-postgres pg_isready -U postgres && break; sleep 1; done
+
+      - name: Build (with API-first contract drift gate)
+        run: dotnet build -p:CheckApiContract=true
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          Seed__Enabled: "false"
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=pma_ci;Username=postgres;Password=ci"
+          Jwt__SigningKey: "ci-only-signing-key-at-least-32-characters-long"
+          Jwt__Issuer: "ProjectManagementApp"
+          Jwt__Audience: "ProjectManagementApp"
+
+      # Application/Infrastructure/Api test projects all use Testcontainers PostgreSQL
+      # (ADR-0007 §2, never EF InMemory) — the Docker daemon on the runner provisions each
+      # container per test run, no external Postgres needed for this step.
+      - name: Test
+        run: dotnet test --no-build
+
+      - name: Stop Postgres
+        if: always()
+        run: docker rm -f pma-ci-postgres
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/ProjectManagementApp.Web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test -- --watch=false

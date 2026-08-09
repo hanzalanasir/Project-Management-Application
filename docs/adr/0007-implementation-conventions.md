@@ -34,10 +34,17 @@ code-derived document with `Swashbuckle.AspNetCore.Cli` and compares:
 
 ```bash
 dotnet swagger tofile --output artifacts/openapi/generated.json <Api.dll> v1
-oasdiff breaking docs/contracts/<area>.v1.yaml artifacts/openapi/generated.json --fail-on ERR
+oasdiff breaking docs/contracts/<area>.v1.yaml artifacts/openapi/generated.json --prefix-base /api --fail-on ERR
 ```
 
 Wired as an MSBuild target gated on `-p:CheckApiContract=true`: **CI always sets it; local builds do not.**
+
+`--prefix-base /api` is load-bearing, not decoration: every contract declares `servers: - url: /api`, so its
+paths are written relative to that (`/auth/register`), while the Swashbuckle-generated document has no
+`servers` entry and bakes `/api` into the literal path (controllers route under `api/[controller]`).
+Without the flag, `oasdiff` compares the literal path strings and reports **every** endpoint as removed —
+this went unnoticed from 001's original implementation until 001's T140, because `oasdiff` was not
+installed in that environment and the gate had never actually been run end-to-end before then.
 
 - *3.0.3, not 3.1* — matches Swashbuckle's default emission, so the diff reports real differences rather
   than version-dialect noise.
@@ -83,7 +90,7 @@ strong **`ETag`** on reads. Mutating endpoints **require `If-Match`**:
 |---|---|
 | `If-Match` current | proceeds |
 | `If-Match` stale | **409 Conflict** |
-| `If-Match` absent | **400** (`"If-Match header is required."`) |
+| `If-Match` absent | **400** (a bare `ProblemDetails` — `UsersController`'s `ChangeRole`/`ChangeStatus` actions call the parameterless `BadRequest()`, not a message-carrying overload; the status code is the contract, not response body text) |
 
 **`DELETE` is exempt.** Optimistic concurrency protects against *lost updates*; a delete has no lost-update
 failure mode, and a second delete correctly observes 404.

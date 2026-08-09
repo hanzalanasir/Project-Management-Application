@@ -1,0 +1,28 @@
+@if (detail(); as user) {
+  <mat-card class="detail-card">
+    <mat-card-header>
+      <mat-card-title>{{ user.fullName }}</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p>{{ user.email }}</p>
+      <p>Status: {{ user.isActive ? 'Active' : 'Inactive' }}</p>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Role</mat-label>
+        <mat-select [value]="user.role" (selectionChange)="changeRole($event.value)">
+          @for (role of roles; track role) {
+            <mat-option [value]="role">{{ role }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <div>
+        <button mat-stroked-button (click)="toggleStatus()">
+          {{ user.isActive ? 'Deactivate' : 'Reactivate' }}
+        </button>
+      </div>
+
+      <app-error-display [errors]="errors()"></app-error-display>
+    </mat-card-content>
+  </mat-card>
+}

@@ -1,0 +1,52 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using FluentAssertions;
+using ProjectManagementApp.Api.Tests.Fixtures;
+using static ProjectManagementApp.Api.Tests.Users.UsersTestHelper;
+
+namespace ProjectManagementApp.Api.Tests.Users;
+
+[Collection(ApiTestCollection.Name)]
+public class ChangeUserRoleSelfTests : IAsyncLifetime
+{
+    private readonly ApiTestFixture _fixture;
+
+    public ChangeUserRoleSelfTests(ApiTestFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    public Task InitializeAsync() => Task.CompletedTask;
+    public Task DisposeAsync() => _fixture.ResetAsync();
+
+    private sealed record ChangeUserRoleRequest(string Role);
+
+    [Fact]
+    public async Task ChangeRole_AdminChangingTheirOwnRole_Returns409()
+    {
+        var client = _fixture.CreateClient();
+        var adminToken = await LoginAsync(client, AdminEmail, AdminPassword);
+
+        using var meRequest = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");
+        meRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var meResponse = await client.SendAsync(meRequest);
+        var me = await meResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        var adminId = me.GetProperty("id").GetString();
+
+        using var getRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/users/{adminId}");
+        getRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var getResponse = await client.SendAsync(getRequest);
+        var etag = getResponse.Headers.ETag!.Tag;
+
+        using var putRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/users/{adminId}/role")
+        {
+            Content = JsonContent.Create(new ChangeUserRoleRequest("TeamMember"))
+        };
+        putRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        putRequest.Headers.TryAddWithoutValidation("If-Match", etag);
+        var putResponse = await client.SendAsync(putRequest);
+
+        putResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+}

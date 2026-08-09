@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ProjectManagementApp.Api/ProjectManagementApp.Api.csproj" />
+    <Project Path="src/ProjectManagementApp.Application/ProjectManagementApp.Application.csproj" />
+    <Project Path="src/ProjectManagementApp.Domain/ProjectManagementApp.Domain.csproj" />
+    <Project Path="src/ProjectManagementApp.Infrastructure/ProjectManagementApp.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ProjectManagementApp.Api.Tests/ProjectManagementApp.Api.Tests.csproj" />
+    <Project Path="tests/ProjectManagementApp.Application.Tests/ProjectManagementApp.Application.Tests.csproj" />
+    <Project Path="tests/ProjectManagementApp.Infrastructure.Tests/ProjectManagementApp.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

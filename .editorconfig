@@ -1,0 +1,31 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = crlf
+charset = utf-8-bom
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.cs]
+dotnet_naming_rule.types_and_members_pascal_case.severity = warning
+dotnet_naming_rule.types_and_members_pascal_case.symbols = types_and_members
+dotnet_naming_rule.types_and_members_pascal_case.style = pascal_case
+dotnet_naming_symbols.types_and_members.applicable_kinds = class, struct, interface, enum, method, property, event, namespace
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+dotnet_naming_rule.locals_camel_case.severity = warning
+dotnet_naming_rule.locals_camel_case.symbols = locals_and_parameters
+dotnet_naming_rule.locals_camel_case.style = camel_case
+dotnet_naming_symbols.locals_and_parameters.applicable_kinds = local, parameter
+dotnet_naming_style.camel_case.capitalization = camel_case
+
+[*.{ts,html,scss}]
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+
+[*.{json,yml,yaml}]
+indent_size = 2
+end_of_line = lf

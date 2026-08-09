@@ -1,0 +1,30 @@
+# .NET
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+.vs/
+*.dll
+*.pdb
+
+# Logs
+logs/
+*.log
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+
+# Secrets — never committed
+appsettings.*.Local.json
+*.pfx
+*.pem
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
