@@ -4,9 +4,10 @@ Generated from `src/ProjectManagementApp.Infrastructure/Persistence/Migrations/*
 (Constitution X.4). All five constitution entities are created here (research.md R-10) —
 `projects`, `tasks`, and `team_members` are table-only in 001; their behavior is owned by
 002/003/004 respectively. `projects`' indexes were added afterward by 002's `AddProjectIndexes`
-migration (data-model.md §4), and `tasks`' by 003's `AddTaskIndexes` migration — see Notes below;
-the table shapes themselves are unchanged by either migration (003 adds no table, per tasks.md's
-own blocking-prerequisites note).
+migration (data-model.md §4), `tasks`' by 003's `AddTaskIndexes` migration, and `team_members`'s
+unique constraint by 004's `AddTeamMemberIndexes` migration — see Notes below; the table shapes
+themselves are unchanged by any of the three (004 adds no table either, per its own
+blocking-prerequisites note).
 
 ```mermaid
 erDiagram
@@ -131,3 +132,11 @@ erDiagram
   - `ix_tasks_title_trgm` — a GIN trigram index (`pg_trgm` extension, already enabled by 002) on
     `title`, serving the case-insensitive interior-substring `?search=` filter, same reasoning as
     `ix_projects_name_trgm`.
+- **`team_members` indexes** (004's `AddTeamMemberIndexes` migration, data-model.md §4 — likewise
+  not shown in the diagram above). `ix_team_members_project_id` and `ix_team_members_user_id`
+  already existed from 001's default FK-index convention, so this migration adds only:
+  - `ux_team_members_project_id_user_id` — **the correctness guarantee**, not an optimization: the
+    `UNIQUE (project_id, user_id)` constraint is what makes "at most one membership per user per
+    project" true under concurrent adds (research R-2/R-3), and it is what 003's
+    `AssigneeValidator` and 004's `TeamAccessPolicy` membership checks both use for their
+    `project_id = ? AND user_id = ?` equality lookups.

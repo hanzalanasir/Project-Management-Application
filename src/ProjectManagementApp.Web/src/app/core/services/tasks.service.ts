@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
+import { toQueryParams } from '../http/query-params';
 import type { components } from '../api/generated/tasks.v1';
 
 type PagedTaskSummary = components['schemas']['PagedTaskSummary'];
@@ -30,12 +31,12 @@ export class TasksService {
 
   listByProject(projectId: string, query: TaskListQuery = {}): Observable<PagedTaskSummary> {
     return this.http.get<PagedTaskSummary>(`/api/projects/${projectId}/tasks`, {
-      params: { ...query } as Record<string, string | number>,
+      params: toQueryParams(query),
     });
   }
 
   list(query: TaskListQuery & { projectId?: string } = {}): Observable<PagedTaskSummary> {
-    return this.http.get<PagedTaskSummary>('/api/tasks', { params: { ...query } as Record<string, string | number> });
+    return this.http.get<PagedTaskSummary>('/api/tasks', { params: toQueryParams(query) });
   }
 
   create(projectId: string, request: CreateTaskRequest): Observable<TaskDetailWithETag> {

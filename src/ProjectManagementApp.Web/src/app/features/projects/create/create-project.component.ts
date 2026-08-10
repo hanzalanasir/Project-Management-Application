@@ -89,7 +89,7 @@ export class CreateProjectComponent {
           this.submitting.set(false);
           const errors = error.error?.errors;
           this.serverErrors.set(
-            errors ? (Object.values(errors).flat() as string[]) : [error.error?.title ?? 'Could not create project.']
+            errors ? (Object.values(errors).flat() as string[]) : [error.error?.detail ?? error.error?.title ?? 'Could not create project.']
           );
         },
       });

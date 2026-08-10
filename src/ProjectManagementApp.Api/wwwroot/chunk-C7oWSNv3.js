@@ -1,0 +1,1 @@
+function e(r){return Object.fromEntries(Object.entries(r).filter(([,n])=>n!=null))}export{e as t};

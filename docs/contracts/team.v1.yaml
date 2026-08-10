@@ -36,9 +36,6 @@ tags:
 
 paths:
   /projects/{projectId}/team:
-    parameters:
-      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
-
     get:
       tags: [Team]
       operationId: getProjectTeam
@@ -50,6 +47,8 @@ paths:
         Returns a **plain array, not a paging envelope** — a project team is bounded and human-scale, so
         Constitution VI.4's threshold does not apply. Client-side search over the list is sufficient. A
         project with no members returns `200` with `[]`, never 404.
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         '200':
           description: The roster. Empty array when the project has no members.
@@ -78,6 +77,8 @@ paths:
 
         Concurrency: two simultaneous adds of the same user resolve to **one 201 and one 409**, enforced by
         the `UNIQUE (project_id, user_id)` constraint rather than by an application check.
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
         required: true
         content:
@@ -117,10 +118,6 @@ paths:
         '500': { $ref: '#/components/responses/UnexpectedProblem' }
 
   /projects/{projectId}/team/{userId}:
-    parameters:
-      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
-      - { name: userId,    in: path, required: true, schema: { type: string, format: uuid } }
-
     delete:
       tags: [Team]
       operationId: removeTeamMember
@@ -136,6 +133,9 @@ paths:
         removal changes nothing and writes **no audit row**.
 
         No `If-Match` is required — a membership row has no mutable field (research R-2).
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: userId,    in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         '204':
           description: Member removed; `TeamMemberRemoved` audited before deletion.

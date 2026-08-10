@@ -81,7 +81,16 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
 
     // Generic across every feature, not just Projects: any command/query with an "Id" property
     // (GetProjectByIdQuery, UpdateProjectCommand, DeleteProjectCommand, GetUserByIdQuery, ...) gets
-    // its target entity id surfaced without each handler needing to log it individually.
-    private static object? TryGetRequestEntityId(TRequest request) =>
-        typeof(TRequest).GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)?.GetValue(request);
+    // its target entity id surfaced without each handler needing to log it individually. 004's
+    // commands (ListTeamQuery, AddTeamMemberCommand, RemoveTeamMemberCommand) have no "Id" at all —
+    // every team operation is scoped by "ProjectId" instead, since there is no single membership id
+    // known up front on add, and every action is inherently project-scoped. Falls back to
+    // "ProjectId" second so those denials still surface the project rather than always logging
+    // entity=null (found live during 004's polish pass, T060 — a real NFR-003 gap, not assumed).
+    private static object? TryGetRequestEntityId(TRequest request)
+    {
+        var type = typeof(TRequest);
+        return type.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)?.GetValue(request)
+            ?? type.GetProperty("ProjectId", BindingFlags.Public | BindingFlags.Instance)?.GetValue(request);
+    }
 }

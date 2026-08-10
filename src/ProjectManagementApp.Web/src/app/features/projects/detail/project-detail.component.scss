@@ -8,8 +8,11 @@ dt {
   font-weight: 600;
 }
 
-.team-section {
+.links-section {
   margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .actions {

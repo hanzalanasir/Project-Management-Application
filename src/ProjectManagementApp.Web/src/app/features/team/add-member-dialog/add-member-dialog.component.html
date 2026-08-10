@@ -1,0 +1,32 @@
+<h2 mat-dialog-title>Add team member</h2>
+
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content>
+    <p class="picker-note">
+      There is no user search here yet — enter the target user's account ID (a UUID, not a
+      number).
+      @if (isAdmin) {
+        You can copy it from the <button type="button" class="link-button" (click)="openUsersPage()">Users page</button>.
+      } @else {
+        Ask an Admin to copy it from the Users page.
+      }
+    </p>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>User ID</mat-label>
+      <input matInput formControlName="userId" required placeholder="e.g. 217dd066-d938-4970-bf69-07072d18dbb6" />
+      @if (form.get('userId')?.touched && form.get('userId')?.hasError('required')) {
+        <mat-error>A user must be selected.</mat-error>
+      } @else if (form.get('userId')?.touched && form.get('userId')?.hasError('pattern')) {
+        <mat-error>That's not a valid user ID (UUID) — check the Users page.</mat-error>
+      }
+    </mat-form-field>
+
+    <app-error-display [errors]="serverErrors()"></app-error-display>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancel</button>
+    <button mat-flat-button color="primary" type="submit" [disabled]="submitting()">Add</button>
+  </mat-dialog-actions>
+</form>

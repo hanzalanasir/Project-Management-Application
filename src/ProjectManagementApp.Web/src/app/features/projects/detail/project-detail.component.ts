@@ -10,9 +10,9 @@ import type { components } from '../../../core/api/generated/projects.v1';
 
 type ProjectDetail = components['schemas']['ProjectDetail'];
 
-// Anchor screen every later feature extends (T055). The Team section is a placeholder note, not a
-// live link — 004 (Team roster, features/team/roster/) has not been implemented yet in this
-// codebase; design.md §3/§5 calls for it to attach here once it exists.
+// Anchor screen every later feature extends (T055): links out to the project's team roster (004)
+// and task list (003), and — for Admin/owning-PM — a "New task" shortcut that pre-fills the
+// project on the create-task form via a projectId query param.
 @Component({
   selector: 'app-project-detail',
   imports: [RouterLink, MatCardModule, MatButtonModule],

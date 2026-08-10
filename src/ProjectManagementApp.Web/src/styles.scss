@@ -1,15 +1,231 @@
 @use '@angular/material' as mat;
 
+// Material's closest built-in M3 tonal palette to design.md §1's "Primary — Blue 700 (#1565C0)"
+// family — azure's tone-40 (#005cbb) sits in the same professional-blue hue, unlike the default
+// violet/indigo-leaning $blue-palette. Component theming (buttons, toolbar, form fields, focus
+// rings) rides on this; exact design.md hex values are layered on top as CSS custom properties
+// below for the places that need the literal palette (chips, links, headings).
 html {
   @include mat.theme((
-    color: mat.$violet-palette,
+    color: mat.$azure-palette,
     typography: Roboto,
     density: 0,
   ));
+}
+
+:root {
+  // design.md §1 — Primary / Secondary / Neutral
+  --pma-primary-700: #1565c0;
+  --pma-primary-500: #1e88e5;
+  --pma-primary-100: #bbdefb;
+  --pma-secondary-700: #37474f;
+  --pma-secondary-500: #78909c;
+  --pma-grey-200: #eceff1;
+  --pma-grey-50: #fafafa;
+  --pma-white: #ffffff;
+  --pma-text-900: #212121;
+  --pma-text-600: #616161;
+
+  // design.md §1 — semantic (status communication only, never a page's dominant color)
+  --pma-success: #2e7d32;
+  --pma-success-bg: #e6f4ea;
+  --pma-warning: #f9a825;
+  --pma-warning-bg: #fff8e1;
+  --pma-error: #c62828;
+  --pma-error-bg: #fdecea;
+  --pma-info: #0277bd;
+  --pma-info-bg: #e1f5fe;
 }
 
 html, body {
   height: 100%;
   margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
+  background: var(--pma-grey-50);
+  color: var(--pma-text-900);
+}
+
+h1, h2, h3, h4 {
+  color: var(--pma-secondary-700);
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+
+a {
+  color: var(--pma-primary-700);
+}
+
+// ---------------------------------------------------------------------------
+// Page shell — every routed view renders inside app.html's <main class="app-content">
+// (§8: a single consistent max-width/padding container instead of content flush to the viewport).
+// ---------------------------------------------------------------------------
+.app-content {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 24px 24px 64px;
+  box-sizing: border-box;
+}
+
+// ---------------------------------------------------------------------------
+// Cards — detail views get the container's natural width; forms are capped and centered so a
+// six-field form doesn't stretch edge-to-edge on a wide screen.
+// ---------------------------------------------------------------------------
+.mat-mdc-card {
+  margin-bottom: 16px;
+}
+
+.form-card {
+  max-width: 640px;
+  margin: 0 auto 24px;
+}
+
+// ---------------------------------------------------------------------------
+// Toolbars (search/filter rows above every list) — always wrap, always keep a gap, so controls
+// never collide or overlap at narrow widths (the "no overlapping text" requirement).
+// ---------------------------------------------------------------------------
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-bottom: 16px;
+}
+
+// ---------------------------------------------------------------------------
+// Definition lists (detail screens) — label column never collides with the value column, and
+// long values wrap instead of overflowing under a neighboring label.
+// ---------------------------------------------------------------------------
+dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 20px;
+  align-items: start;
+  margin: 8px 0 16px;
+}
+
+dt {
+  font-weight: 600;
+  color: var(--pma-text-600);
+  white-space: nowrap;
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+// ---------------------------------------------------------------------------
+// Tables — zebra striping + hover (design.md §1: Grey 200 for zebra striping) + a horizontally
+// scrollable wrapper so a wide table never forces the page itself to scroll sideways.
+// ---------------------------------------------------------------------------
+.table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+table.mat-mdc-table {
+  width: 100%;
+  background: var(--pma-white);
+}
+
+table.mat-mdc-table tr.mat-mdc-row:nth-child(even) {
+  background: var(--pma-grey-200);
+}
+
+table.mat-mdc-table tr.mat-mdc-row:hover {
+  background: var(--pma-primary-100);
+}
+
+table.mat-mdc-table th.mat-mdc-header-cell {
+  color: var(--pma-secondary-700);
+  font-weight: 700;
+  background: var(--pma-grey-50);
+}
+
+table.mat-mdc-table td.mat-mdc-cell,
+table.mat-mdc-table th.mat-mdc-header-cell {
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+// ---------------------------------------------------------------------------
+// Chips — status/priority/role communicated by color + label, never color alone (design.md §1's
+// semantic rule). Bound via [attr.data-status] / [attr.data-priority] / [attr.data-role] rather
+// than a per-component class map, so one rule set serves every screen that shows these values.
+// ---------------------------------------------------------------------------
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.8;
+  white-space: nowrap;
+  background: var(--pma-grey-200);
+  color: var(--pma-text-600);
+}
+
+// Project statuses
+.chip[data-status="Active"] { background: var(--pma-primary-100); color: var(--pma-primary-700); }
+.chip[data-status="Planning"] { background: var(--pma-info-bg); color: var(--pma-info); }
+.chip[data-status="OnHold"] { background: var(--pma-warning-bg); color: var(--pma-warning); }
+.chip[data-status="Completed"] { background: var(--pma-success-bg); color: var(--pma-success); }
+.chip[data-status="Cancelled"] { background: var(--pma-error-bg); color: var(--pma-error); }
+
+// Task statuses
+.chip[data-status="ToDo"] { background: var(--pma-grey-200); color: var(--pma-text-600); }
+.chip[data-status="InProgress"] { background: var(--pma-primary-100); color: var(--pma-primary-700); }
+.chip[data-status="InReview"] { background: var(--pma-info-bg); color: var(--pma-info); }
+.chip[data-status="Done"] { background: var(--pma-success-bg); color: var(--pma-success); }
+.chip[data-status="Blocked"] { background: var(--pma-warning-bg); color: var(--pma-warning); }
+
+// Task priorities
+.chip[data-priority="Low"] { background: var(--pma-grey-200); color: var(--pma-text-600); }
+.chip[data-priority="Medium"] { background: var(--pma-primary-100); color: var(--pma-primary-700); }
+.chip[data-priority="High"] { background: var(--pma-warning-bg); color: var(--pma-warning); }
+.chip[data-priority="Critical"] { background: var(--pma-error-bg); color: var(--pma-error); }
+
+// User/member active state
+.chip[data-active="true"] { background: var(--pma-success-bg); color: var(--pma-success); }
+.chip[data-active="false"] { background: var(--pma-error-bg); color: var(--pma-error); }
+
+// Global role, shown read-only on the roster (design.md §5: "descriptive, not a scope indicator")
+.chip[data-role="Admin"] { background: var(--pma-secondary-700); color: var(--pma-white); }
+.chip[data-role="ProjectManager"] { background: var(--pma-primary-100); color: var(--pma-primary-700); }
+.chip[data-role="TeamMember"] { background: var(--pma-grey-200); color: var(--pma-text-600); }
+
+// ---------------------------------------------------------------------------
+// Empty / loading / error states — one consistent look everywhere instead of ad hoc inline colors
+// (design.md §7).
+// ---------------------------------------------------------------------------
+.state-message {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--pma-text-600);
+}
+
+.error {
+  color: var(--pma-error);
+  background: var(--pma-error-bg);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}
+
+.forbidden {
+  color: var(--pma-warning);
+  background: var(--pma-warning-bg);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}
+
+.actions,
+.links-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
 }

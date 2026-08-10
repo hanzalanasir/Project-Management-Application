@@ -1,0 +1,65 @@
+<a [routerLink]="['/projects', projectId]">&larr; Back to project</a>
+
+<h2>Team</h2>
+
+<div class="toolbar">
+  <input type="text" placeholder="Search by name or email" [(ngModel)]="search" />
+  @if (canManage()) {
+    <button mat-flat-button color="primary" type="button" (click)="openAddMemberDialog()">Add member</button>
+  }
+</div>
+
+@if (removeError()) {
+  <p class="error">{{ removeError() }}</p>
+}
+
+@if (loading()) {
+  <p class="state-message">Loading&hellip;</p>
+} @else if (forbidden()) {
+  <p class="forbidden">You do not have access to view this project's team.</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (members().length === 0) {
+  <p class="state-message">No team members yet.</p>
+} @else {
+  <div class="table-container">
+  <table mat-table [dataSource]="filteredMembers" class="roster-table">
+    <ng-container matColumnDef="fullName">
+      <th mat-header-cell *matHeaderCellDef>Name</th>
+      <td mat-cell *matCellDef="let m">
+        <span class="member-name">{{ m.fullName }}</span>
+        @if (!m.isActive) {
+          <span class="chip" data-active="false">Deactivated</span>
+        }
+      </td>
+    </ng-container>
+
+    <ng-container matColumnDef="email">
+      <th mat-header-cell *matHeaderCellDef>Email</th>
+      <td mat-cell *matCellDef="let m">{{ m.email }}</td>
+    </ng-container>
+
+    <ng-container matColumnDef="role">
+      <th mat-header-cell *matHeaderCellDef>Role</th>
+      <td mat-cell *matCellDef="let m"><span class="chip" [attr.data-role]="m.role">{{ m.role }}</span></td>
+    </ng-container>
+
+    <ng-container matColumnDef="addedAt">
+      <th mat-header-cell *matHeaderCellDef>Added</th>
+      <td mat-cell *matCellDef="let m">{{ m.addedAt | date: 'short' }}</td>
+    </ng-container>
+
+    @if (canManage()) {
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let m">
+          <button mat-button color="warn" type="button" (click)="removeMember(m)">Remove</button>
+        </td>
+      </ng-container>
+    }
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+  </table>
+  </div>
+}

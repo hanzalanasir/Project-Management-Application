@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
+import { toQueryParams } from '../http/query-params';
 import type { components } from '../api/generated/projects.v1';
 
 type PagedProjectSummary = components['schemas']['PagedProjectSummary'];
@@ -26,7 +27,7 @@ export class ProjectsService {
   private readonly http = inject(HttpClient);
 
   list(query: ProjectListQuery = {}): Observable<PagedProjectSummary> {
-    return this.http.get<PagedProjectSummary>('/api/projects', { params: { ...query } as Record<string, string | number> });
+    return this.http.get<PagedProjectSummary>('/api/projects', { params: toQueryParams(query) });
   }
 
   create(request: CreateProjectRequest): Observable<ProjectDetailWithETag> {

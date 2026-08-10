@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectAccessPolicy, ProjectAccessPolicy>();
         services.AddScoped<ITaskAccessPolicy, TaskAccessPolicy>();
         services.AddScoped<Features.Tasks.Common.AssigneeValidator>();
+        services.AddScoped<ITeamAccessPolicy, TeamAccessPolicy>();
 
         return services;
     }

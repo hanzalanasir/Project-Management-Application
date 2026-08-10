@@ -8,7 +8,12 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TasksService } from '../../../core/services/tasks.service';
+import { ProjectsService } from '../../../core/services/projects.service';
 import { ErrorDisplayComponent } from '../../../shared/error-display/error-display.component';
+import { GUID_PATTERN } from '../../../shared/validators/guid.validator';
+import type { components } from '../../../core/api/generated/projects.v1';
+
+type ProjectSummary = components['schemas']['ProjectSummary'];
 
 // Cross-field due-date-window validator (Constitution VII.6, ADR-0005, mirrors 002's
 // dateOrderValidator) — UX-only; the server (DueDateWindowValidator) is authoritative and this
@@ -36,32 +41,66 @@ function requiredFieldsPresentValidator(group: AbstractControl): ValidationError
 export class CreateTaskComponent {
   private readonly fb = inject(FormBuilder);
   private readonly tasksService = inject(TasksService);
+  private readonly projectsService = inject(ProjectsService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
   protected readonly priorities = ['Low', 'Medium', 'High', 'Critical'];
 
-  // Reached from a project's detail page ("New Task" button) via a projectId query param — the
-  // route itself is /tasks/new (T006), not project-nested, since a task's creating UI needs no
-  // other :id segment.
-  protected readonly projectId = this.route.snapshot.queryParamMap.get('projectId') ?? '';
+  // Reachable two ways: with a projectId query param (from a project's own "New Task" link, which
+  // pre-selects and locks the field) or with none (from the global task list's "New Task" button),
+  // in which case the project select below is left open and the caller picks one — a task cannot
+  // be created without a project either way, so the field is always present and always required.
+  private readonly queryProjectId = this.route.snapshot.queryParamMap.get('projectId');
+
+  protected readonly projects = signal<ProjectSummary[]>([]);
+  protected readonly projectsLoading = signal(true);
+  protected readonly projectsError = signal<string | null>(null);
+  protected readonly projectLocked = !!this.queryProjectId;
 
   protected readonly submitting = signal(false);
   protected readonly serverErrors = signal<string[] | null>(null);
 
-  // assigneeId is a plain field, not a project-scoped picker: 004 (Team Management) — which owns
-  // the roster endpoint this picker is meant to query — is not implemented yet. Mirrors 002's
-  // CreateProjectComponent ownerId field, which has the identical forward-dependency shape.
+  // assigneeId is a plain field, not a project-scoped picker: a real picker would need 004's
+  // roster endpoint queried per selected project, which is more UI than this form currently
+  // wires up. Mirrors 002's CreateProjectComponent ownerId field's identical shape. The pattern
+  // validator at least catches an obviously-wrong value (e.g. "1") before it reaches the server.
   protected readonly form = this.fb.nonNullable.group(
     {
+      projectId: [this.queryProjectId ?? '', [Validators.required]],
       title: ['', [Validators.required, Validators.maxLength(200)]],
       description: ['', [Validators.maxLength(2000)]],
       priority: ['Medium'],
       dueDate: [''],
-      assigneeId: [''],
+      assigneeId: ['', [Validators.pattern(GUID_PATTERN)]],
     },
     { validators: requiredFieldsPresentValidator }
   );
+
+  constructor() {
+    if (this.projectLocked) {
+      this.form.controls.projectId.disable();
+    }
+    this.loadProjects();
+  }
+
+  private loadProjects(): void {
+    this.projectsLoading.set(true);
+    this.projectsError.set(null);
+
+    // pageSize 100 (Constitution VI.4 max) — a project select is a small, human-scale picker, not
+    // a paginated list; a caller who owns/administers more than that is outside this form's scope.
+    this.projectsService.list({ pageSize: 100 }).subscribe({
+      next: page => {
+        this.projects.set(page.items);
+        this.projectsLoading.set(false);
+      },
+      error: () => {
+        this.projectsError.set('Could not load your projects.');
+        this.projectsLoading.set(false);
+      },
+    });
+  }
 
   protected submit(): void {
     if (this.form.invalid) {
@@ -71,10 +110,10 @@ export class CreateTaskComponent {
 
     this.submitting.set(true);
     this.serverErrors.set(null);
-    const { title, description, priority, dueDate, assigneeId } = this.form.getRawValue();
+    const { projectId, title, description, priority, dueDate, assigneeId } = this.form.getRawValue();
 
     this.tasksService
-      .create(this.projectId, {
+      .create(projectId, {
         title,
         description: description || null,
         priority: priority as 'Low' | 'Medium' | 'High' | 'Critical',
@@ -90,7 +129,7 @@ export class CreateTaskComponent {
           this.submitting.set(false);
           const errors = error.error?.errors;
           this.serverErrors.set(
-            errors ? (Object.values(errors).flat() as string[]) : [error.error?.title ?? 'Could not create task.']
+            errors ? (Object.values(errors).flat() as string[]) : [error.error?.detail ?? error.error?.title ?? 'Could not create task.']
           );
         },
       });

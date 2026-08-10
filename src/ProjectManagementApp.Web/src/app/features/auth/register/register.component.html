@@ -26,11 +26,15 @@
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Password</mat-label>
         <input matInput type="password" formControlName="password" required />
+        @if (!form.get('password')?.touched) {
+          <mat-hint>At least 8 characters, with upper &amp; lower case, a number, and a symbol.</mat-hint>
+        }
         @if (form.get('password')?.touched && form.get('password')?.hasError('required')) {
           <mat-error>Password is required.</mat-error>
-        }
-        @if (form.get('password')?.touched && form.get('password')?.hasError('minlength')) {
+        } @else if (form.get('password')?.touched && form.get('password')?.hasError('minlength')) {
           <mat-error>Password must be at least 8 characters.</mat-error>
+        } @else if (form.get('password')?.touched && form.get('password')?.hasError('pattern')) {
+          <mat-error>Password needs an uppercase letter, a lowercase letter, a number, and a symbol.</mat-error>
         }
       </mat-form-field>
 

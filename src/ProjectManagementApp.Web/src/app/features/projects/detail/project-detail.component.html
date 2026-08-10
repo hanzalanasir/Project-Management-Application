@@ -1,9 +1,9 @@
 @if (loading()) {
-  <p>Loading…</p>
+  <p class="state-message">Loading…</p>
 } @else if (notFound()) {
-  <p>This project could not be found.</p>
+  <p class="state-message">This project could not be found.</p>
 } @else if (forbidden()) {
-  <p>You do not have access to this project.</p>
+  <p class="forbidden">You do not have access to this project.</p>
 } @else if (error()) {
   <p class="error">{{ error() }}</p>
 } @else if (project(); as p) {
@@ -18,22 +18,30 @@
 
       <dl>
         <dt>Status</dt>
-        <dd>{{ p.status }}</dd>
+        <dd><span class="chip" [attr.data-status]="p.status">{{ p.status }}</span></dd>
         <dt>Start date</dt>
         <dd>{{ p.startDate }}</dd>
         <dt>End date</dt>
         <dd>{{ p.endDate ?? 'Open-ended' }}</dd>
         <dt>Owner</dt>
-        <dd>{{ p.owner.fullName }}{{ p.owner.isActive === false ? ' (inactive)' : '' }}</dd>
+        <dd>
+          {{ p.owner.fullName }}
+          @if (p.owner.isActive === false) {
+            <span class="chip" data-active="false">Inactive</span>
+          }
+        </dd>
         <dt>Created</dt>
         <dd>{{ p.createdAt }}</dd>
         <dt>Last updated</dt>
         <dd>{{ p.updatedAt }}</dd>
       </dl>
 
-      <section class="team-section">
-        <h3>Team</h3>
-        <p><em>Team roster is not available yet (arrives with a later feature).</em></p>
+      <section class="links-section">
+        <a mat-stroked-button [routerLink]="['/team', p.id]">View team</a>
+        <a mat-stroked-button [routerLink]="['/tasks']" [queryParams]="{ projectId: p.id }">View tasks</a>
+        @if (canManage()) {
+          <a mat-flat-button color="primary" [routerLink]="['/tasks/new']" [queryParams]="{ projectId: p.id }">New task</a>
+        }
       </section>
 
       @if (canManage()) {

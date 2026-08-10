@@ -15,6 +15,12 @@ function passwordsMatchValidator(group: AbstractControl): ValidationErrors | nul
   return password === confirmPassword ? null : { passwordMismatch: true };
 }
 
+// Mirrors the server's actual policy (ASP.NET Core Identity defaults, Infrastructure/
+// DependencyInjection.cs: RequireUppercase/RequireLowercase/RequireDigit/RequireNonAlphanumeric
+// all true) — the backend is still authoritative (Constitution V.5), this just stops a password
+// that will only fail server-side from ever reaching the network.
+const PASSWORD_COMPLEXITY_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).*$/;
+
 @Component({
   selector: 'app-register',
   imports: [
@@ -41,7 +47,7 @@ export class RegisterComponent {
     {
       fullName: ['', [Validators.required, Validators.maxLength(200)]],
       email: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
-      password: ['', [Validators.required, Validators.minLength(8)]],
+      password: ['', [Validators.required, Validators.minLength(8), Validators.pattern(PASSWORD_COMPLEXITY_PATTERN)]],
       confirmPassword: ['', [Validators.required]],
     },
     { validators: passwordsMatchValidator }
@@ -66,7 +72,7 @@ export class RegisterComponent {
         this.submitting.set(false);
         const errors = error.error?.errors;
         this.serverErrors.set(
-          errors ? Object.values(errors).flat() as string[] : [error.error?.title ?? 'Registration failed.']
+          errors ? Object.values(errors).flat() as string[] : [error.error?.detail ?? error.error?.title ?? 'Registration failed.']
         );
       },
     });

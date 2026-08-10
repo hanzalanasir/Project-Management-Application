@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Store } from '@ngrx/store';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -28,6 +28,12 @@ type TaskPriority = components['schemas']['TaskPriority'];
 export class TaskListComponent {
   private readonly tasksService = inject(TasksService);
   private readonly store = inject(Store);
+  private readonly route = inject(ActivatedRoute);
+
+  // Optional — set when arriving from a project's "View tasks" link; narrows the list to that
+  // project via the same ?projectId= the API already accepts on GET /api/tasks. Absent for the
+  // global "Tasks" nav entry, which lists everything the caller's role scopes them to.
+  protected readonly projectId = this.route.snapshot.queryParamMap.get('projectId');
 
   protected readonly statuses: TaskStatus[] = ['ToDo', 'InProgress', 'InReview', 'Done', 'Blocked'];
   protected readonly priorities: TaskPriority[] = ['Low', 'Medium', 'High', 'Critical'];
@@ -89,6 +95,7 @@ export class TaskListComponent {
         pageSize: this.pageSize(),
         search: this.search || undefined,
         status: this.status || undefined,
+        projectId: this.projectId ?? undefined,
       })
       .subscribe({
         next: page => {

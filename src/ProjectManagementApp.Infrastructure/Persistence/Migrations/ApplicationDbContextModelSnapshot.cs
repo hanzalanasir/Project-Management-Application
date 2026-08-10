@@ -588,6 +588,10 @@ namespace ProjectManagementApp.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_team_members_user_id");
 
+                    b.HasIndex("ProjectId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_team_members_project_id_user_id");
+
                     b.ToTable("team_members", (string)null);
                 });
 

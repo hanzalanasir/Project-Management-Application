@@ -5,9 +5,11 @@
     </mat-card-header>
     <mat-card-content>
       <p>{{ user.email }}</p>
-      <p>Status: {{ user.isActive ? 'Active' : 'Inactive' }}</p>
+      <p>
+        <span class="chip" [attr.data-active]="user.isActive">{{ user.isActive ? 'Active' : 'Inactive' }}</span>
+      </p>
 
-      <mat-form-field appearance="outline">
+      <mat-form-field appearance="outline" class="full-width">
         <mat-label>Role</mat-label>
         <mat-select [value]="user.role" (selectionChange)="changeRole($event.value)">
           @for (role of roles; track role) {
@@ -16,7 +18,7 @@
         </mat-select>
       </mat-form-field>
 
-      <div>
+      <div class="actions">
         <button mat-stroked-button (click)="toggleStatus()">
           {{ user.isActive ? 'Deactivate' : 'Reactivate' }}
         </button>

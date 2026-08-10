@@ -1,0 +1,197 @@
+import{$t as ZD,At as Ue,B as IE,Bn as hr,C as Ei$1,Cn as dh,Ct as SI,Dn as ey,Dr as us,Er as uh,Et as T$1,F as HD,Hn as ie,I as Hc,Ir as xe,It as Vp,J as Jl,K as JE,Kr as l,Kt as Wp,Nr as wE,Ot as UE,Pn as ge$1,Q as Kp,R as Hp,Rr as yE,St as Rp,T as Er,Vn as iD,Vr as z,W as Ir,Wr as zp,X as KD,Yn as kg,Zt as YF,at as MI,c as A,cn as _u,gn as bu,h as Bv,hr as qc,ir as mv,k as GD,kt as Uc,lr as or,m as Bp,mt as PD,n as $a,nn as _E,nr as mg,o as $o,p as Bn,pt as Op,qr as m,rt as Ln,sr as nh,t as $E,un as ah,wr as uD,xn as dD,zn as hg}from"./chunk-BdyQRKj_.js";import{_ as ta,c as Qn,o as Lo,u as Ue$1,v as ve}from"./chunk-C6lNe7c4.js";import{d as X}from"./chunk-EsxVdIKO.js";import{E as kt,F as wn,L as yt,N as tr,O as p,R as z$1,T as je,_ as Zn,d as Pt,j as sn,k as pn,m as Tn,w as er,x as cn}from"./chunk-CgWjumkv.js";import{C as re,L as f,M as Ye,a as je$1,c as $,d as Ht,f as Kt$1,g as at,i as _t,l as $t$1,m as Vt,p as M,r as W,s as ti$1,u as B,v as gt,x as pe,y as j}from"./main-A4S46XTY.js";import{t as _}from"./chunk-BhyHlvBK.js";import{a as Dn,c as Mn,d as Zt$1,f as _n,g as qe,h as me,i as Cn,l as Vn,m as it,o as Jt$1,r as An,u as Yt$1}from"./chunk-BwkkbdPH.js";import{n as Pe,t as Be}from"./chunk-BecMKEga.js";import{t as A$1}from"./chunk--wYASGyN.js";import{t as c}from"./chunk-CVuWNGNL.js";import"./chunk-CT2HIGIk.js";import{a as Ut,c as Xt$1,d as qt$1,i as Qt$1,l as Yt$2,n as Gt,o as Vt$1,r as Kt$2,s as Wt$1,t as $t$2,u as Zt$2}from"./chunk-DhguMC4S.js";function ti(t,n){}var T=class{viewContainerRef;injector;id;role=`dialog`;panelClass=``;hasBackdrop=!0;backdropClass=``;disableClose=!1;closePredicate;width=``;height=``;minWidth;minHeight;maxWidth;maxHeight;positionStrategy;data=null;direction;ariaDescribedBy=null;ariaLabelledBy=null;ariaLabel=null;ariaModal=!1;autoFocus=`first-tabbable`;restoreFocus=!0;scrollStrategy;closeOnNavigation=!0;closeOnDestroy=!0;closeOnOverlayDetachments=!0;disableAnimations=!1;providers;container;templateContext;bindings};var we=(()=>{class t extends j{_elementRef=T$1(Er);_focusTrapFactory=T$1(wn);_config;_interactivityChecker=T$1(pn);_ngZone=T$1(xe);_focusMonitor=T$1(kt);_renderer=T$1($a);_changeDetectorRef=T$1(YF);_injector=T$1(ge$1);_platform=T$1(p);_document=T$1(or);_portalOutlet;_focusTrapped=new z;_focusTrap=null;_elementFocusedBeforeDialogWasOpened=null;_closeInteractionType=null;_ariaLabelledByQueue=[];_isDestroyed=!1;constructor(){super(),this._config=T$1(T,{optional:!0})||new T,this._config.ariaLabelledBy&&this._ariaLabelledByQueue.push(this._config.ariaLabelledBy)}_addAriaLabelledBy(e){this._ariaLabelledByQueue.push(e),this._changeDetectorRef.markForCheck()}_removeAriaLabelledBy(e){let i=this._ariaLabelledByQueue.indexOf(e);i>-1&&(this._ariaLabelledByQueue.splice(i,1),this._changeDetectorRef.markForCheck())}_contentAttached(){this._initializeFocusTrap(),this._captureInitialFocus()}_captureInitialFocus(){this._trapFocus()}ngOnDestroy(){this._focusTrapped.complete(),this._isDestroyed=!0,this._restoreFocus()}attachComponentPortal(e){this._portalOutlet.hasAttached();let i=this._portalOutlet.attachComponentPortal(e);return this._contentAttached(),i}attachTemplatePortal(e){this._portalOutlet.hasAttached();let i=this._portalOutlet.attachTemplatePortal(e);return this._contentAttached(),i}attachDomPortal=e=>{this._portalOutlet.hasAttached();let i=this._portalOutlet.attachDomPortal(e);return this._contentAttached(),i};_recaptureFocus(){this._containsFocus()||this._trapFocus()}_forceFocus(e,i){this._interactivityChecker.isFocusable(e)||(e.tabIndex=-1,this._ngZone.runOutsideAngular(()=>{let o=()=>{r(),p(),e.removeAttribute(`tabindex`)},r=this._renderer.listen(e,`blur`,o),p=this._renderer.listen(e,`mousedown`,o)})),e.focus(i)}_focusByCssSelector(e,i){let o=this._elementRef.nativeElement.querySelector(e);o&&this._forceFocus(o,i)}_trapFocus(e){this._isDestroyed||mv(()=>{let i=this._elementRef.nativeElement;switch(this._config.autoFocus){case!1:case`dialog`:this._containsFocus()||i.focus(e);break;case!0:case`first-tabbable`:this._focusTrap?.focusInitialElement(e)||this._focusDialogContainer(e);break;case`first-heading`:this._focusByCssSelector(`h1, h2, h3, h4, h5, h6, [role="heading"]`,e);break;default:this._focusByCssSelector(this._config.autoFocus,e);break}this._focusTrapped.next()},{injector:this._injector})}_restoreFocus(){let e=this._config.restoreFocus,i=null;if(typeof e==`string`?i=this._document.querySelector(e):typeof e==`boolean`?i=e?this._elementFocusedBeforeDialogWasOpened:null:e&&(i=e),this._config.restoreFocus&&i&&typeof i.focus==`function`){let o=sn(),r=this._elementRef.nativeElement;(!o||o===this._document.body||o===r||r.contains(o))&&(this._focusMonitor?(this._focusMonitor.focusVia(i,this._closeInteractionType),this._closeInteractionType=null):i.focus())}this._focusTrap&&this._focusTrap.destroy()}_focusDialogContainer(e){this._elementRef.nativeElement.focus?.(e)}_containsFocus(){let e=this._elementRef.nativeElement,i=sn();return e===i||e.contains(i)}_initializeFocusTrap(){this._platform.isBrowser&&(this._focusTrap=this._focusTrapFactory.create(this._elementRef.nativeElement),this._document&&(this._elementFocusedBeforeDialogWasOpened=sn()))}static ɵfac=function(i){return new(i||t)};static ɵcmp=yE({type:t,selectors:[[`cdk-dialog-container`]],viewQuery:function(i,o){if(i&1&&Kp(pe,7),i&2){let r;uD(r=dD())&&(o._portalOutlet=r.first)}},hostAttrs:[`tabindex`,`-1`,1,`cdk-dialog-container`],hostVars:6,hostBindings:function(i,o){i&2&&Vp(`id`,o._config.id||null)(`role`,o._config.role)(`aria-modal`,o._config.ariaModal)(`aria-labelledby`,o._config.ariaLabel?null:o._ariaLabelledByQueue[0])(`aria-label`,o._config.ariaLabel)(`aria-describedby`,o._config.ariaDescribedBy||null)},features:[Rp],decls:1,vars:0,consts:[[`cdkPortalOutlet`,``]],template:function(i,o){i&1&&Op(0,ti,0,0,`ng-template`,0)},dependencies:[pe],styles:[`.cdk-dialog-container {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  max-height: inherit;
+}
+`],encapsulation:2,changeDetection:1})}return t})();var E=class{overlayRef;config;componentInstance=null;componentRef=null;containerInstance;disableClose;closed=new z;backdropClick;keydownEvents;outsidePointerEvents;id;_detachSubscription;constructor(n,e){this.overlayRef=n,this.config=e,this.disableClose=e.disableClose,this.backdropClick=n.backdropClick(),this.keydownEvents=n.keydownEvents(),this.outsidePointerEvents=n.outsidePointerEvents(),this.id=e.id,this.keydownEvents.subscribe(i=>{i.keyCode===27&&!this.disableClose&&!je(i)&&(i.preventDefault(),this.close(void 0,{focusOrigin:`keyboard`}))}),this.backdropClick.subscribe(()=>{!this.disableClose&&this._canClose()?this.close(void 0,{focusOrigin:`mouse`}):this.containerInstance._recaptureFocus?.()}),this._detachSubscription=n.detachments().subscribe(()=>{e.closeOnOverlayDetachments!==!1&&this.close()})}close(n,e){if(this._canClose(n)){let i=this.closed;this.containerInstance._closeInteractionType=e?.focusOrigin||`program`,this._detachSubscription.unsubscribe(),this.overlayRef.dispose(),i.next(n),i.complete(),this.componentInstance=this.containerInstance=null}}updatePosition(){return this.overlayRef.updatePosition(),this}updateSize(n=``,e=``){return this.overlayRef.updateSize({width:n,height:e}),this}addPanelClass(n){return this.overlayRef.addPanelClass(n),this}removePanelClass(n){return this.overlayRef.removePanelClass(n),this}_canClose(n){let e=this.config;return!!this.containerInstance&&(!e.closePredicate||e.closePredicate(n,e,this.componentInstance))}};var ii=new A(`DialogScrollStrategy`,{providedIn:`root`,factory:()=>{let t=T$1(ge$1);return()=>Ht(t)}});var ni=new A(`DialogData`);var oi=new A(`DefaultDialogConfig`);function ai(t){let n=$o(t),e=new Ue;return{valueSignal:n,get value(){return n()},change:e,ngOnDestroy(){e.complete()}}}var Ee=(()=>{class t{_injector=T$1(ge$1);_defaultOptions=T$1(oi,{optional:!0});_parentDialog=T$1(t,{optional:!0,skipSelf:!0});_overlayContainer=T$1(Kt$1);_idGenerator=T$1(Pt);_openDialogsAtThisLevel=[];_afterAllClosedAtThisLevel=new z;_afterOpenedAtThisLevel=new z;_ariaHiddenElements=new Map;_scrollStrategy=T$1(ii);get openDialogs(){return this._parentDialog?this._parentDialog.openDialogs:this._openDialogsAtThisLevel}get afterOpened(){return this._parentDialog?this._parentDialog.afterOpened:this._afterOpenedAtThisLevel}afterAllClosed=hg(()=>this.openDialogs.length?this._getAfterAllClosed():this._getAfterAllClosed().pipe(kg(void 0)));open(e,i){i=l(l({},this._defaultOptions||new T),i),i.id=i.id||this._idGenerator.getId(`cdk-dialog-`),i.id&&this.getDialogById(i.id);let r=this._getOverlayConfig(i),p=gt(this._injector,r),c=new E(p,i),f=this._attachContainer(p,c,i);if(c.containerInstance=f,!this.openDialogs.length){let be=this._overlayContainer.getContainerElement();f._focusTrapped?f._focusTrapped.pipe(us(1)).subscribe(()=>{this._hideNonDialogContentFromAssistiveTechnology(be)}):this._hideNonDialogContentFromAssistiveTechnology(be)}return this._attachDialogContent(e,c,f,i),this.openDialogs.push(c),c.closed.subscribe(()=>this._removeOpenDialog(c,!0)),this.afterOpened.next(c),c}closeAll(){Me(this.openDialogs,e=>e.close())}getDialogById(e){return this.openDialogs.find(i=>i.id===e)}ngOnDestroy(){Me(this._openDialogsAtThisLevel,e=>{e.config.closeOnDestroy===!1&&this._removeOpenDialog(e,!1)}),Me(this._openDialogsAtThisLevel,e=>e.close()),this._afterAllClosedAtThisLevel.complete(),this._afterOpenedAtThisLevel.complete(),this._openDialogsAtThisLevel=[]}_getOverlayConfig(e){let i=new B({positionStrategy:e.positionStrategy||$t$1().centerHorizontally().centerVertically(),scrollStrategy:e.scrollStrategy||this._scrollStrategy(),panelClass:e.panelClass,hasBackdrop:e.hasBackdrop,direction:e.direction,minWidth:e.minWidth,minHeight:e.minHeight,maxWidth:e.maxWidth,maxHeight:e.maxHeight,width:e.width,height:e.height,disposeOnNavigation:e.closeOnNavigation,disableAnimations:e.disableAnimations});return e.backdropClass&&(i.backdropClass=e.backdropClass),i}_attachContainer(e,i,o){let r=o.injector||o.viewContainerRef?.injector,p=[{provide:T,useValue:o},{provide:E,useValue:i},{provide:$,useValue:e}],c;o.container?typeof o.container==`function`?c=o.container:(c=o.container.type,p.push(...o.container.providers(o))):c=we;let f=new at(c,o.viewContainerRef,ge$1.create({parent:r||this._injector,providers:p}));return e.attach(f).instance}_attachDialogContent(e,i,o,r){if(e instanceof hr){let p=this._createInjector(r,i,o,void 0),c={$implicit:r.data,dialogRef:i};r.templateContext&&(c=l(l({},c),typeof r.templateContext==`function`?r.templateContext():r.templateContext)),o.attachTemplatePortal(new M(e,null,c,p))}else{let p=this._createInjector(r,i,o,this._injector),c=o.attachComponentPortal(new at(e,r.viewContainerRef,p,null,r.bindings));i.componentRef=c,i.componentInstance=c.instance}}_createInjector(e,i,o,r){let p=e.injector||e.viewContainerRef?.injector,c=[{provide:ni,useValue:e.data},{provide:E,useValue:i}];return e.providers&&(typeof e.providers==`function`?c.push(...e.providers(i,e,o)):c.push(...e.providers)),e.direction&&(!p||!p.get(Zn,null,{optional:!0}))&&c.push({provide:Zn,useValue:ai(e.direction)}),ge$1.create({parent:p||r,providers:c})}_removeOpenDialog(e,i){let o=this.openDialogs.indexOf(e);o>-1&&(this.openDialogs.splice(o,1),this.openDialogs.length||(this._ariaHiddenElements.forEach((r,p)=>{r?p.setAttribute(`aria-hidden`,r):p.removeAttribute(`aria-hidden`)}),this._ariaHiddenElements.clear(),i&&this._getAfterAllClosed().next()))}_hideNonDialogContentFromAssistiveTechnology(e){if(e.parentElement){let i=e.parentElement.children;for(let o=i.length-1;o>-1;o--){let r=i[o];r!==e&&r.nodeName!==`SCRIPT`&&r.nodeName!==`STYLE`&&!r.hasAttribute(`aria-live`)&&!r.hasAttribute(`popover`)&&(this._ariaHiddenElements.set(r,r.getAttribute(`aria-hidden`)),r.setAttribute(`aria-hidden`,`true`))}}}_getAfterAllClosed(){let e=this._parentDialog;return e?e._getAfterAllClosed():this._afterAllClosedAtThisLevel}static ɵfac=function(i){return new(i||t)};static ɵprov=Ir({token:t,factory:t.ɵfac})}return t})();function Me(t,n){let e=t.length;for(;e--;)n(t[e])}var Wt=(()=>{class t{static ɵfac=function(i){return new(i||t)};static ɵmod=IE({type:t});static ɵinj=Jl({providers:[Ee],imports:[re,Vt,Tn,Vt]})}return t})();function ri(t,n){}var he=class{viewContainerRef;injector;id;role=`dialog`;panelClass=``;hasBackdrop=!0;backdropClass=``;disableClose=!1;closePredicate;width=``;height=``;minWidth;minHeight;maxWidth;maxHeight;position;data=null;direction;ariaDescribedBy=null;ariaLabelledBy=null;ariaLabel=null;ariaModal=!1;autoFocus=`first-tabbable`;restoreFocus=!0;delayFocusTrap=!0;scrollStrategy;closeOnNavigation=!0;enterAnimationDuration;exitAnimationDuration;bindings};var Re=`mdc-dialog--open`;var qt=`mdc-dialog--opening`;var $t=`mdc-dialog--closing`;var si=150;var li=75;var di=(()=>{class t extends we{_animationStateChanged=new Ue;_animationsEnabled=!z$1();_actionSectionCount=0;_hostElement=this._elementRef.nativeElement;_enterAnimationDuration=this._animationsEnabled?Yt(this._config.enterAnimationDuration)??si:0;_exitAnimationDuration=this._animationsEnabled?Yt(this._config.exitAnimationDuration)??li:0;_animationTimer=null;_contentAttached(){super._contentAttached(),this._startOpenAnimation()}_startOpenAnimation(){this._animationStateChanged.emit({state:`opening`,totalTime:this._enterAnimationDuration}),this._animationsEnabled?(this._hostElement.style.setProperty(Qt,`${this._enterAnimationDuration}ms`),this._requestAnimationFrame(()=>this._hostElement.classList.add(qt,Re)),this._waitForAnimationToComplete(this._enterAnimationDuration,this._finishDialogOpen)):(this._hostElement.classList.add(Re),Promise.resolve().then(()=>this._finishDialogOpen()))}_startExitAnimation(){this._animationStateChanged.emit({state:`closing`,totalTime:this._exitAnimationDuration}),this._hostElement.classList.remove(Re),this._animationsEnabled?(this._hostElement.style.setProperty(Qt,`${this._exitAnimationDuration}ms`),this._requestAnimationFrame(()=>this._hostElement.classList.add($t)),this._waitForAnimationToComplete(this._exitAnimationDuration,this._finishDialogClose)):Promise.resolve().then(()=>this._finishDialogClose())}_updateActionSectionCount(e){this._actionSectionCount+=e,this._changeDetectorRef.markForCheck()}_finishDialogOpen=()=>{this._clearAnimationClasses(),this._openAnimationDone(this._enterAnimationDuration)};_finishDialogClose=()=>{this._clearAnimationClasses(),this._animationStateChanged.emit({state:`closed`,totalTime:this._exitAnimationDuration})};_clearAnimationClasses(){this._hostElement.classList.remove(qt,$t)}_waitForAnimationToComplete(e,i){this._animationTimer!==null&&clearTimeout(this._animationTimer),this._animationTimer=setTimeout(i,e)}_requestAnimationFrame(e){this._ngZone.runOutsideAngular(()=>{typeof requestAnimationFrame==`function`?requestAnimationFrame(e):e()})}_captureInitialFocus(){this._config.delayFocusTrap||this._trapFocus()}_openAnimationDone(e){this._config.delayFocusTrap&&this._trapFocus(),this._animationStateChanged.next({state:`opened`,totalTime:e})}ngOnDestroy(){super.ngOnDestroy(),this._animationTimer!==null&&clearTimeout(this._animationTimer)}attachComponentPortal(e){let i=super.attachComponentPortal(e);return i.location.nativeElement.classList.add(`mat-mdc-dialog-component-host`),i}static ɵfac=(()=>{let e;return function(o){return(e||(e=ey(t)))(o||t)}})();static ɵcmp=yE({type:t,selectors:[[`mat-dialog-container`]],hostAttrs:[`tabindex`,`-1`,1,`mat-mdc-dialog-container`,`mdc-dialog`],hostVars:10,hostBindings:function(i,o){i&2&&(Wp(`id`,o._config.id),Vp(`aria-modal`,o._config.ariaModal)(`role`,o._config.role)(`aria-labelledby`,o._config.ariaLabel?null:o._ariaLabelledByQueue[0])(`aria-label`,o._config.ariaLabel)(`aria-describedby`,o._config.ariaDescribedBy||null),nh(`_mat-animation-noopable`,!o._animationsEnabled)(`mat-mdc-dialog-container-with-actions`,o._actionSectionCount>0))},features:[Rp],decls:3,vars:0,consts:[[1,`mat-mdc-dialog-inner-container`,`mdc-dialog__container`],[1,`mat-mdc-dialog-surface`,`mdc-dialog__surface`],[`cdkPortalOutlet`,``]],template:function(i,o){i&1&&(Ei$1(0,`div`,0)(1,`div`,1),Op(2,ri,0,0,`ng-template`,2),Hc()())},dependencies:[pe],styles:[`.mat-mdc-dialog-container {
+  width: 100%;
+  height: 100%;
+  display: block;
+  box-sizing: border-box;
+  max-height: inherit;
+  min-height: inherit;
+  min-width: inherit;
+  max-width: inherit;
+  outline: 0;
+}
+
+.cdk-overlay-pane.mat-mdc-dialog-panel {
+  max-width: var(--%NS%mat-dialog-container-max-width, 560px);
+  min-width: var(--%NS%mat-dialog-container-min-width, 280px);
+}
+@media (max-width: 599px) {
+  .cdk-overlay-pane.mat-mdc-dialog-panel {
+    max-width: var(--%NS%mat-dialog-container-small-max-width, calc(100vw - 32px));
+  }
+}
+
+.mat-mdc-dialog-inner-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  box-sizing: border-box;
+  height: 100%;
+  opacity: 0;
+  transition: opacity linear var(--%NS%mat-dialog-transition-duration, 0ms);
+  max-height: inherit;
+  min-height: inherit;
+  min-width: inherit;
+  max-width: inherit;
+}
+.mdc-dialog--closing .mat-mdc-dialog-inner-container {
+  transition: opacity 75ms linear;
+  transform: none;
+}
+.mdc-dialog--open .mat-mdc-dialog-inner-container {
+  opacity: 1;
+}
+._mat-animation-noopable .mat-mdc-dialog-inner-container {
+  transition: none;
+}
+
+.mat-mdc-dialog-surface {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow-y: auto;
+  outline: 0;
+  transform: scale(0.8);
+  transition: transform var(--%NS%mat-dialog-transition-duration, 0ms) cubic-bezier(0, 0, 0.2, 1);
+  max-height: inherit;
+  min-height: inherit;
+  min-width: inherit;
+  max-width: inherit;
+  box-shadow: var(--%NS%mat-dialog-container-elevation-shadow, none);
+  border-radius: var(--%NS%mat-dialog-container-shape, var(--%NS%mat-sys-corner-extra-large, 4px));
+  background-color: var(--%NS%mat-dialog-container-color, var(--%NS%mat-sys-surface, white));
+}
+[dir=rtl] .mat-mdc-dialog-surface {
+  text-align: right;
+}
+.mdc-dialog--open .mat-mdc-dialog-surface, .mdc-dialog--closing .mat-mdc-dialog-surface {
+  transform: none;
+}
+._mat-animation-noopable .mat-mdc-dialog-surface {
+  transition: none;
+}
+.mat-mdc-dialog-surface::before {
+  position: absolute;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  border: 2px solid transparent;
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
+.mat-mdc-dialog-title {
+  display: block;
+  position: relative;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin: 0 0 1px;
+  padding: var(--%NS%mat-dialog-headline-padding, 6px 24px 13px);
+}
+.mat-mdc-dialog-title::before {
+  display: inline-block;
+  width: 0;
+  height: 40px;
+  content: "";
+  vertical-align: 0;
+}
+[dir=rtl] .mat-mdc-dialog-title {
+  text-align: right;
+}
+.mat-mdc-dialog-container .mat-mdc-dialog-title {
+  color: var(--%NS%mat-dialog-subhead-color, var(--%NS%mat-sys-on-surface, rgba(0, 0, 0, 0.87)));
+  font-family: var(--%NS%mat-dialog-subhead-font, var(--%NS%mat-sys-headline-small-font, inherit));
+  line-height: var(--%NS%mat-dialog-subhead-line-height, var(--%NS%mat-sys-headline-small-line-height, 1.5rem));
+  font-size: var(--%NS%mat-dialog-subhead-size, var(--%NS%mat-sys-headline-small-size, 1rem));
+  font-weight: var(--%NS%mat-dialog-subhead-weight, var(--%NS%mat-sys-headline-small-weight, 400));
+  letter-spacing: var(--%NS%mat-dialog-subhead-tracking, var(--%NS%mat-sys-headline-small-tracking, 0.03125em));
+}
+
+.mat-mdc-dialog-content {
+  display: block;
+  flex-grow: 1;
+  box-sizing: border-box;
+  margin: 0;
+  overflow: auto;
+  max-height: 65vh;
+}
+.mat-mdc-dialog-content > :first-child {
+  margin-top: 0;
+}
+.mat-mdc-dialog-content > :last-child {
+  margin-bottom: 0;
+}
+.mat-mdc-dialog-container .mat-mdc-dialog-content {
+  color: var(--%NS%mat-dialog-supporting-text-color, var(--%NS%mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6)));
+  font-family: var(--%NS%mat-dialog-supporting-text-font, var(--%NS%mat-sys-body-medium-font, inherit));
+  line-height: var(--%NS%mat-dialog-supporting-text-line-height, var(--%NS%mat-sys-body-medium-line-height, 1.5rem));
+  font-size: var(--%NS%mat-dialog-supporting-text-size, var(--%NS%mat-sys-body-medium-size, 1rem));
+  font-weight: var(--%NS%mat-dialog-supporting-text-weight, var(--%NS%mat-sys-body-medium-weight, 400));
+  letter-spacing: var(--%NS%mat-dialog-supporting-text-tracking, var(--%NS%mat-sys-body-medium-tracking, 0.03125em));
+}
+.mat-mdc-dialog-container .mat-mdc-dialog-content {
+  padding: var(--%NS%mat-dialog-content-padding, 20px 24px);
+}
+.mat-mdc-dialog-container-with-actions .mat-mdc-dialog-content {
+  padding: var(--%NS%mat-dialog-with-actions-content-padding, 20px 24px 0);
+}
+.mat-mdc-dialog-container .mat-mdc-dialog-title + .mat-mdc-dialog-content {
+  padding-top: 0;
+}
+
+.mat-mdc-dialog-actions {
+  display: flex;
+  position: relative;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 52px;
+  margin: 0;
+  border-top: 1px solid transparent;
+  padding: var(--%NS%mat-dialog-actions-padding, 16px 24px);
+  justify-content: var(--%NS%mat-dialog-actions-alignment, flex-end);
+}
+@media (forced-colors: active) {
+  .mat-mdc-dialog-actions {
+    border-top-color: CanvasText;
+  }
+}
+.mat-mdc-dialog-actions.mat-mdc-dialog-actions-align-start, .mat-mdc-dialog-actions[align=start] {
+  justify-content: start;
+}
+.mat-mdc-dialog-actions.mat-mdc-dialog-actions-align-center, .mat-mdc-dialog-actions[align=center] {
+  justify-content: center;
+}
+.mat-mdc-dialog-actions.mat-mdc-dialog-actions-align-end, .mat-mdc-dialog-actions[align=end] {
+  justify-content: flex-end;
+}
+.mat-mdc-dialog-actions .mat-button-base + .mat-button-base,
+.mat-mdc-dialog-actions .mat-mdc-button-base + .mat-mdc-button-base {
+  margin-left: 8px;
+}
+[dir=rtl] .mat-mdc-dialog-actions .mat-button-base + .mat-button-base,
+[dir=rtl] .mat-mdc-dialog-actions .mat-mdc-button-base + .mat-mdc-button-base {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+.mat-mdc-dialog-component-host {
+  display: contents;
+}
+`],encapsulation:2,changeDetection:1})}return t})();var Qt=`--mat-dialog-transition-duration`;function Yt(t){return t==null?null:typeof t==`number`?t:t.endsWith(`ms`)?cn(t.substring(0,t.length-2)):t.endsWith(`s`)?cn(t.substring(0,t.length-1))*1e3:t===`0`?0:null}var ue=(function(t){return t[t.OPEN=0]=`OPEN`,t[t.CLOSING=1]=`CLOSING`,t[t.CLOSED=2]=`CLOSED`,t})(ue||{});var F=class{_ref;_config;_containerInstance;componentInstance;componentRef=null;disableClose;id;_afterOpened=new Ln(1);_beforeClosed=new Ln(1);_result;_closeFallbackTimeout;_state=ue.OPEN;_closeInteractionType;constructor(n,e,i){this._ref=n,this._config=e,this._containerInstance=i,this.disableClose=e.disableClose,this.id=n.id,n.addPanelClass(`mat-mdc-dialog-panel`),i._animationStateChanged.pipe(Bn(o=>o.state===`opened`),us(1)).subscribe(()=>{this._afterOpened.next(),this._afterOpened.complete()}),i._animationStateChanged.pipe(Bn(o=>o.state===`closed`),us(1)).subscribe(()=>{clearTimeout(this._closeFallbackTimeout),this._finishDialogClose()}),n.overlayRef.detachments().subscribe(()=>{this._beforeClosed.next(this._result),this._beforeClosed.complete(),this._finishDialogClose()}),mg(this.backdropClick(),this.keydownEvents().pipe(Bn(o=>o.keyCode===27&&!this.disableClose&&!je(o)))).subscribe(o=>{this.disableClose||(o.preventDefault(),ci(this,o.type===`keydown`?`keyboard`:`mouse`))})}close(n){let e=this._config.closePredicate;e&&!e(n,this._config,this.componentInstance)||(this._result=n,this._containerInstance._animationStateChanged.pipe(Bn(i=>i.state===`closing`),us(1)).subscribe(i=>{this._beforeClosed.next(n),this._beforeClosed.complete(),this._ref.overlayRef.detachBackdrop(),this._closeFallbackTimeout=setTimeout(()=>this._finishDialogClose(),i.totalTime+100)}),this._state=ue.CLOSING,this._containerInstance._startExitAnimation())}afterOpened(){return this._afterOpened}afterClosed(){return this._ref.closed}beforeClosed(){return this._beforeClosed}backdropClick(){return this._ref.backdropClick}keydownEvents(){return this._ref.keydownEvents}updatePosition(n){let e=this._ref.config.positionStrategy;return n&&(n.left||n.right)?n.left?e.left(n.left):e.right(n.right):e.centerHorizontally(),n&&(n.top||n.bottom)?n.top?e.top(n.top):e.bottom(n.bottom):e.centerVertically(),this._ref.updatePosition(),this}updateSize(n=``,e=``){return this._ref.updateSize(n,e),this}addPanelClass(n){return this._ref.addPanelClass(n),this}removePanelClass(n){return this._ref.removePanelClass(n),this}getState(){return this._state}_finishDialogClose(){this._state=ue.CLOSED,this._ref.close(this._result,{focusOrigin:this._closeInteractionType}),this.componentInstance=null}};function ci(t,n,e){return t._closeInteractionType=n,t.close(e)}var ke=new A(`MatMdcDialogData`);var mi=new A(`mat-mdc-dialog-default-options`);var pi=new A(`mat-mdc-dialog-scroll-strategy`,{providedIn:`root`,factory:()=>{let t=T$1(ge$1);return()=>Ht(t)}});var fe=(()=>{class t{_defaultOptions=T$1(mi,{optional:!0});_scrollStrategy=T$1(pi);_parentDialog=T$1(t,{optional:!0,skipSelf:!0});_idGenerator=T$1(Pt);_injector=T$1(ge$1);_dialog=T$1(Ee);_animationsDisabled=z$1();_openDialogsAtThisLevel=[];_afterAllClosedAtThisLevel=new z;_afterOpenedAtThisLevel=new z;dialogConfigClass=he;_dialogRefConstructor;_dialogContainerType;_dialogDataToken;get openDialogs(){return this._parentDialog?this._parentDialog.openDialogs:this._openDialogsAtThisLevel}get afterOpened(){return this._parentDialog?this._parentDialog.afterOpened:this._afterOpenedAtThisLevel}_getAfterAllClosed(){let e=this._parentDialog;return e?e._getAfterAllClosed():this._afterAllClosedAtThisLevel}afterAllClosed=hg(()=>this.openDialogs.length?this._getAfterAllClosed():this._getAfterAllClosed().pipe(kg(void 0)));constructor(){this._dialogRefConstructor=F,this._dialogContainerType=di,this._dialogDataToken=ke}open(e,i){let o;i=l(l({},this._defaultOptions||new he),i),i.id=i.id||this._idGenerator.getId(`mat-mdc-dialog-`),i.scrollStrategy=i.scrollStrategy||this._scrollStrategy();let r=this._dialog.open(e,m(l({},i),{positionStrategy:$t$1(this._injector).centerHorizontally().centerVertically(),disableClose:!0,closePredicate:void 0,closeOnDestroy:!1,closeOnOverlayDetachments:!1,disableAnimations:this._animationsDisabled||i.enterAnimationDuration?.toLocaleString()===`0`||i.exitAnimationDuration?.toString()===`0`,container:{type:this._dialogContainerType,providers:()=>[{provide:this.dialogConfigClass,useValue:i},{provide:T,useValue:i}]},templateContext:()=>({dialogRef:o}),providers:(p,c,f)=>(o=new this._dialogRefConstructor(p,i,f),o.updatePosition(i?.position),[{provide:this._dialogContainerType,useValue:f},{provide:this._dialogDataToken,useValue:c.data},{provide:this._dialogRefConstructor,useValue:o},{provide:E,useValue:null}])}));return o.componentRef=r.componentRef,o.componentInstance=r.componentInstance,this.openDialogs.push(o),this.afterOpened.next(o),o.afterClosed().subscribe(()=>{let p=this.openDialogs.indexOf(o);p>-1&&(this.openDialogs.splice(p,1),this.openDialogs.length||this._getAfterAllClosed().next())}),o}closeAll(){this._closeDialogs(this.openDialogs)}getDialogById(e){return this.openDialogs.find(i=>i.id===e)}ngOnDestroy(){this._closeDialogs(this._openDialogsAtThisLevel),this._afterAllClosedAtThisLevel.complete(),this._afterOpenedAtThisLevel.complete()}_closeDialogs(e){let i=e.length;for(;i--;)e[i].close()}static ɵfac=function(i){return new(i||t)};static ɵprov=Ir({token:t,factory:t.ɵfac})}return t})();var Zt=(()=>{class t{_dialogRef=T$1(F,{optional:!0});_elementRef=T$1(Er);_dialog=T$1(fe);ngOnInit(){this._dialogRef||(this._dialogRef=ui(this._elementRef,this._dialog.openDialogs)),this._dialogRef&&Promise.resolve().then(()=>{this._onAdd()})}ngOnDestroy(){this._dialogRef?._containerInstance&&Promise.resolve().then(()=>{this._onRemove()})}static ɵfac=function(i){return new(i||t)};static ɵdir=wE({type:t})}return t})();var Kt=(()=>{class t extends Zt{id=T$1(Pt).getId(`mat-mdc-dialog-title-`);_onAdd(){this._dialogRef._containerInstance?._addAriaLabelledBy?.(this.id)}_onRemove(){this._dialogRef?._containerInstance?._removeAriaLabelledBy?.(this.id)}static ɵfac=(()=>{let e;return function(o){return(e||(e=ey(t)))(o||t)}})();static ɵdir=wE({type:t,selectors:[[``,`mat-dialog-title`,``],[``,`matDialogTitle`,``]],hostAttrs:[1,`mat-mdc-dialog-title`,`mdc-dialog__title`],hostVars:1,hostBindings:function(i,o){i&2&&Wp(`id`,o.id)},inputs:{id:`id`},exportAs:[`matDialogTitle`],features:[Rp]})}return t})();var Xt=(()=>{class t{static ɵfac=function(i){return new(i||t)};static ɵdir=wE({type:t,selectors:[[``,`mat-dialog-content`,``],[`mat-dialog-content`],[``,`matDialogContent`,``]],hostAttrs:[1,`mat-mdc-dialog-content`,`mdc-dialog__content`],features:[_E([Ye])]})}return t})();var Jt=(()=>{class t extends Zt{align;_onAdd(){this._dialogRef._containerInstance?._updateActionSectionCount?.(1)}_onRemove(){this._dialogRef._containerInstance?._updateActionSectionCount?.(-1)}static ɵfac=(()=>{let e;return function(o){return(e||(e=ey(t)))(o||t)}})();static ɵdir=wE({type:t,selectors:[[``,`mat-dialog-actions`,``],[`mat-dialog-actions`],[``,`matDialogActions`,``]],hostAttrs:[1,`mat-mdc-dialog-actions`,`mdc-dialog__actions`],hostVars:6,hostBindings:function(i,o){i&2&&nh(`mat-mdc-dialog-actions-align-start`,o.align===`start`)(`mat-mdc-dialog-actions-align-center`,o.align===`center`)(`mat-mdc-dialog-actions-align-end`,o.align===`end`)},inputs:{align:`align`},features:[Rp]})}return t})();function ui(t,n){let e=t.nativeElement.parentElement;for(;e&&!e.classList.contains(`mat-mdc-dialog-container`);)e=e.parentElement;return e?n.find(i=>i.id===e.id):null}var ge=(()=>{class t{static ɵfac=function(i){return new(i||t)};static ɵmod=IE({type:t});static ɵinj=Jl({providers:[fe],imports:[Wt,re,Vt,yt]})}return t})();var L=class t{http=T$1(Lo);list(n){return this.http.get(`/api/projects/${n}/team`)}add(n,e){return this.http.post(`/api/projects/${n}/team`,e)}remove(n,e){return this.http.delete(`/api/projects/${n}/team/${e}`)}static ɵfac=function(e){return new(e||t)};static ɵprov=ie({token:t,factory:t.ɵfac,providedIn:`root`})};function bi(t,n){if(t&1){let e=JE();PD(0,` You can copy it from the `),Ei$1(1,`button`,9),zp(`click`,function(){bu(e);return _u(iD().openUsersPage())}),PD(2,`Users page`),Hc(),PD(3,`. `)}}function yi(t,n){t&1&&PD(0,` Ask an Admin to copy it from the Users page. `)}function Ci(t,n){t&1&&(Ei$1(0,`mat-error`),PD(1,`A user must be selected.`),Hc())}function vi(t,n){t&1&&(Ei$1(0,`mat-error`),PD(1,`That's not a valid user ID (UUID) — check the Users page.`),Hc())}var _e=class t{fb=T$1(Dn);teamService=T$1(L);dialogRef=T$1(F);router=T$1(Ue$1);store=T$1(X);data=T$1(ke);isAdmin=this.store.selectSignal(f.selectUser)()?.role===`Admin`;submitting=$o(!1);serverErrors=$o(null);form=this.fb.nonNullable.group({userId:[``,[me.required,me.pattern(A$1)]]});submit(){if(this.form.invalid){this.form.markAllAsTouched();return}this.submitting.set(!0),this.serverErrors.set(null);let{userId:n}=this.form.getRawValue();this.teamService.add(this.data.projectId,{userId:n}).subscribe({next:e=>{this.submitting.set(!1),this.dialogRef.close(e)},error:e=>{this.submitting.set(!1);let i=e.error?.errors;this.serverErrors.set(i?Object.values(i).flat():[e.error?.detail??e.error?.title??`Could not add member.`])}})}cancel(){this.dialogRef.close()}openUsersPage(){this.dialogRef.close(),this.router.navigateByUrl(`/auth/admin-users`)}static ɵfac=function(e){return new(e||t)};static ɵcmp=yE({type:t,selectors:[[`app-add-member-dialog`]],decls:20,vars:5,consts:[[`mat-dialog-title`,``],[3,`ngSubmit`,`formGroup`],[1,`picker-note`],[`appearance`,`outline`,1,`full-width`],[`matInput`,``,`formControlName`,`userId`,`required`,``,`placeholder`,`e.g. 217dd066-d938-4970-bf69-07072d18dbb6`],[3,`errors`],[`align`,`end`],[`mat-button`,``,`type`,`button`,3,`click`],[`mat-flat-button`,``,`color`,`primary`,`type`,`submit`,3,`disabled`],[`type`,`button`,1,`link-button`,3,`click`]],template:function(e,i){e&1&&(Ei$1(0,`h2`,0),PD(1,`Add team member`),Hc(),Ei$1(2,`form`,1),zp(`ngSubmit`,function(){return i.submit()}),Ei$1(3,`mat-dialog-content`)(4,`p`,2),PD(5,` There is no user search here yet — enter the target user's account ID (a UUID, not a number). `),$E(6,bi,4,0)(7,yi,1,0),Hc(),Ei$1(8,`mat-form-field`,3)(9,`mat-label`),PD(10,`User ID`),Hc(),Bp(11,`input`,4),MI(),$E(12,Ci,2,0,`mat-error`)(13,vi,2,0,`mat-error`),Hc(),Bp(14,`app-error-display`,5),Hc(),Ei$1(15,`mat-dialog-actions`,6)(16,`button`,7),zp(`click`,function(){return i.cancel()}),PD(17,`Cancel`),Hc(),Ei$1(18,`button`,8),PD(19,`Add`),Hc()()()),e&2&&(Bv(2),Hp(`formGroup`,i.form),Bv(4),UE(i.isAdmin?6:7),Bv(5),SI(),Bv(),UE(i.form.get(`userId`)?.touched&&i.form.get(`userId`)?.hasError(`required`)?12:i.form.get(`userId`)?.touched&&i.form.get(`userId`)?.hasError(`pattern`)?13:-1),Bv(2),Hp(`errors`,i.serverErrors()),Bv(4),Hp(`disabled`,i.submitting()))},dependencies:[Mn,Vn,qe,_n,Cn,it,Jt$1,Yt$1,ge,Kt,Jt,Xt,ti$1,je$1,W,_t,Be,Pe,er,tr,_],styles:[`.full-width[_ngcontent-%COMP%]{display:block;width:100%}.picker-note[_ngcontent-%COMP%]{color:var(--%NS%pma-text-600);font-size:13px;margin:0 0 12px}.link-button[_ngcontent-%COMP%]{background:none;border:none;padding:0;color:var(--%NS%pma-primary-700);text-decoration:underline;cursor:pointer;font:inherit}`]})};var Di=t=>[`/projects`,t];function Ai(t,n){if(t&1){let e=JE();Ei$1(0,`button`,8),zp(`click`,function(){bu(e);return _u(iD().openAddMemberDialog())}),PD(1,`Add member`),Hc()}}function Si(t,n){if(t&1&&(Ei$1(0,`p`,4),PD(1),Hc()),t&2){let e=iD();Bv(),ah(e.removeError())}}function xi(t,n){t&1&&(Ei$1(0,`p`,5),PD(1,`Loading…`),Hc())}function Ti(t,n){t&1&&(Ei$1(0,`p`,6),PD(1,`You do not have access to view this project's team.`),Hc())}function Mi(t,n){if(t&1&&(Ei$1(0,`p`,4),PD(1),Hc()),t&2){let e=iD();Bv(),ah(e.error())}}function wi(t,n){t&1&&(Ei$1(0,`p`,5),PD(1,`No team members yet.`),Hc())}function Ei(t,n){t&1&&(Ei$1(0,`th`,19),PD(1,`Name`),Hc())}function Ri(t,n){t&1&&(Ei$1(0,`span`,22),PD(1,`Deactivated`),Hc())}function ki(t,n){if(t&1&&(Ei$1(0,`td`,20)(1,`span`,21),PD(2),Hc(),$E(3,Ri,2,0,`span`,22),Hc()),t&2){let e=n.$implicit;Bv(2),ah(e.fullName),Bv(),UE(e.isActive?-1:3)}}function Ii(t,n){t&1&&(Ei$1(0,`th`,19),PD(1,`Email`),Hc())}function Oi(t,n){if(t&1&&(Ei$1(0,`td`,20),PD(1),Hc()),t&2){let e=n.$implicit;Bv(),ah(e.email)}}function Ni(t,n){t&1&&(Ei$1(0,`th`,19),PD(1,`Role`),Hc())}function Fi(t,n){if(t&1&&(Ei$1(0,`td`,20)(1,`span`,23),PD(2),Hc()()),t&2){let e=n.$implicit;Bv(),Vp(`data-role`,e.role),Bv(),ah(e.role)}}function Li(t,n){t&1&&(Ei$1(0,`th`,19),PD(1,`Added`),Hc())}function Pi(t,n){if(t&1&&(Ei$1(0,`td`,20),PD(1),ZD(2,`date`),Hc()),t&2){let e=n.$implicit;Bv(),ah(KD(2,1,e.addedAt,`short`))}}function ji(t,n){t&1&&Bp(0,`th`,19)}function Bi(t,n){if(t&1){let e=JE();Ei$1(0,`td`,20)(1,`button`,24),zp(`click`,function(){let o=bu(e).$implicit;return _u(iD(3).removeMember(o))}),PD(2,`Remove`),Hc()()}}function Vi(t,n){t&1&&(Uc(0,16),Op(1,ji,1,0,`th`,11)(2,Bi,3,0,`td`,12),qc())}function Hi(t,n){t&1&&Bp(0,`tr`,25)}function Gi(t,n){t&1&&Bp(0,`tr`,26)}function zi(t,n){if(t&1&&(Ei$1(0,`div`,7)(1,`table`,9),Uc(2,10),Op(3,Ei,2,0,`th`,11)(4,ki,4,2,`td`,12),qc(),Uc(5,13),Op(6,Ii,2,0,`th`,11)(7,Oi,2,1,`td`,12),qc(),Uc(8,14),Op(9,Ni,2,0,`th`,11)(10,Fi,3,2,`td`,12),qc(),Uc(11,15),Op(12,Li,2,0,`th`,11)(13,Pi,3,4,`td`,12),qc(),$E(14,Vi,3,0,`ng-container`,16),Op(15,Hi,1,0,`tr`,17)(16,Gi,1,0,`tr`,18),Hc()()),t&2){let e=iD();Bv(),Hp(`dataSource`,e.filteredMembers),Bv(13),UE(e.canManage()?14:-1),Bv(),Hp(`matHeaderRowDef`,e.displayedColumns),Bv(),Hp(`matRowDefColumns`,e.displayedColumns)}}var ei=class t{route=T$1(ve);teamService=T$1(L);projectsService=T$1(c);dialog=T$1(fe);store=T$1(X);projectId=this.route.snapshot.paramMap.get(`projectId`)??``;currentUser=this.store.selectSignal(f.selectUser);members=$o([]);loading=$o(!0);error=$o(null);forbidden=$o(!1);canManage=$o(!1);removeError=$o(null);search=``;get displayedColumns(){return this.canManage()?[`fullName`,`email`,`role`,`addedAt`,`actions`]:[`fullName`,`email`,`role`,`addedAt`]}constructor(){this.refresh(),this.loadOwnership()}get filteredMembers(){let n=this.search.trim().toLowerCase();return n?this.members().filter(e=>e.fullName.toLowerCase().includes(n)||e.email.toLowerCase().includes(n)):this.members()}refresh(){this.loading.set(!0),this.error.set(null),this.forbidden.set(!1),this.teamService.list(this.projectId).subscribe({next:n=>{this.members.set(n),this.loading.set(!1)},error:n=>{this.loading.set(!1),n.status===403?this.forbidden.set(!0):this.error.set(n.error?.detail??n.error?.title??`Could not load the team.`)}})}openAddMemberDialog(){this.dialog.open(_e,{data:{projectId:this.projectId}}).afterClosed().subscribe(e=>{e&&this.refresh()})}removeMember(n){confirm(`Remove ${n.fullName} from this project's team? They will lose access immediately.`)&&(this.removeError.set(null),this.teamService.remove(this.projectId,n.userId).subscribe({next:()=>this.refresh(),error:e=>{this.removeError.set(e.status===409?e.error?.detail??`Cannot remove: this member has open tasks assigned in this project. Reassign or close them first.`:e.error?.detail??e.error?.title??`Could not remove this member.`)}}))}loadOwnership(){let n=this.currentUser();if(n){if(n.role===`Admin`){this.canManage.set(!0);return}n.role===`ProjectManager`&&this.projectsService.getById(this.projectId).subscribe({next:({detail:e})=>this.canManage.set(e.owner.id===n.id),error:()=>this.canManage.set(!1)})}}static ɵfac=function(e){return new(e||t)};static ɵcmp=yE({type:t,selectors:[[`app-team-roster`]],decls:13,vars:7,consts:[[3,`routerLink`],[1,`toolbar`],[`type`,`text`,`placeholder`,`Search by name or email`,3,`ngModelChange`,`ngModel`],[`mat-flat-button`,``,`color`,`primary`,`type`,`button`],[1,`error`],[1,`state-message`],[1,`forbidden`],[1,`table-container`],[`mat-flat-button`,``,`color`,`primary`,`type`,`button`,3,`click`],[`mat-table`,``,1,`roster-table`,3,`dataSource`],[`matColumnDef`,`fullName`],[`mat-header-cell`,``,4,`matHeaderCellDef`],[`mat-cell`,``,4,`matCellDef`],[`matColumnDef`,`email`],[`matColumnDef`,`role`],[`matColumnDef`,`addedAt`],[`matColumnDef`,`actions`],[`mat-header-row`,``,4,`matHeaderRowDef`],[`mat-row`,``,4,`matRowDef`,`matRowDefColumns`],[`mat-header-cell`,``],[`mat-cell`,``],[1,`member-name`],[`data-active`,`false`,1,`chip`],[1,`chip`],[`mat-button`,``,`color`,`warn`,`type`,`button`,3,`click`],[`mat-header-row`,``],[`mat-row`,``]],template:function(e,i){e&1&&(Ei$1(0,`a`,0),PD(1,`← Back to project`),Hc(),Ei$1(2,`h2`),PD(3,`Team`),Hc(),Ei$1(4,`div`,1)(5,`input`,2),dh(`ngModelChange`,function(r){return HD(i.search,r)||(i.search=r),r}),Hc(),MI(),$E(6,Ai,2,0,`button`,3),Hc(),$E(7,Si,2,1,`p`,4),$E(8,xi,2,0,`p`,5)(9,Ti,2,0,`p`,6)(10,Mi,2,1,`p`,4)(11,wi,2,0,`p`,5)(12,zi,17,4,`div`,7)),e&2&&(Hp(`routerLink`,GD(5,Di,i.projectId)),Bv(5),uh(`ngModel`,i.search),SI(),Bv(),UE(i.canManage()?6:-1),Bv(),UE(i.removeError()?7:-1),Bv(),UE(i.loading()?8:i.forbidden()?9:i.error()?10:i.members().length===0?11:12))},dependencies:[Qn,An,qe,_n,Zt$1,ge,er,tr,Zt$2,Ut,Qt$1,Kt$2,Wt$1,Vt$1,Xt$1,$t$2,qt$1,Gt,Yt$2,ta],styles:[`.member-name[_ngcontent-%COMP%]{margin-right:8px}`]})};export{ei as RosterComponent};

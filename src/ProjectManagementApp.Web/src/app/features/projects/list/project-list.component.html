@@ -22,12 +22,13 @@
 </div>
 
 @if (loading()) {
-  <p>Loading…</p>
+  <p class="state-message">Loading…</p>
 } @else if (error()) {
   <p class="error">{{ error() }}</p>
 } @else if (items().length === 0) {
-  <p>No projects to show.</p>
+  <p class="state-message">No projects to show.</p>
 } @else {
+  <div class="table-container">
   <table mat-table [dataSource]="items()" class="projects-table">
     <ng-container matColumnDef="name">
       <th mat-header-cell *matHeaderCellDef>Name</th>
@@ -36,7 +37,7 @@
 
     <ng-container matColumnDef="status">
       <th mat-header-cell *matHeaderCellDef>Status</th>
-      <td mat-cell *matCellDef="let p">{{ p.status }}</td>
+      <td mat-cell *matCellDef="let p"><span class="chip" [attr.data-status]="p.status">{{ p.status }}</span></td>
     </ng-container>
 
     <ng-container matColumnDef="startDate">
@@ -68,6 +69,7 @@
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
     <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
   </table>
+  </div>
 
   <mat-paginator
     [length]="totalCount()"

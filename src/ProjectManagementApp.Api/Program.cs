@@ -66,6 +66,7 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.Configure<ProjectManagementApp.Api.Configuration.RefreshCookieOptions>(builder.Configuration.GetSection("RefreshCookie"));
 builder.Services.Configure<ProjectManagementApp.Application.Common.Options.ProjectsOptions>(builder.Configuration.GetSection("Projects"));
 builder.Services.Configure<ProjectManagementApp.Application.Common.Options.TasksOptions>(builder.Configuration.GetSection("Tasks"));
+builder.Services.Configure<ProjectManagementApp.Application.Common.Options.TeamOptions>(builder.Configuration.GetSection("Team"));
 
 // CSRF protection for the cookie-authenticated /refresh and /logout endpoints (FR-016) — see
 // Common/CsrfProtection.cs for why this is a custom double-submit-cookie check rather than

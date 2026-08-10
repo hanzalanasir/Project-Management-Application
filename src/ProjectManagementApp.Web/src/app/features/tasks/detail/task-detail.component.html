@@ -1,9 +1,9 @@
 @if (loading()) {
-  <p>Loading…</p>
+  <p class="state-message">Loading…</p>
 } @else if (notFound()) {
-  <p>This task could not be found.</p>
+  <p class="state-message">This task could not be found.</p>
 } @else if (forbidden()) {
-  <p>You do not have access to this task.</p>
+  <p class="forbidden">You do not have access to this task.</p>
 } @else if (error()) {
   <p class="error">{{ error() }}</p>
 } @else if (task(); as t) {
@@ -35,11 +35,20 @@
           </mat-form-field>
         </dd>
         <dt>Priority</dt>
-        <dd>{{ t.priority }}</dd>
+        <dd><span class="chip" [attr.data-priority]="t.priority">{{ t.priority }}</span></dd>
         <dt>Due date</dt>
         <dd>{{ t.dueDate ?? '—' }}</dd>
         <dt>Assignee</dt>
-        <dd>{{ t.assignee ? t.assignee.fullName + (t.assignee.isActive === false ? ' (inactive)' : '') : 'Unassigned' }}</dd>
+        <dd>
+          @if (t.assignee) {
+            {{ t.assignee.fullName }}
+            @if (t.assignee.isActive === false) {
+              <span class="chip" data-active="false">Inactive</span>
+            }
+          } @else {
+            Unassigned
+          }
+        </dd>
         <dt>Project</dt>
         <dd><a [routerLink]="['/projects', t.projectId]">View project</a></dd>
         <dt>Closed</dt>
@@ -63,7 +72,8 @@
         <div class="reassign" data-testid="reassign-control">
           <mat-form-field appearance="outline" class="reassign-field">
             <mat-label>Reassign to (user id, blank to unassign)</mat-label>
-            <input matInput [(ngModel)]="reassignTargetId" />
+            <input matInput [(ngModel)]="reassignTargetId" placeholder="UUID, e.g. 217dd066-…" />
+            <mat-hint>The team member's account ID (UUID), not their name.</mat-hint>
           </mat-form-field>
           <button mat-stroked-button (click)="reassign()">Reassign</button>
         </div>

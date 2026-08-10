@@ -174,6 +174,48 @@ Configuration keys (`Tasks:*` in `appsettings.json` or user-secrets):
 
 See `specs/003-tasks/quickstart.md` for the full manual validation scenarios (V1–V17).
 
+## Team module (004)
+
+Three endpoints under `/api/projects/{projectId}/team`. **Membership is a link, not a role**: a
+`team_members` row records *that* a user is on a project's team and grants nothing on its own.
+What a member may do is decided entirely by their global role from 001 — being on a team changes
+what a user can *see* (project/task visibility via 002/003 scoping), never what they *are*. There
+is deliberately **no role column** on `team_members`, and adding one would introduce the second
+permission system this feature exists to avoid.
+
+Two access-policy methods, not one, because a ProjectManager can be a *member* of a project they
+do not *own*: `ITeamAccessPolicy.CanViewTeamAsync` (Admin any · owner-or-member PM · member TM) and
+`CanManageTeamAsync` (Admin any · owner-only PM · TM never). The same PM passes the first and fails
+the second on the same project — the one cell every visibility/management test in this module
+exists to prove.
+
+| Method | Route | Notes |
+|---|---|---|
+| `GET` | `/api/projects/{projectId}/team` | plain JSON array, not a paging envelope — a team is bounded/human-scale; `200` with `[]` when empty, never 404 |
+| `POST` | `/api/projects/{projectId}/team` | any **active** user is eligible regardless of global role; `projectId` comes from the route, never the body; concurrent duplicate adds resolve to one `201` and one `409` via the `UNIQUE (project_id, user_id)` constraint, not an app-level check |
+| `DELETE` | `/api/projects/{projectId}/team/{userId}` | no `If-Match` required — a membership row has no mutable field; blocked with `409` while the member has open (non-`Done`) tasks assigned in that project; a blocked removal changes nothing and writes no audit row |
+
+All three actions use plain `[Authorize]`, not an attribute-only role gate, for the same reason
+003's `FullEdit`/`Delete`/`Reassign` do: the role/scope decision happens once, inside
+`CanManageTeamAsync`/`CanViewTeamAsync`, so every denial is logged with actor, project id, and
+reason through the same MediatR `LoggingBehavior` pipeline — an attribute-level
+`[Authorize(Roles=...)]` would 403 a TeamMember before ever reaching that policy, silently.
+
+Configuration keys (`Team:*` in `appsettings.json` or user-secrets):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Team:AllowAddInactiveUser` | `false` | The only add-time eligibility gate: refuse deactivated users |
+| `Team:AllowManageOnTerminalStatusProject` | `true` | Whether add/remove is still permitted on a Completed/Cancelled project |
+| `Team:IncludeInactiveMembersInRoster` | `true` | A deactivated member stays visible in the roster, flagged, rather than being silently dropped |
+| `Team:MaskOutOfScopeAs404` | `false` | Hardening: hide the 403/404 distinction on the roster read |
+
+003's assignee validation (`AssigneeValidator`) reads `team_members` directly — a candidate is a
+legal assignee **iff** a matching membership row exists — so 004 is the pool 003 validates
+against, with neither feature calling the other's handlers.
+
+See `specs/004-team/quickstart.md` for the full manual validation scenarios (V1–V16).
+
 ## Documentation
 
 - `docs/shared-contracts.md` — the cross-feature shared kernel (`Result<T>`, `CurrentUser`,
@@ -184,3 +226,4 @@ See `specs/003-tasks/quickstart.md` for the full manual validation scenarios (V1
 - `specs/001-auth-rbac/quickstart.md` — manual validation scenarios (V1–V18).
 - `specs/002-projects/quickstart.md` — manual validation scenarios (V1–V16).
 - `specs/003-tasks/quickstart.md` — manual validation scenarios (V1–V17), incl. the graduated-model proof.
+- `specs/004-team/quickstart.md` — manual validation scenarios (V1–V16), incl. the concurrency-race and cross-feature proofs.
