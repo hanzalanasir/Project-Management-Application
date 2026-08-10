@@ -70,6 +70,21 @@ public sealed class TaskAccessPolicy : ITaskAccessPolicy
         // TeamMember: only StatusChange, and only as the assignee — every other mutation kind is
         // denied even for the assignee (spec's "belt-and-braces" model, structural + behavioural).
         var allowed = mutation == TaskMutation.StatusChange && task.AssigneeId == caller.UserId;
-        return new AccessDecision(allowed, allowed ? null : "You may update the status of this task, but not its details.");
+        if (allowed)
+        {
+            return new AccessDecision(true);
+        }
+
+        // The "narrower right" message (quickstart V2) is specific to being refused FullEdit — it
+        // names the StatusChange right the assignee DOES have. That phrasing is wrong for every
+        // other denied mutation (Create/Reassign/Delete, or StatusChange by a non-assignee): a
+        // TeamMember refused Delete does not have a narrower "status" right on this call, and
+        // telling them so is actively misleading (T103 finding — surfaced when Delete/Reassign
+        // started routing through this policy instead of an attribute-only gate). Leave Reason null
+        // for every other case so each handler's own contextual fallback message applies instead.
+        var reason = mutation == TaskMutation.FullEdit
+            ? "You may update the status of this task, but not its details."
+            : null;
+        return new AccessDecision(false, reason);
     }
 }

@@ -6,8 +6,10 @@ using ProjectManagementApp.Application.Common.Models;
 using ProjectManagementApp.Application.Features.Projects.GetProjectById;
 using ProjectManagementApp.Application.Features.Tasks;
 using ProjectManagementApp.Application.Features.Tasks.CreateTask;
+using ProjectManagementApp.Application.Features.Tasks.DeleteTask;
 using ProjectManagementApp.Application.Features.Tasks.GetTaskById;
 using ProjectManagementApp.Application.Features.Tasks.ListTasks;
+using ProjectManagementApp.Application.Features.Tasks.ReassignTask;
 using ProjectManagementApp.Application.Features.Tasks.UpdateTask;
 using ProjectManagementApp.Application.Features.Tasks.UpdateTaskStatus;
 
@@ -20,10 +22,6 @@ namespace ProjectManagementApp.Api.Controllers;
 /// <c>/assignee</c> are nouns, not convenience routes — they are the structural half of the
 /// graduated model (data-model.md §3).
 /// </summary>
-/// <remarks>
-/// Route stubs only (T022) — each action is wired to its slice's <c>MediatR.Send</c> as that
-/// story's phase lands (T034 create; list/detail/edit/status/delete/reassign land in later stages).
-/// </remarks>
 [ApiController]
 [Route("api")]
 public class TasksController : ControllerBase
@@ -64,6 +62,10 @@ public class TasksController : ControllerBase
 
     public sealed record CreateTaskRequestBody(string Title, string? Description, string? Priority, DateOnly? DueDate, Guid? AssigneeId);
 
+    /// <summary>
+    /// <c>projectId</c> comes from the route only — the request body has no such property, so a
+    /// value there cannot smuggle a task into a different project (FR-003, data-model.md §6).
+    /// </summary>
     [HttpPost("projects/{projectId}/tasks")]
     [Authorize(Roles = "Admin,ProjectManager")]
     [ProducesResponseType(typeof(TaskDetailDto), StatusCodes.Status201Created)]
@@ -101,8 +103,11 @@ public class TasksController : ControllerBase
         return result.ToActionResult();
     }
 
-    // No :guid route constraint (same reasoning as ProjectsController.GetProjectById): a malformed
-    // id must reach this action and be reported as 400, not fall through route matching to a bare 404.
+    /// <summary>
+    /// No <c>:guid</c> route constraint (same reasoning as <c>ProjectsController.GetProjectById</c>):
+    /// a malformed id must reach this action and be reported as a contract-declared 400, not fall
+    /// through route matching to a bare, undocumented 404.
+    /// </summary>
     [HttpGet("tasks/{id}")]
     [Authorize]
     [ProducesResponseType(typeof(TaskDetailDto), StatusCodes.Status200OK)]
@@ -159,9 +164,22 @@ public class TasksController : ControllerBase
         return result.ToActionResult();
     }
 
+    // No If-Match required — delete has no lost-update failure mode (ADR-0007 §3).
+    //
+    // Deliberately [Authorize], not role-restricted (T103 finding): an attribute-level role
+    // rejection never reaches MediatR, so it never passes through LoggingBehavior — a TeamMember's
+    // denial would be invisible beyond a bare "responded 403" line with no actor, task id, or
+    // reason (NFR-003). Routing every denial through CanMutateAsync(Delete) instead means it is
+    // always logged with full context, at the cost of nothing: no narrower-right message is needed
+    // here (unlike T065's UpdateTask fix), so the response body is unaffected either way.
     [HttpDelete("tasks/{id:guid}")]
-    [Authorize(Roles = "Admin,ProjectManager")]
-    public IActionResult DeleteTask(Guid id) => StatusCode(StatusCodes.Status501NotImplemented);
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> DeleteTask(Guid id, CancellationToken ct)
+    {
+        var result = await _mediator.Send(new DeleteTaskCommand(id), ct);
+        return result.ToActionResult(StatusCodes.Status204NoContent);
+    }
 
     public sealed record UpdateTaskStatusRequestBody(string Status);
 
@@ -195,7 +213,37 @@ public class TasksController : ControllerBase
         return result.ToActionResult();
     }
 
+    public sealed record ReassignTaskRequestBody(Guid? AssigneeId);
+
+    // Deliberately [Authorize], not role-restricted — revised from the original attribute-role gate
+    // (T103 finding, same reasoning as DeleteTask above): an attribute-level rejection bypasses
+    // LoggingBehavior entirely, so a TeamMember's denial here was logged as a bare "responded 403"
+    // with no actor, task id, or reason (NFR-003). No narrower-right message is needed in the
+    // response body either way — Reassign is not in a TeamMember's mutation set at all — so routing
+    // through CanMutateAsync(Reassign) costs nothing and buys back the audit trail.
     [HttpPut("tasks/{id:guid}/assignee")]
-    [Authorize(Roles = "Admin,ProjectManager")]
-    public IActionResult ReassignTask(Guid id) => StatusCode(StatusCodes.Status501NotImplemented);
+    [Authorize]
+    [ProducesResponseType(typeof(TaskDetailDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ReassignTask(Guid id, ReassignTaskRequestBody body, CancellationToken ct)
+    {
+        if (!Request.TryParseIfMatch(out var ifMatchVersion))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Validation failed",
+                Detail = "If-Match header is required.",
+            });
+        }
+
+        var command = new ReassignTaskCommand(id, body.AssigneeId, ifMatchVersion);
+        var result = await _mediator.Send(command, ct);
+
+        if (result.IsSuccess)
+        {
+            Response.WriteETag(result.Value!.Version);
+        }
+
+        return result.ToActionResult();
+    }
 }

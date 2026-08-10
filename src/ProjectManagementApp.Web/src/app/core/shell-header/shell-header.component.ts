@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { Store } from '@ngrx/store';
+import { RouterLink } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { authFeature } from '../store/auth/auth.feature';
@@ -10,11 +11,13 @@ import { AuthActions } from '../store/auth/auth.actions';
 // directly from a component.
 @Component({
   selector: 'app-shell-header',
-  imports: [MatToolbarModule, MatButtonModule],
+  imports: [RouterLink, MatToolbarModule, MatButtonModule],
   template: `
     @if (user()) {
       <mat-toolbar color="primary">
         <span>ProjectManagementApp</span>
+        <a mat-button routerLink="/projects">Projects</a>
+        <a mat-button routerLink="/tasks">Tasks</a>
         <span class="spacer"></span>
         <span>{{ user()?.fullName }}</span>
         <button mat-button (click)="logout()">Log out</button>

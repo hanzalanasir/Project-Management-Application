@@ -57,6 +57,8 @@ builder.Services.AddSwaggerGen(options =>
     options.SchemaFilter<ChangeUserRoleRequestSchemaFilter>();
     options.SchemaFilter<ProjectStatusSchemaFilter>();
     options.OperationFilter<ListProjectsOperationFilter>();
+    options.SchemaFilter<TaskRequestSchemaFilter>();
+    options.OperationFilter<ListTasksOperationFilter>();
 });
 
 builder.Services.AddHttpContextAccessor();

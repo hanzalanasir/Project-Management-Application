@@ -35,9 +35,6 @@ tags:
 paths:
 
   /projects/{projectId}/tasks:
-    parameters:
-      - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
-
     get:
       tags: [Tasks]
       operationId: listProjectTasks
@@ -47,9 +44,15 @@ paths:
         a TeamMember sees **only tasks assigned to them** — not every task on a project they belong to.
         Because this route **names a project**, an unknown id is 404 and an out-of-scope one is 403.
       parameters:
-        - { name: page,       in: query, schema: { type: integer, minimum: 1, default: 1 } }
-        - { name: pageSize,   in: query, description: Clamped to the maximum, never rejected., schema: { type: integer, minimum: 1, default: 20, maximum: 100 } }
-        - { name: status,     in: query, schema: { $ref: '#/components/schemas/TaskStatus' } }
+        - { name: projectId,  in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: page,       in: query, schema: { type: integer, format: int32, minimum: 1, default: 1 } }
+        - { name: pageSize,   in: query, description: Clamped to the maximum, never rejected., schema: { type: integer, format: int32, minimum: 1, default: 20, maximum: 100 } }
+        - name: status
+          in: query
+          description: >
+            Filters within the caller's scope; omitted means every status (no default) — this is a
+            filter, not the TaskStatus type's own "new task" default of ToDo.
+          schema: { type: string, enum: [ToDo, InProgress, InReview, Done, Blocked] }
         - { name: assigneeId, in: query, schema: { type: string, format: uuid } }
         - { name: search,     in: query, description: Case-insensitive substring match on title., schema: { type: string, maxLength: 200 } }
         - name: sort
@@ -74,6 +77,8 @@ paths:
         Requires Admin or ProjectManager (`TaskMutation.Create`); a TeamMember is refused at the role gate.
         **`projectId` comes from the route and is never read from the body**, so a task cannot be smuggled
         into another project. An assignee, when supplied, MUST be an **active team member of this project**.
+      parameters:
+        - { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/CreateTaskRequest' } } }
@@ -101,10 +106,15 @@ paths:
         empty scope yields `200` with an empty page. A filter can only narrow a scope, never widen it — a
         TeamMember passing another user's `assigneeId` receives an empty page, not a 403.
       parameters:
-        - { name: page,       in: query, schema: { type: integer, minimum: 1, default: 1 } }
-        - { name: pageSize,   in: query, schema: { type: integer, minimum: 1, default: 20, maximum: 100 } }
+        - { name: page,       in: query, schema: { type: integer, format: int32, minimum: 1, default: 1 } }
+        - { name: pageSize,   in: query, schema: { type: integer, format: int32, minimum: 1, default: 20, maximum: 100 } }
         - { name: projectId,  in: query, schema: { type: string, format: uuid } }
-        - { name: status,     in: query, schema: { $ref: '#/components/schemas/TaskStatus' } }
+        - name: status
+          in: query
+          description: >
+            Filters within the caller's scope; omitted means every status (no default) — this is a
+            filter, not the TaskStatus type's own "new task" default of ToDo.
+          schema: { type: string, enum: [ToDo, InProgress, InReview, Done, Blocked] }
         - { name: assigneeId, in: query, schema: { type: string, format: uuid } }
         - { name: search,     in: query, schema: { type: string, maxLength: 200 } }
         - { name: sort,       in: query, schema: { type: string, enum: [dueDate, -dueDate, priority, -priority, status, -status, title, -title, createdAt, -createdAt], default: dueDate } }
@@ -117,13 +127,18 @@ paths:
         '500': { $ref: '#/components/responses/UnexpectedProblem' }
 
   /tasks/{id}:
-    parameters:
-      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-
     get:
       tags: [Tasks]
       operationId: getTaskById
       summary: Get one task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: >
+            Deliberately **not** format-constrained to uuid — a malformed id must reach this operation and
+            be reported as a contract-declared 400, not fall through routing to a bare 404.
+          schema: { type: string }
       responses:
         '200':
           description: The task.
@@ -145,7 +160,9 @@ paths:
         assigned to them**; that refusal, paired with their success on `PUT /tasks/{id}/status`, is the
         acceptance test for the graduated model. `projectId` is **not** editable — a task never moves
         between projects.
-      parameters: [ { $ref: '#/components/parameters/IfMatch' } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IfMatch' }
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTaskRequest' } } }
@@ -178,6 +195,8 @@ paths:
         refused. The `TaskDeleted` audit row is written **before** removal and is never cascaded away.
         **No `If-Match` is required**: a delete has no lost-update failure mode, and a second delete
         correctly observes 404 (research R-5).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         '204': { description: Deleted; audit row retained. }
         '401': { $ref: '#/components/responses/UnauthorizedProblem' }
@@ -186,8 +205,6 @@ paths:
         '500': { $ref: '#/components/responses/UnexpectedProblem' }
 
   /tasks/{id}/status:
-    parameters:
-      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     put:
       tags: [Tasks]
       operationId: updateTaskStatus
@@ -202,7 +219,9 @@ paths:
 
         **`closedAt` is a derived side effect**, never accepted: moving to `Done` sets it; moving away
         clears it. Any status may move to any other in v1, including out of `Done`.
-      parameters: [ { $ref: '#/components/parameters/IfMatch' } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IfMatch' }
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/UpdateTaskStatusRequest' } } }
@@ -219,8 +238,6 @@ paths:
         '500': { $ref: '#/components/responses/UnexpectedProblem' }
 
   /tasks/{id}/assignee:
-    parameters:
-      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     put:
       tags: [Tasks]
       operationId: reassignTask
@@ -232,7 +249,9 @@ paths:
 
         The previous assignee's access ends immediately — their next read re-evaluates scope and returns
         403. There is no grace period and no notification.
-      parameters: [ { $ref: '#/components/parameters/IfMatch' } ]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IfMatch' }
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/ReassignTaskRequest' } } }

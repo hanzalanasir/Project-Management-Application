@@ -5,6 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
+import { MatInputModule } from '@angular/material/input';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TasksService } from '../../../core/services/tasks.service';
@@ -20,7 +21,7 @@ type TaskStatus = components['schemas']['TaskStatus'];
 // enforces this, this component just avoids offering controls that would only ever 403.
 @Component({
   selector: 'app-task-detail',
-  imports: [RouterLink, MatCardModule, MatButtonModule, MatFormFieldModule, MatSelectModule, FormsModule],
+  imports: [RouterLink, MatCardModule, MatButtonModule, MatFormFieldModule, MatSelectModule, MatInputModule, FormsModule],
   templateUrl: './task-detail.component.html',
   styleUrl: './task-detail.component.scss',
 })
@@ -38,6 +39,12 @@ export class TaskDetailComponent {
   protected readonly forbidden = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly statusError = signal<string | null>(null);
+  protected readonly reassignError = signal<string | null>(null);
+
+  // No 004 roster endpoint exists yet — plain id input, same forward-dependency shape as
+  // CreateTaskComponent's assigneeId field (T035). The backend AssigneeValidator enforces the real
+  // rule against team_members regardless of what this input offers.
+  protected reassignTargetId = '';
 
   private readonly currentUser = this.store.selectSignal(authFeature.selectUser);
   private readonly taskId = this.route.snapshot.paramMap.get('id')!;
@@ -64,6 +71,40 @@ export class TaskDetailComponent {
         // Reload to resync the select with the actual server state after a refused change.
         this.reload();
       },
+    });
+  }
+
+  protected reassign(): void {
+    const t = this.task();
+    if (!t) return;
+    const assigneeId = this.reassignTargetId.trim() || null;
+    if (!confirm(assigneeId ? 'Reassign this task?' : 'Unassign this task?')) {
+      return;
+    }
+
+    this.reassignError.set(null);
+    this.tasksService.reassign(this.taskId, { assigneeId }, this.etag).subscribe({
+      next: ({ detail, etag }) => {
+        this.task.set(detail);
+        this.etag = etag;
+        this.reassignTargetId = '';
+      },
+      error: (err: HttpErrorResponse) => {
+        this.reassignError.set(err.error?.detail ?? err.error?.title ?? 'Could not reassign this task.');
+      },
+    });
+  }
+
+  protected deleteTask(): void {
+    const t = this.task();
+    if (!t) return;
+    if (!confirm(`Delete "${t.title}"?`)) {
+      return;
+    }
+
+    this.tasksService.delete(this.taskId).subscribe({
+      next: () => void this.router.navigate(['/tasks']),
+      error: (err: HttpErrorResponse) => this.error.set(err.error?.detail ?? err.error?.title ?? 'Could not delete task.'),
     });
   }
 

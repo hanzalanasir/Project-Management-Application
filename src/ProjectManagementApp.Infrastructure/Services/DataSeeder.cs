@@ -33,13 +33,26 @@ public class DataSeeder : IDataSeeder
     }
 
     // Demo project seed (T079) — checked by name before insert, same idempotency shape as
-    // EnsureUserAsync/EnsureRoleAsync. Only the projects half; demo TASKS arrive with 003
-    // (spec 002 Assumptions).
+    // EnsureUserAsync/EnsureRoleAsync.
     private static readonly (string Name, string? Description, ProjectStatus Status)[] DemoProjectSeeds =
     [
         ("Apollo Rollout", "Regional launch of the Apollo product line.", ProjectStatus.Active),
         ("Griffin Migration", "Legacy platform migration to the new stack.", ProjectStatus.Planning),
         ("Harbor Refresh", "UX refresh for the customer harbor portal.", ProjectStatus.OnHold),
+    ];
+
+    // Demo task seed (T100, 003) — the tasks half of IV.5's "demo projects WITH tasks", deferred
+    // from 002 (spec 002 Assumptions) until this feature existed to own it. Every demo project gets
+    // the same spread of statuses so the Dashboard (005) and Reports (006) have something to chart
+    // without a fresh install being empty. Deliberately unassigned — assigning a seeded task would
+    // require a team_members row, which is 004's table; the seeder here only ever reads Projects.
+    private static readonly (string Title, ProjectManagementApp.Domain.Enums.TaskStatus Status, TaskPriority Priority)[] DemoTaskSeeds =
+    [
+        ("Kickoff checklist", ProjectManagementApp.Domain.Enums.TaskStatus.Done, TaskPriority.Medium),
+        ("Draft rollout plan", ProjectManagementApp.Domain.Enums.TaskStatus.InProgress, TaskPriority.High),
+        ("Stakeholder review", ProjectManagementApp.Domain.Enums.TaskStatus.InReview, TaskPriority.Medium),
+        ("Backlog grooming", ProjectManagementApp.Domain.Enums.TaskStatus.ToDo, TaskPriority.Low),
+        ("Resolve vendor blocker", ProjectManagementApp.Domain.Enums.TaskStatus.Blocked, TaskPriority.Critical),
     ];
 
     public async Task SeedAsync(CancellationToken ct)
@@ -54,17 +67,21 @@ public class DataSeeder : IDataSeeder
 
         if (_options.DemoDataEnabled)
         {
-            await EnsureDemoProjectsAsync(projectManager, ct);
+            var demoProjects = await EnsureDemoProjectsAsync(projectManager, ct);
+            await EnsureDemoTasksAsync(demoProjects, ct);
         }
     }
 
-    private async Task EnsureDemoProjectsAsync(ApplicationUser owner, CancellationToken ct)
+    private async Task<List<Project>> EnsureDemoProjectsAsync(ApplicationUser owner, CancellationToken ct)
     {
+        var projects = new List<Project>();
+
         foreach (var (name, description, status) in DemoProjectSeeds)
         {
-            var exists = await _db.Projects.AnyAsync(p => p.Name == name, ct);
-            if (exists)
+            var existing = await _db.Projects.SingleOrDefaultAsync(p => p.Name == name, ct);
+            if (existing is not null)
             {
+                projects.Add(existing);
                 continue;
             }
 
@@ -91,6 +108,52 @@ public class DataSeeder : IDataSeeder
                 changeSummary: $"Seeded demo project '{name}', owned by {owner.Email}",
                 ct);
             await _db.SaveChangesAsync(ct);
+
+            projects.Add(project);
+        }
+
+        return projects;
+    }
+
+    private async Task EnsureDemoTasksAsync(IReadOnlyList<Project> demoProjects, CancellationToken ct)
+    {
+        foreach (var project in demoProjects)
+        {
+            foreach (var (title, status, priority) in DemoTaskSeeds)
+            {
+                var exists = await _db.Tasks.AnyAsync(t => t.ProjectId == project.Id && t.Title == title, ct);
+                if (exists)
+                {
+                    continue;
+                }
+
+                var now = DateTimeOffset.UtcNow;
+                var task = new TaskItem
+                {
+                    Id = Guid.NewGuid(),
+                    ProjectId = project.Id,
+                    Title = title,
+                    Status = status,
+                    Priority = priority,
+                    // Mirrors UpdateTaskStatusCommandHandler's own derivation rule (spec B.7) — the
+                    // seeder bypasses that handler, so it must reproduce the invariant by hand rather
+                    // than leave a Done task with a null closed_at.
+                    ClosedAt = status == ProjectManagementApp.Domain.Enums.TaskStatus.Done ? now : null,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                };
+
+                _db.Tasks.Add(task);
+
+                await _activityLog.LogAsync(
+                    actorId: null,
+                    action: nameof(AuditAction.TaskCreated),
+                    entityType: "Task",
+                    entityId: task.Id.ToString(),
+                    changeSummary: $"Seeded demo task '{title}' in project '{project.Name}'",
+                    ct);
+                await _db.SaveChangesAsync(ct);
+            }
         }
     }
 

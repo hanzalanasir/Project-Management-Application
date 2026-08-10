@@ -12,6 +12,7 @@ public static class TasksTestHelper
     public sealed record CreateTaskRequest(string Title, string? Description, string? Priority, string? DueDate, Guid? AssigneeId);
     public sealed record UpdateTaskRequest(string Title, string? Description, string Priority, string? DueDate);
     public sealed record UpdateTaskStatusRequest(string Status);
+    public sealed record ReassignTaskRequest(Guid? AssigneeId);
 
     // The standard 003 list-scenario fixture (quickstart.md's own fixture set): project A owned by
     // PM, project B owned by PM2, TM and TM2 both on A's team. T1 assigned TM, T2 assigned TM2, T3
@@ -120,5 +121,26 @@ public static class TasksTestHelper
         var response = await CreateTaskAsync(client, token, projectId, request);
         var body = await ReadJsonAsync(response);
         return (body.GetProperty("id").GetString()!, response.Headers.ETag!.Tag);
+    }
+
+    public static async Task<HttpResponseMessage> DeleteTaskAsync(HttpClient client, string token, string id)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/tasks/{id}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return await client.SendAsync(request);
+    }
+
+    public static async Task<HttpResponseMessage> PutTaskAssigneeAsync(HttpClient client, string token, string id, string? ifMatch, ReassignTaskRequest request)
+    {
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/tasks/{id}/assignee")
+        {
+            Content = JsonContent.Create(request),
+        };
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (ifMatch is not null)
+        {
+            httpRequest.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        }
+        return await client.SendAsync(httpRequest);
     }
 }

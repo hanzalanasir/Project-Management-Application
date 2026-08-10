@@ -4,7 +4,9 @@ Generated from `src/ProjectManagementApp.Infrastructure/Persistence/Migrations/*
 (Constitution X.4). All five constitution entities are created here (research.md R-10) —
 `projects`, `tasks`, and `team_members` are table-only in 001; their behavior is owned by
 002/003/004 respectively. `projects`' indexes were added afterward by 002's `AddProjectIndexes`
-migration (data-model.md §4) — see Notes below; the table shape itself is unchanged by that migration.
+migration (data-model.md §4), and `tasks`' by 003's `AddTaskIndexes` migration — see Notes below;
+the table shapes themselves are unchanged by either migration (003 adds no table, per tasks.md's
+own blocking-prerequisites note).
 
 ```mermaid
 erDiagram
@@ -119,3 +121,13 @@ erDiagram
     case-insensitive interior-substring `?search=` filter; a B-tree index cannot serve `%term%`.
   - Deliberately **no** index for the TeamMember scope on `projects` — that predicate resolves
     through `team_members`, whose `(project_id, user_id)` unique index (004) is what makes it fast.
+- **`tasks` indexes** (003's `AddTaskIndexes` migration, data-model.md §4 — likewise not shown in
+  the diagram above). `ix_tasks_project_id` and `ix_tasks_assignee_id` already existed from 001's
+  default FK-index convention, so this migration adds only the four not already covered:
+  - `ix_tasks_status` — the `?status=` list filter.
+  - `ix_tasks_project_id_status` — the nested-route composite: a task list filtered by status within
+    one project.
+  - `ix_tasks_assignee_id_status` — the TeamMember scope predicate composed with a status filter.
+  - `ix_tasks_title_trgm` — a GIN trigram index (`pg_trgm` extension, already enabled by 002) on
+    `title`, serving the case-insensitive interior-substring `?search=` filter, same reasoning as
+    `ix_projects_name_trgm`.

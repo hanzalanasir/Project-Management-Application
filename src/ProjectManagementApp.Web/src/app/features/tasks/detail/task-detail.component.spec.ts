@@ -62,36 +62,48 @@ describe('TaskDetailComponent', () => {
     return { fixture, httpMock };
   }
 
-  it('for a TeamMember, the status control is present and the Edit link is absent', async () => {
+  it('for a TeamMember, the status control is present and Edit/Delete/Reassign are absent', async () => {
     const { fixture, httpMock } = await createComponent('TeamMember');
 
     const statusControl = fixture.nativeElement.querySelector('[data-testid="status-control"]');
     const editLink = fixture.nativeElement.querySelector('[data-testid="edit-link"]');
+    const deleteButton = fixture.nativeElement.querySelector('[data-testid="delete-button"]');
+    const reassignControl = fixture.nativeElement.querySelector('[data-testid="reassign-control"]');
 
     expect(statusControl).not.toBeNull();
     expect(editLink).toBeNull();
+    expect(deleteButton).toBeNull();
+    expect(reassignControl).toBeNull();
     httpMock.verify();
   });
 
-  it('for a ProjectManager, both the status control and the Edit link are present', async () => {
+  it('for a ProjectManager, the status control, Edit link, Delete, and Reassign controls are all present', async () => {
     const { fixture, httpMock } = await createComponent('ProjectManager');
 
     const statusControl = fixture.nativeElement.querySelector('[data-testid="status-control"]');
     const editLink = fixture.nativeElement.querySelector('[data-testid="edit-link"]');
+    const deleteButton = fixture.nativeElement.querySelector('[data-testid="delete-button"]');
+    const reassignControl = fixture.nativeElement.querySelector('[data-testid="reassign-control"]');
 
     expect(statusControl).not.toBeNull();
     expect(editLink).not.toBeNull();
+    expect(deleteButton).not.toBeNull();
+    expect(reassignControl).not.toBeNull();
     httpMock.verify();
   });
 
-  it('for an Admin, both the status control and the Edit link are present', async () => {
+  it('for an Admin, the status control, Edit link, Delete, and Reassign controls are all present', async () => {
     const { fixture, httpMock } = await createComponent('Admin');
 
     const statusControl = fixture.nativeElement.querySelector('[data-testid="status-control"]');
     const editLink = fixture.nativeElement.querySelector('[data-testid="edit-link"]');
+    const deleteButton = fixture.nativeElement.querySelector('[data-testid="delete-button"]');
+    const reassignControl = fixture.nativeElement.querySelector('[data-testid="reassign-control"]');
 
     expect(statusControl).not.toBeNull();
     expect(editLink).not.toBeNull();
+    expect(deleteButton).not.toBeNull();
+    expect(reassignControl).not.toBeNull();
     httpMock.verify();
   });
 });
