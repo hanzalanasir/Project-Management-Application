@@ -69,7 +69,7 @@ public class UpdateProjectCommandHandlerTests : IAsyncLifetime
         await activityLog.Received(1).LogAsync(
             pm.Id, "ProjectUpdated", "Project", project.Id.ToString(),
             Arg.Is<string>(summary => summary != null && summary.Contains("name", StringComparison.OrdinalIgnoreCase) && summary.Contains("status", StringComparison.OrdinalIgnoreCase)),
-            Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>(), project.Id);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class UpdateProjectCommandHandlerTests : IAsyncLifetime
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.UpdatedAt.Should().BeAfter(originalUpdatedAt);
-        await activityLog.Received(1).LogAsync(pm.Id, "ProjectUpdated", "Project", project.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(pm.Id, "ProjectUpdated", "Project", project.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>(), project.Id);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class UpdateProjectCommandHandlerTests : IAsyncLifetime
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.Owner.Id.Should().Be(newOwner.Id);
-        await activityLog.Received(1).LogAsync(admin.Id, "ProjectUpdated", "Project", project.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await activityLog.Received(1).LogAsync(admin.Id, "ProjectOwnerChanged", "Project", project.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(admin.Id, "ProjectUpdated", "Project", project.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>(), project.Id);
+        await activityLog.Received(1).LogAsync(admin.Id, "ProjectOwnerChanged", "Project", project.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>(), project.Id);
     }
 }

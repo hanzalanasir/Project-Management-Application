@@ -80,11 +80,11 @@ paths:
         Activity on a project the caller can no longer see (no longer owned, or deleted — audit rows
         survive) is **scoped out for non-Admins** and remains visible to Admin.
       parameters:
-        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: page, in: query, schema: { type: integer, format: int32, minimum: 1, default: 1 } }
         - name: pageSize
           in: query
           description: Values above the maximum are **clamped**, not rejected (Constitution VI.4).
-          schema: { type: integer, minimum: 1, default: 20, maximum: 100 }
+          schema: { type: integer, format: int32, minimum: 1, default: 20, maximum: 100 }
       responses:
         '200':
           description: A page of activity within the caller's scope. Empty page when there is none.

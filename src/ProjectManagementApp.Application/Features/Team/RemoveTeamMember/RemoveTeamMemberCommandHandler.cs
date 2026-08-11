@@ -71,7 +71,7 @@ public class RemoveTeamMemberCommandHandler : IRequestHandler<RemoveTeamMemberCo
             entityType: "TeamMember",
             entityId: membership.Id.ToString(),
             changeSummary: $"User removed from project '{project.Name}'",
-            cancellationToken);
+            cancellationToken, projectId: project.Id);
 
         _db.TeamMembers.Remove(membership);
 

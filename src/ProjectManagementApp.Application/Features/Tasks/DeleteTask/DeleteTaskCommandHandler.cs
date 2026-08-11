@@ -52,7 +52,7 @@ public class DeleteTaskCommandHandler : IRequestHandler<DeleteTaskCommand, Resul
         // returns (spec US-003-06).
         await _activityLog.LogAsync(
             caller.UserId, nameof(AuditAction.TaskDeleted), "Task", task.Id.ToString(),
-            $"Task '{task.Title}' deleted", cancellationToken);
+            $"Task '{task.Title}' deleted", cancellationToken, projectId: task.ProjectId);
 
         _db.Tasks.Remove(task);
         await _db.SaveChangesAsync(cancellationToken);

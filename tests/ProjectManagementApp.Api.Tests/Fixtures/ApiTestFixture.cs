@@ -21,6 +21,10 @@ public class ApiTestFixture : IAsyncLifetime
     // (T082) can observe SQL command counts without any app-side wiring for the test's sake.
     public readonly CommandCounterInterceptor CommandCounter = new();
 
+    // Registered unconditionally alongside CommandCounter — lets 005's filter-at-source test
+    // (T027) inspect the real generated SQL text without any app-side wiring for the test's sake.
+    public readonly SqlCapturingInterceptor SqlCapture = new();
+
     public async Task InitializeAsync()
     {
         await _postgres.InitializeAsync();
@@ -72,6 +76,7 @@ public class ApiTestFixture : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IInterceptor>(CommandCounter);
+                services.AddSingleton<IInterceptor>(SqlCapture);
             });
         });
     }
@@ -100,6 +105,7 @@ public class ApiTestFixture : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IInterceptor>(CommandCounter);
+                services.AddSingleton<IInterceptor>(SqlCapture);
                 configureServices(services);
             });
         });

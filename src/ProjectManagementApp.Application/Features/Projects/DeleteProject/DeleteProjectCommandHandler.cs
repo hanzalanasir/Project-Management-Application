@@ -52,7 +52,7 @@ public class DeleteProjectCommandHandler : IRequestHandler<DeleteProjectCommand,
         // dependents) is gone by the time this call returns (spec US-002-05, FR-012).
         await _activityLog.LogAsync(
             caller.UserId, nameof(AuditAction.ProjectDeleted), "Project", project.Id.ToString(),
-            $"Project '{project.Name}' deleted", cancellationToken);
+            $"Project '{project.Name}' deleted", cancellationToken, projectId: project.Id);
 
         _db.Projects.Remove(project);
         await _db.SaveChangesAsync(cancellationToken);

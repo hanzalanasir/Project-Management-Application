@@ -81,7 +81,7 @@ public class ReassignTaskCommandHandler : IRequestHandler<ReassignTaskCommand, R
             entityType: "Task",
             entityId: task.Id.ToString(),
             changeSummary: $"Task '{task.Title}' reassigned from {previousAssigneeLabel} to {newAssigneeLabel}",
-            cancellationToken);
+            cancellationToken, projectId: task.ProjectId);
 
         try
         {

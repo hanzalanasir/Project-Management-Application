@@ -1,0 +1,29 @@
+<h3>Recent activity</h3>
+
+@if (loading()) {
+  <p class="state-message">Loading&hellip;</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (items().length === 0) {
+  <p class="state-message">No activity to show.</p>
+} @else {
+  <ul class="activity-list">
+    @for (entry of items(); track entry.id) {
+      <li class="activity-row">
+        <span class="activity-actor">{{ entry.actorName ?? 'System' }}</span>
+        <span class="activity-action">{{ entry.action }}</span>
+        <span class="activity-entity">{{ entry.entityType }} &middot; {{ entry.entityId }}</span>
+        <span class="activity-summary">{{ entry.changeSummary }}</span>
+        <span class="activity-timestamp">{{ entry.timestamp | date: 'short' }}</span>
+      </li>
+    }
+  </ul>
+
+  <mat-paginator
+    [length]="totalCount()"
+    [pageSize]="pageSize()"
+    [pageIndex]="pageIndex()"
+    [pageSizeOptions]="[20, 50, 100]"
+    (page)="onPage($event)">
+  </mat-paginator>
+}

@@ -216,6 +216,40 @@ against, with neither feature calling the other's handlers.
 
 See `specs/004-team/quickstart.md` for the full manual validation scenarios (V1–V16).
 
+## Dashboard module (005)
+
+Two `GET` endpoints, strictly read-only — no write verb exists under `/api/dashboard`, not even
+"mark activity as read". The dashboard aggregates over 001–004 and computes nothing of its own;
+every number is scoped **at the query source** (never fetch-then-filter), and an empty scope
+returns `200` with zeros rather than `403`/`404` — the dashboard names no resource, so "nothing to
+show" is a valid answer.
+
+| Method | Route | Notes |
+|---|---|---|
+| `GET` | `/api/dashboard/summary` | Role-scoped tiles (project/task counts by status, overdue, completion rate, blocked count, team size) plus the caller's own `personalTasks` slice. Fixed-N, no paging. |
+| `GET` | `/api/dashboard/activity` | Paginated recent-activity feed, read through `IActivityLogService.QueryScopedAsync` (never a direct `db.ActivityLogs` query). Default page size 20, clamped (not rejected) to a maximum of 100. |
+
+Values are computed **live per request** — there is no cache to invalidate. `overdueTaskCount` is
+`due_date < today AND status != Done`, evaluated in **UTC only**: the boundary is computed from
+`DateTimeOffset.UtcNow`, never the host's local clock, and **the timezone is fixed by design** —
+there is no `Dashboard:Timezone` configuration key, because a configurable one would let a
+deployment silently disagree with 006 Reports' parity requirement for the same metric.
+
+Configuration keys (`Dashboard:*` in `appsettings.json` or user-secrets):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Dashboard:Activity:DefaultPageSize` | `20` | Used when the caller omits `pageSize` |
+| `Dashboard:Activity:MaxPageSize` | `100` | Larger requested values are clamped, never rejected |
+| `Dashboard:OverdueBoundary` | (none) | The `due_date` comparison operator only — **not** a timezone setting |
+
+005 adds no table, column, or index of its own — it relies entirely on 002/003/004's existing
+indexes. (One migration, `AddActivityLogProjectId`, was added during 005's implementation, but it
+fixes a pre-existing scoping bug in 001's `ActivityLogService.QueryScopedAsync` rather than adding
+any dashboard-owned persistence — see `specs/005-dashboard/tasks.md` Phase 4 for the full writeup.)
+
+See `specs/005-dashboard/quickstart.md` for the full manual validation scenarios (V1–V16).
+
 ## Documentation
 
 - `docs/shared-contracts.md` — the cross-feature shared kernel (`Result<T>`, `CurrentUser`,

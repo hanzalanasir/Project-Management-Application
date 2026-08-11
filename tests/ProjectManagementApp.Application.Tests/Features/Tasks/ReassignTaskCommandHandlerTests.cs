@@ -68,7 +68,7 @@ public class ReassignTaskCommandHandlerTests : IAsyncLifetime
         var result = await handler.Handle(new ReassignTaskCommand(task.Id, assignee.Id, task.Version), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        await activityLog.Received(1).LogAsync(pm.Id, "TaskReassigned", "Task", task.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(pm.Id, "TaskReassigned", "Task", task.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>(), task.ProjectId);
     }
 
     [Fact]

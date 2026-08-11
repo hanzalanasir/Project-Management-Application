@@ -22,9 +22,13 @@ export const routes: Routes = [
     loadChildren: () => import('./features/team/team.routes').then(m => m.teamRoutes),
   },
   {
+    path: 'dashboard',
+    canActivate: [authGuard],
+    loadChildren: () => import('./features/dashboard/dashboard.routes').then(m => m.dashboardRoutes),
+  },
+  {
     path: '',
     pathMatch: 'full',
-    canActivate: [authGuard],
-    loadComponent: () => import('./features/home/home.component').then(m => m.HomeComponent),
+    redirectTo: 'dashboard',
   },
 ];

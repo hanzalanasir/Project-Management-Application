@@ -79,7 +79,7 @@ public class DeleteProjectCommandHandlerTests : IAsyncLifetime
         // proven here by checking the entity is still tracked/present at the moment LogAsync fires.
         var projectStillPresentWhenLogged = false;
         activityLog
-            .When(x => x.LogAsync(Arg.Any<Guid?>(), "ProjectDeleted", "Project", project.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>()))
+            .When(x => x.LogAsync(Arg.Any<Guid?>(), "ProjectDeleted", "Project", project.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>(), Arg.Any<Guid?>()))
             .Do(_ => projectStillPresentWhenLogged = db.Projects.Local.Any(p => p.Id == project.Id));
 
         var currentUser = Substitute.For<ICurrentUserService>();
@@ -90,7 +90,7 @@ public class DeleteProjectCommandHandlerTests : IAsyncLifetime
 
         result.IsSuccess.Should().BeTrue();
         projectStillPresentWhenLogged.Should().BeTrue();
-        await activityLog.Received(1).LogAsync(owner.Id, "ProjectDeleted", "Project", project.Id.ToString(), Arg.Is<string>(s => s!.Contains("Doomed")), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(owner.Id, "ProjectDeleted", "Project", project.Id.ToString(), Arg.Is<string>(s => s!.Contains("Doomed")), Arg.Any<CancellationToken>(), project.Id);
         (await db.Projects.AnyAsync(p => p.Id == project.Id)).Should().BeFalse();
     }
 }

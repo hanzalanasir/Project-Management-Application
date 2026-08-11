@@ -151,7 +151,7 @@ public class CreateTaskCommandHandlerTests
         result.Value!.Title.Should().Be("Draft rollout checklist");
         result.Value!.Status.Should().Be("ToDo");
         result.Value!.Priority.Should().Be("Medium");
-        await activityLog.Received(1).LogAsync(pm.Id, "TaskCreated", "Task", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(pm.Id, "TaskCreated", "Task", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>(), project.Id);
         await db.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

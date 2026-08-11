@@ -187,6 +187,10 @@ namespace ProjectManagementApp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("entity_type");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
                     b.Property<DateTimeOffset>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
@@ -196,6 +200,9 @@ namespace ProjectManagementApp.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ActorId")
                         .HasDatabaseName("ix_activity_logs_actor_id");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_activity_logs_project_id");
 
                     b.HasIndex("Timestamp")
                         .HasDatabaseName("ix_activity_logs_timestamp");

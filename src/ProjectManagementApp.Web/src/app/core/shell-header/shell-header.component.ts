@@ -17,12 +17,13 @@ import { AuthActions } from '../store/auth/auth.actions';
   template: `
     @if (user(); as u) {
       <mat-toolbar color="primary" class="shell-toolbar">
-        <a class="brand" routerLink="/projects">
+        <a class="brand" routerLink="/dashboard">
           <mat-icon>dashboard</mat-icon>
           <span>ProjectManagementApp</span>
         </a>
 
         <nav class="shell-nav">
+          <a mat-button routerLink="/dashboard" routerLinkActive="active-link">Dashboard</a>
           <a mat-button routerLink="/projects" routerLinkActive="active-link">Projects</a>
           <a mat-button routerLink="/tasks" routerLinkActive="active-link">Tasks</a>
           @if (u.role === 'Admin') {

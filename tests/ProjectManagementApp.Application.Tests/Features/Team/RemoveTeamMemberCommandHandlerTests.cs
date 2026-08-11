@@ -158,7 +158,7 @@ public class RemoveTeamMemberCommandHandlerTests
 
         result.IsSuccess.Should().BeTrue();
         db.TeamMembers.Received(1).Remove(Arg.Is<TeamMember>(m => m!.Id == membership.Id));
-        await activityLog.Received(1).LogAsync(pm.Id, "TeamMemberRemoved", "TeamMember", membership.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(pm.Id, "TeamMemberRemoved", "TeamMember", membership.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>(), project.Id);
         await db.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }

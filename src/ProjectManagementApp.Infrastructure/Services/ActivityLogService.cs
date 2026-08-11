@@ -16,7 +16,7 @@ public class ActivityLogService : IActivityLogService
     }
 
     public Task LogAsync(Guid? actorId, string action, string entityType, string entityId,
-        string changeSummary, CancellationToken ct)
+        string changeSummary, CancellationToken ct, Guid? projectId = null)
     {
         // Adds to the caller's unit of work; commits in the SAME SaveChangesAsync as the
         // triggering change (Constitution IV.4) — the caller is responsible for calling SaveChangesAsync.
@@ -28,7 +28,8 @@ public class ActivityLogService : IActivityLogService
             EntityType = entityType,
             EntityId = entityId,
             Timestamp = DateTimeOffset.UtcNow,
-            ChangeSummary = changeSummary
+            ChangeSummary = changeSummary,
+            ProjectId = projectId
         });
 
         return Task.CompletedTask;
@@ -41,10 +42,13 @@ public class ActivityLogService : IActivityLogService
 
         if (!scope.Unscoped)
         {
-            // Entries whose entity is one of the caller's visible projects (or belongs to one —
-            // callers pass the full visible-project id set as strings in EntityId's domain).
-            var visibleIds = scope.VisibleProjectIds.Select(id => id.ToString()).ToHashSet();
-            query = query.Where(a => visibleIds.Contains(a.EntityId));
+            // Scope by the ProjectId stamped at write time — NOT by comparing EntityId against
+            // visible-project ids (that only ever matched EntityType "Project" rows; every
+            // Task/TeamMember row's EntityId is the task/member's own id, never a project id).
+            // A row with no ProjectId (e.g. a User event) has no owning project and is therefore
+            // never visible to a scoped (non-Admin) reader.
+            var visibleProjectIds = scope.VisibleProjectIds.ToHashSet();
+            query = query.Where(a => a.ProjectId != null && visibleProjectIds.Contains(a.ProjectId.Value));
         }
 
         var totalCount = await query.CountAsync(ct);

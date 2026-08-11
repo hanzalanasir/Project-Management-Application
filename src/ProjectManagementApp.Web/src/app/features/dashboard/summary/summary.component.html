@@ -1,0 +1,82 @@
+<h2>Dashboard</h2>
+
+@if (loading()) {
+  <p class="state-message">Loading&hellip;</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (summary(); as data) {
+  <div class="tile-grid">
+    <div class="tile">
+      <span class="tile-label">Visible projects</span>
+      <span class="tile-value">{{ data.visibleProjectCount }}</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Overdue tasks</span>
+      <span class="tile-value">{{ data.overdueTaskCount }}</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Completion rate</span>
+      <span class="tile-value">{{ data.completionRate | percent: '1.0-0' }}</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Blocked tasks</span>
+      <span class="tile-value">{{ data.blockedTaskCount }}</span>
+    </div>
+    <div class="tile">
+      <span class="tile-label">Team members visible</span>
+      <span class="tile-value">{{ data.visibleTeamMemberCount }}</span>
+    </div>
+  </div>
+
+  @if (data.visibleProjectCount === 0) {
+    <p class="state-message">Nothing assigned to you yet — you have no visible projects.</p>
+  } @else {
+    <div class="chart-grid">
+      <div class="chart-card">
+        <h3>Projects by status</h3>
+        <canvas #projectsChart></canvas>
+        <ul class="chip-legend">
+          @for (entry of statusEntries(data.projectsByStatus); track entry.label) {
+            <li><span class="chip" [attr.data-status]="entry.label">{{ entry.label }}</span> {{ entry.count }}</li>
+          }
+        </ul>
+      </div>
+      <div class="chart-card">
+        <h3>Tasks by status</h3>
+        <canvas #tasksChart></canvas>
+        <ul class="chip-legend">
+          @for (entry of statusEntries(data.tasksByStatus); track entry.label) {
+            <li><span class="chip" [attr.data-status]="entry.label">{{ entry.label }}</span> {{ entry.count }}</li>
+          }
+        </ul>
+      </div>
+    </div>
+  }
+
+  <section class="my-work">
+    <h3>My work</h3>
+
+    @if (data.personalTasks.assignedTotal === 0) {
+      <p class="state-message">You have no tasks assigned.</p>
+    } @else {
+      <div class="tile-grid">
+        <div class="tile">
+          <span class="tile-label">Assigned to me</span>
+          <span class="tile-value">{{ data.personalTasks.assignedTotal }}</span>
+        </div>
+        <div class="tile">
+          <span class="tile-label">Overdue (mine)</span>
+          <span class="tile-value">{{ data.personalTasks.overdueCount }}</span>
+        </div>
+      </div>
+      <ul class="chip-legend">
+        @for (entry of statusEntries(data.personalTasks.byStatus); track entry.label) {
+          <li><span class="chip" [attr.data-status]="entry.label">{{ entry.label }}</span> {{ entry.count }}</li>
+        }
+      </ul>
+      <a routerLink="/tasks">View my tasks &rarr;</a>
+    }
+  </section>
+
+  <app-dashboard-activity-feed />
+}

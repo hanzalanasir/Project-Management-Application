@@ -114,7 +114,7 @@ public class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand, Resul
             entityType: "Task",
             entityId: task.Id.ToString(),
             changeSummary: $"Task '{task.Title}' created in project '{project.Name}'",
-            cancellationToken);
+            cancellationToken, projectId: task.ProjectId);
 
         await _db.SaveChangesAsync(cancellationToken);
 

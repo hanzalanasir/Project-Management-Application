@@ -118,6 +118,6 @@ public class UpdateTaskCommandHandlerTests : IAsyncLifetime
         result.IsSuccess.Should().BeTrue();
         result.Value!.Title.Should().Be("New Title");
         result.Value!.Priority.Should().Be("High");
-        await activityLog.Received(1).LogAsync(pm.Id, "TaskUpdated", "Task", task.Id.ToString(), Arg.Is<string>(s => s!.Contains("title") && s.Contains("priority")), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(pm.Id, "TaskUpdated", "Task", task.Id.ToString(), Arg.Is<string>(s => s!.Contains("title") && s.Contains("priority")), Arg.Any<CancellationToken>(), task.ProjectId);
     }
 }

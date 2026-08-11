@@ -65,7 +65,7 @@ public class DeleteTaskCommandHandlerTests : IAsyncLifetime
         result.IsSuccess.Should().BeFalse();
         result.Error!.Kind.Should().Be(ErrorKind.Forbidden);
         (await db.Tasks.AnyAsync(t => t.Id == task.Id)).Should().BeTrue();
-        await activityLog.DidNotReceive().LogAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.DidNotReceive().LogAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>(), Arg.Any<Guid?>());
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class DeleteTaskCommandHandlerTests : IAsyncLifetime
         // the same ordering precedent as DeleteProjectCommandHandlerTests (002).
         var taskStillPresentWhenLogged = false;
         activityLog
-            .When(x => x.LogAsync(Arg.Any<Guid?>(), "TaskDeleted", "Task", task.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>()))
+            .When(x => x.LogAsync(Arg.Any<Guid?>(), "TaskDeleted", "Task", task.Id.ToString(), Arg.Any<string>(), Arg.Any<CancellationToken>(), Arg.Any<Guid?>()))
             .Do(_ => taskStillPresentWhenLogged = db.Tasks.Local.Any(t => t.Id == task.Id));
 
         var handler = new DeleteTaskCommandHandler(db, accessPolicy, currentUser, activityLog);
@@ -96,7 +96,7 @@ public class DeleteTaskCommandHandlerTests : IAsyncLifetime
 
         result.IsSuccess.Should().BeTrue();
         taskStillPresentWhenLogged.Should().BeTrue();
-        await activityLog.Received(1).LogAsync(pm.Id, "TaskDeleted", "Task", task.Id.ToString(), Arg.Is<string>(s => s!.Contains("Doomed Task")), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(pm.Id, "TaskDeleted", "Task", task.Id.ToString(), Arg.Is<string>(s => s!.Contains("Doomed Task")), Arg.Any<CancellationToken>(), task.ProjectId);
         (await db.Tasks.AnyAsync(t => t.Id == task.Id)).Should().BeFalse();
     }
 }

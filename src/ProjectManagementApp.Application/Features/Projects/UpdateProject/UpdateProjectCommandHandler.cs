@@ -128,13 +128,13 @@ public class UpdateProjectCommandHandler : IRequestHandler<UpdateProjectCommand,
             ? $"Project '{project.Name}' updated — changed: {string.Join(", ", changedFields)}"
             : $"Project '{project.Name}' updated — no field changes";
 
-        await _activityLog.LogAsync(caller.UserId, nameof(AuditAction.ProjectUpdated), "Project", project.Id.ToString(), changeSummary, cancellationToken);
+        await _activityLog.LogAsync(caller.UserId, nameof(AuditAction.ProjectUpdated), "Project", project.Id.ToString(), changeSummary, cancellationToken, projectId: project.Id);
 
         if (transferringOwnership)
         {
             await _activityLog.LogAsync(
                 caller.UserId, nameof(AuditAction.ProjectOwnerChanged), "Project", project.Id.ToString(),
-                $"Owner changed from {previousOwnerEmail} to {newOwner!.Email}", cancellationToken);
+                $"Owner changed from {previousOwnerEmail} to {newOwner!.Email}", cancellationToken, projectId: project.Id);
         }
 
         try

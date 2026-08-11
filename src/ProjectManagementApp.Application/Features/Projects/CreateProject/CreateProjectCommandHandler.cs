@@ -94,7 +94,7 @@ public class CreateProjectCommandHandler : IRequestHandler<CreateProjectCommand,
             entityType: "Project",
             entityId: project.Id.ToString(),
             changeSummary: $"Project '{project.Name}' created, owned by {owner.Email}",
-            cancellationToken);
+            cancellationToken, projectId: project.Id);
 
         await _db.SaveChangesAsync(cancellationToken);
 

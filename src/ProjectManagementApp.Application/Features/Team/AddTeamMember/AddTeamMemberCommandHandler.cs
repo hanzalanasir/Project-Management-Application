@@ -104,7 +104,7 @@ public class AddTeamMemberCommandHandler : IRequestHandler<AddTeamMemberCommand,
             entityType: "TeamMember",
             entityId: member.Id.ToString(),
             changeSummary: $"User '{targetUser.Email}' added to project '{project.Name}'",
-            cancellationToken);
+            cancellationToken, projectId: project.Id);
 
         try
         {

@@ -32,7 +32,7 @@ public class RotationAtomicityTests : IAsyncLifetime
 
     private sealed class ThrowingActivityLogService : IActivityLogService
     {
-        public Task LogAsync(Guid? actorId, string action, string entityType, string entityId, string changeSummary, CancellationToken ct)
+        public Task LogAsync(Guid? actorId, string action, string entityType, string entityId, string changeSummary, CancellationToken ct, Guid? projectId = null)
             => throw new InvalidOperationException("Simulated failure mid-rotation.");
 
         public Task<PagedResult<ActivityEntry>> QueryScopedAsync(ActivityScope scope, int page, int pageSize, CancellationToken ct)

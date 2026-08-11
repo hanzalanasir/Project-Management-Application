@@ -79,7 +79,7 @@ public class UpdateTaskStatusCommandHandler : IRequestHandler<UpdateTaskStatusCo
             entityType: "Task",
             entityId: task.Id.ToString(),
             changeSummary: $"Task '{task.Title}' status changed from {previousStatus} to {newStatus}",
-            cancellationToken);
+            cancellationToken, projectId: task.ProjectId);
 
         try
         {

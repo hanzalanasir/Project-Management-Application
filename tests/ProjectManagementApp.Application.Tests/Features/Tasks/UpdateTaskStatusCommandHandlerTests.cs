@@ -95,7 +95,7 @@ public class UpdateTaskStatusCommandHandlerTests : IAsyncLifetime
         await activityLog.Received(1).LogAsync(
             assignee.Id, "TaskStatusChanged", "Task", task.Id.ToString(),
             Arg.Is<string>(s => s!.Contains("ToDo") && s.Contains("Done")),
-            Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>(), task.ProjectId);
     }
 
     [Fact]

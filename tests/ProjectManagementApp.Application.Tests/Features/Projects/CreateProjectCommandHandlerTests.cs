@@ -57,7 +57,7 @@ public class CreateProjectCommandHandlerTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.Owner.Id.Should().Be(pm.Id);
-        await activityLog.Received(1).LogAsync(pm.Id, "ProjectCreated", "Project", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(pm.Id, "ProjectCreated", "Project", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>(), Arg.Any<Guid?>());
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class CreateProjectCommandHandlerTests
 
         result.IsSuccess.Should().BeFalse();
         result.Error!.Kind.Should().Be(ErrorKind.Validation);
-        await activityLog.DidNotReceive().LogAsync(Arg.Any<Guid?>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.DidNotReceive().LogAsync(Arg.Any<Guid?>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>(), Arg.Any<Guid?>());
     }
 
     [Fact]

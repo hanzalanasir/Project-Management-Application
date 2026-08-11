@@ -87,7 +87,7 @@ public class UpdateTaskCommandHandler : IRequestHandler<UpdateTaskCommand, Resul
             ? $"Task '{task.Title}' updated — changed: {string.Join(", ", changedFields)}"
             : $"Task '{task.Title}' updated — no field changes";
 
-        await _activityLog.LogAsync(caller.UserId, nameof(AuditAction.TaskUpdated), "Task", task.Id.ToString(), changeSummary, cancellationToken);
+        await _activityLog.LogAsync(caller.UserId, nameof(AuditAction.TaskUpdated), "Task", task.Id.ToString(), changeSummary, cancellationToken, projectId: task.ProjectId);
 
         try
         {

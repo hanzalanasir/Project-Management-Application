@@ -177,7 +177,7 @@ public class AddTeamMemberCommandHandlerTests
         result.Value!.UserId.Should().Be(target.Id);
         result.Value!.Role.Should().Be("TeamMember");
         db.TeamMembers.Received(1).Add(Arg.Is<TeamMember>(m => m!.ProjectId == project.Id && m.UserId == target.Id && m.AddedBy == pm.Id));
-        await activityLog.Received(1).LogAsync(pm.Id, "TeamMemberAdded", "TeamMember", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await activityLog.Received(1).LogAsync(pm.Id, "TeamMemberAdded", "TeamMember", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>(), project.Id);
         await db.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 }
