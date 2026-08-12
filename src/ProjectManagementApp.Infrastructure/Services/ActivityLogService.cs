@@ -36,7 +36,9 @@ public class ActivityLogService : IActivityLogService
     }
 
     public async Task<PagedResult<ActivityEntry>> QueryScopedAsync(
-        ActivityScope scope, int page, int pageSize, CancellationToken ct)
+        ActivityScope scope, int page, int pageSize, CancellationToken ct,
+        DateTimeOffset? from = null, DateTimeOffset? to = null,
+        Guid? projectId = null, string? entityType = null, Guid? actorId = null)
     {
         var query = _db.ActivityLogs.AsNoTracking().AsQueryable();
 
@@ -49,6 +51,34 @@ public class ActivityLogService : IActivityLogService
             // never visible to a scoped (non-Admin) reader.
             var visibleProjectIds = scope.VisibleProjectIds.ToHashSet();
             query = query.Where(a => a.ProjectId != null && visibleProjectIds.Contains(a.ProjectId.Value));
+        }
+
+        // Every filter narrows the SAME scoped predicate — a named projectId still has to pass
+        // the scope check above first, which is what makes a named out-of-scope projectId simply
+        // filter down to zero rows rather than ever widening what a caller can see.
+        if (from is not null)
+        {
+            query = query.Where(a => a.Timestamp >= from.Value);
+        }
+
+        if (to is not null)
+        {
+            query = query.Where(a => a.Timestamp <= to.Value);
+        }
+
+        if (projectId is not null)
+        {
+            query = query.Where(a => a.ProjectId == projectId.Value);
+        }
+
+        if (entityType is not null)
+        {
+            query = query.Where(a => a.EntityType == entityType);
+        }
+
+        if (actorId is not null)
+        {
+            query = query.Where(a => a.ActorId == actorId.Value);
         }
 
         var totalCount = await query.CountAsync(ct);

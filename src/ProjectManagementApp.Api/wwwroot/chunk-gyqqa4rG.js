@@ -1,1 +1,0 @@
-var t=[{path:`:projectId`,loadComponent:()=>import(`./chunk-Dkp-u4mz.js`).then(o=>o.RosterComponent)}];export{t as teamRoutes};

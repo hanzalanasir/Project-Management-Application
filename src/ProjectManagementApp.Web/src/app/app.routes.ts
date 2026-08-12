@@ -27,6 +27,11 @@ export const routes: Routes = [
     loadChildren: () => import('./features/dashboard/dashboard.routes').then(m => m.dashboardRoutes),
   },
   {
+    path: 'reports',
+    canActivate: [authGuard],
+    loadChildren: () => import('./features/reports/reports.routes').then(m => m.reportsRoutes),
+  },
+  {
     path: '',
     pathMatch: 'full',
     redirectTo: 'dashboard',

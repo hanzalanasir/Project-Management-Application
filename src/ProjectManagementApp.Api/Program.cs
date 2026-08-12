@@ -59,6 +59,7 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<ListProjectsOperationFilter>();
     options.SchemaFilter<TaskRequestSchemaFilter>();
     options.OperationFilter<ListTasksOperationFilter>();
+    options.OperationFilter<ReportsOperationFilter>();
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -68,6 +69,7 @@ builder.Services.Configure<ProjectManagementApp.Application.Common.Options.Proje
 builder.Services.Configure<ProjectManagementApp.Application.Common.Options.TasksOptions>(builder.Configuration.GetSection("Tasks"));
 builder.Services.Configure<ProjectManagementApp.Application.Common.Options.TeamOptions>(builder.Configuration.GetSection("Team"));
 builder.Services.Configure<ProjectManagementApp.Application.Common.Options.DashboardOptions>(builder.Configuration.GetSection("Dashboard"));
+builder.Services.Configure<ProjectManagementApp.Application.Common.Options.ReportsOptions>(builder.Configuration.GetSection("Reports"));
 
 // CSRF protection for the cookie-authenticated /refresh and /logout endpoints (FR-016) — see
 // Common/CsrfProtection.cs for why this is a custom double-submit-cookie check rather than

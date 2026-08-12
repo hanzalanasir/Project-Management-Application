@@ -1,0 +1,44 @@
+<h1>Task Completion</h1>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (report(); as data) {
+  <p class="meta">
+    {{ data.window.from }} – {{ data.window.to }} ({{ data.timeZone }}) · grouped by {{ data.groupBy }} ·
+    scope: {{ data.scope }}
+  </p>
+
+  <div class="export-controls">
+    <button type="button" [disabled]="exporting()" (click)="exportPdf()">Export PDF</button>
+    <button type="button" [disabled]="exporting()" (click)="exportCsv()">Export CSV</button>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas #trendChart></canvas>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Period</th>
+        <th>Completed</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (bucket of data.buckets; track bucket.periodStart) {
+        <tr>
+          <td>{{ bucket.periodLabel }}</td>
+          <td>{{ bucket.completedCount }}</td>
+        </tr>
+      }
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>Total</td>
+        <td>{{ data.totals.completed }}</td>
+      </tr>
+    </tfoot>
+  </table>
+}

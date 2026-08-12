@@ -179,8 +179,8 @@ paths:
         - { name: projectId,  in: query, schema: { type: string, format: uuid } }
         - { name: entityType, in: query, schema: { type: string, enum: [User, Project, Task, TeamMember, Report] } }
         - { name: actorId,    in: query, schema: { type: string, format: uuid } }
-        - { name: page,       in: query, schema: { type: integer, minimum: 1, default: 1 } }
-        - { name: pageSize,   in: query, description: Clamped to the maximum, never rejected., schema: { type: integer, minimum: 1, default: 20, maximum: 100 } }
+        - { name: page,       in: query, schema: { type: integer, format: int32, minimum: 1, default: 1 } }
+        - { name: pageSize,   in: query, description: 'Clamped to the maximum, never rejected.', schema: { type: integer, format: int32, minimum: 1, default: 20, maximum: 100 } }
       responses:
         '200':
           description: A scoped page of activity. One `ReportGenerated` audit row was written.
@@ -344,9 +344,9 @@ components:
       type: object
       required: [periodStart, periodLabel, completedCount]
       properties:
-        periodStart:    { type: string, format: date, description: Bucket start (UTC), per `groupBy`. }
+        periodStart:    { type: string, format: date, description: 'Bucket start (UTC), per `groupBy`.' }
         periodLabel:    { type: string, example: 2026-W30 }
-        completedCount: { type: integer, minimum: 0, description: Tasks whose `closed_at` falls in this bucket, in scope. Re-opened tasks excluded. }
+        completedCount: { type: integer, minimum: 0, description: 'Tasks whose `closed_at` falls in this bucket, in scope. Re-opened tasks excluded.' }
 
     TaskCompletionReport:
       allOf:
@@ -371,10 +371,10 @@ components:
       properties:
         userId:       { type: string, format: uuid }
         fullName:     { type: string }
-        isActive:     { type: boolean, description: Inactive members with in-window throughput are still shown, flagged. }
-        throughput:   { type: integer, minimum: 0, description: Tasks whose `closed_at` is in the window, assigned to this member, in scope. }
-        workload:     { type: integer, minimum: 0, description: Tasks currently assigned and **not** Done. }
-        overdueCount: { type: integer, minimum: 0, description: Assigned, open, `due_date < today (UTC)`. }
+        isActive:     { type: boolean, description: 'Inactive members with in-window throughput are still shown, flagged.' }
+        throughput:   { type: integer, minimum: 0, description: 'Tasks whose `closed_at` is in the window, assigned to this member, in scope.' }
+        workload:     { type: integer, minimum: 0, description: 'Tasks currently assigned and **not** Done.' }
+        overdueCount: { type: integer, minimum: 0, description: 'Assigned, open, `due_date < today (UTC)`.' }
 
     TeamPerformanceReport:
       allOf:

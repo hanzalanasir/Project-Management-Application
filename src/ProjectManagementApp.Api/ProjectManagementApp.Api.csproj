@@ -46,6 +46,8 @@
     <Exec Command="oasdiff breaking &quot;$(MSBuildThisFileDirectory)../../docs/contracts/team.v1.yaml&quot; &quot;$(MSBuildThisFileDirectory)../../artifacts/openapi/generated.json&quot; --prefix-base /api --fail-on ERR" WorkingDirectory="$(MSBuildThisFileDirectory)../.." />
     <!-- 005: same generated.json, fifth hand-authored contract diffed against it. -->
     <Exec Command="oasdiff breaking &quot;$(MSBuildThisFileDirectory)../../docs/contracts/dashboard.v1.yaml&quot; &quot;$(MSBuildThisFileDirectory)../../artifacts/openapi/generated.json&quot; --prefix-base /api --fail-on ERR" WorkingDirectory="$(MSBuildThisFileDirectory)../.." />
+    <!-- 006: same generated.json, sixth (final) hand-authored contract diffed against it. -->
+    <Exec Command="oasdiff breaking &quot;$(MSBuildThisFileDirectory)../../docs/contracts/reports.v1.yaml&quot; &quot;$(MSBuildThisFileDirectory)../../artifacts/openapi/generated.json&quot; --prefix-base /api --fail-on ERR" WorkingDirectory="$(MSBuildThisFileDirectory)../.." />
   </Target>
 
 </Project>

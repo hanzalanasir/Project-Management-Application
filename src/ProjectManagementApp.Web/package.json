@@ -11,7 +11,8 @@
     "generate:api:projects": "openapi-typescript ../../docs/contracts/projects.v1.yaml -o src/app/core/api/generated/projects.v1.d.ts",
     "generate:api:tasks": "openapi-typescript ../../docs/contracts/tasks.v1.yaml -o src/app/core/api/generated/tasks.v1.d.ts",
     "generate:api:team": "openapi-typescript ../../docs/contracts/team.v1.yaml -o src/app/core/api/generated/team.v1.d.ts",
-    "generate:api:dashboard": "openapi-typescript ../../docs/contracts/dashboard.v1.yaml -o src/app/core/api/generated/dashboard.v1.d.ts"
+    "generate:api:dashboard": "openapi-typescript ../../docs/contracts/dashboard.v1.yaml -o src/app/core/api/generated/dashboard.v1.d.ts",
+    "generate:api:reports": "openapi-typescript ../../docs/contracts/reports.v1.yaml -o src/app/core/api/generated/reports.v1.d.ts"
   },
   "private": true,
   "packageManager": "npm@11.12.1",
@@ -29,6 +30,8 @@
     "@ngrx/store": "^22.0.0-beta.1",
     "@ngrx/store-devtools": "^22.0.0-beta.1",
     "chart.js": "^4.5.1",
+    "jspdf": "^4.2.1",
+    "papaparse": "^5.5.4",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -36,6 +39,7 @@
     "@angular/build": "^22.0.7",
     "@angular/cli": "^22.0.7",
     "@angular/compiler-cli": "^22.0.0",
+    "@types/papaparse": "^5.5.2",
     "jsdom": "^28.0.0",
     "openapi-typescript": "^7.13.0",
     "prettier": "^3.8.1",

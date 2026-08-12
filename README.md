@@ -250,6 +250,44 @@ any dashboard-owned persistence — see `specs/005-dashboard/tasks.md` Phase 4 f
 
 See `specs/005-dashboard/quickstart.md` for the full manual validation scenarios (V1–V16).
 
+## Reports module (006)
+
+Five `GET` endpoints, strictly read-only over 001–004 with **one deliberate exception**: each of the
+four data reports (all but `catalog`) writes exactly one `ReportGenerated` row to `activity_logs` as
+the last step of its handler — the single write in an otherwise read-only feature. Unlike 005's
+Dashboard, a report can **name** a specific project or user, so `403` is a real, expected outcome
+here (naming an out-of-scope resource invites a `403`; not naming one cannot).
+
+| Method | Route | Notes |
+|---|---|---|
+| `GET` | `/api/reports/catalog` | Self-describing report catalog — parameters, required flags, formats. Drives the frontend's dynamic forms. **Not audited.** |
+| `GET` | `/api/reports/project-progress` | Completion %, open/closed/overdue counts, projected completion date, one row per in-scope project. |
+| `GET` | `/api/reports/task-completion` | Completion trend bucketed by `day`/`week`/`month`, zero-filled and continuous. |
+| `GET` | `/api/reports/team-performance` | Per-member throughput/workload/overdue. A TeamMember always receives exactly **their own row** — never a 403 — even when naming a colleague's `userId` (least-privilege: a 403 here would leak that the colleague exists and is out of scope). Admin/PM naming an out-of-scope `userId` **does** 403. |
+| `GET` | `/api/reports/activity` | Filtered, paginated activity excerpt, read exclusively through `IActivityLogService.QueryScopedAsync` (never a direct `db.ActivityLogs` query). Guarded by `Reports:LargeReportRowThreshold`: a window whose result set would exceed it returns `422` **before** anything is materialized. |
+
+**Export is entirely client-side.** PDF (jsPDF) and CSV (papaparse) render from the JSON a report
+request already returned — there is no `?format` parameter and no export route anywhere on
+`ReportsController` (enforced by `ExportArchitectureTests`; `docs/contracts/reports.v1.yaml` is the
+source of truth, checked by the same `CheckApiContract` gate as every other module).
+
+Every metric that also appears on 005's Dashboard (`overdueTaskCount` / `overdueTasks`) is required
+to be **identical for the same caller** — same scope predicates, same `MetricDefinitions`, same
+fixed-UTC boundary — proven by `DashboardReportParityTests` (NFR-002).
+
+Configuration keys (`Reports:*` in `appsettings.json` or user-secrets):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Reports:MaxWindowDays` | `366` | Largest `from`–`to` span accepted; a wider window is `400`, not silently clamped |
+| `Reports:LargeReportRowThreshold` | `10000` | Above this estimated row count, Activity Report returns `422` instead of materializing the page |
+| `Reports:AuditOnGeneration` | `true` | **Should stay `true`** — the one deliberate write this feature makes; disabling it removes the audit trail for report generation |
+
+006 adds **no migration, no new table** (`ReportArtifact`/`ReportSchedule` were considered and
+rejected — reports are transient and re-generated on demand, scheduling is out of scope).
+
+See `specs/006-reports/quickstart.md` for the full manual validation scenarios (V1–V15).
+
 ## Documentation
 
 - `docs/shared-contracts.md` — the cross-feature shared kernel (`Result<T>`, `CurrentUser`,
@@ -261,3 +299,5 @@ See `specs/005-dashboard/quickstart.md` for the full manual validation scenarios
 - `specs/002-projects/quickstart.md` — manual validation scenarios (V1–V16).
 - `specs/003-tasks/quickstart.md` — manual validation scenarios (V1–V17), incl. the graduated-model proof.
 - `specs/004-team/quickstart.md` — manual validation scenarios (V1–V16), incl. the concurrency-race and cross-feature proofs.
+- `specs/005-dashboard/quickstart.md` — manual validation scenarios (V1–V16).
+- `specs/006-reports/quickstart.md` — manual validation scenarios (V1–V15), incl. the Dashboard/Reports parity and contract-drift-gate proofs.

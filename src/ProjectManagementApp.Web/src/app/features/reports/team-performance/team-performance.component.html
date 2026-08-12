@@ -1,0 +1,63 @@
+<h1>Team Performance</h1>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (report(); as data) {
+  <p class="meta">{{ data.window.from }} – {{ data.window.to }} ({{ data.timeZone }}) · scope: {{ data.scope }}</p>
+
+  @if (data.rows.length > 0) {
+    <div class="export-controls">
+      <button type="button" [disabled]="exporting()" (click)="exportPdf()">Export PDF</button>
+      <button type="button" [disabled]="exporting()" (click)="exportCsv()">Export CSV</button>
+    </div>
+  }
+
+  @if (isTeamMember) {
+    @if (data.rows.length > 0) {
+      <div class="self-card">
+        <h2>{{ data.rows[0].fullName }}</h2>
+        <dl>
+          <dt>Throughput</dt>
+          <dd>{{ data.rows[0].throughput }}</dd>
+          <dt>Workload</dt>
+          <dd>{{ data.rows[0].workload }}</dd>
+          <dt>Overdue</dt>
+          <dd>{{ data.rows[0].overdueCount }}</dd>
+        </dl>
+      </div>
+    }
+  } @else {
+    @if (data.rows.length === 0) {
+      <p>No visible team members for this window.</p>
+    } @else {
+      <div class="chart-wrap">
+        <canvas #comparisonChart></canvas>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Active</th>
+            <th>Throughput</th>
+            <th>Workload</th>
+            <th>Overdue</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of data.rows; track row.userId) {
+            <tr [class.inactive]="!row.isActive">
+              <td>{{ row.fullName }}</td>
+              <td>{{ row.isActive ? 'Yes' : 'No' }}</td>
+              <td>{{ row.throughput }}</td>
+              <td>{{ row.workload }}</td>
+              <td>{{ row.overdueCount }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  }
+}

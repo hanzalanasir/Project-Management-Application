@@ -1,0 +1,60 @@
+<h1>Project Progress</h1>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (report(); as data) {
+  <p class="meta">
+    {{ data.window.from }} – {{ data.window.to }} ({{ data.timeZone }}) · scope: {{ data.scope }} · generated
+    {{ data.generatedAt | date: 'short' }}
+  </p>
+
+  @if (data.rows.length === 0) {
+    <p>No visible projects for this window.</p>
+  } @else {
+    <div class="export-controls">
+      <button type="button" [disabled]="exporting()" (click)="exportPdf()">Export PDF</button>
+      <button type="button" [disabled]="exporting()" (click)="exportCsv()">Export CSV</button>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas #progressChart></canvas>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Status</th>
+          <th>Total</th>
+          <th>Open</th>
+          <th>Closed</th>
+          <th>Overdue</th>
+          <th>Completion %</th>
+          <th>Projected completion</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of data.rows; track row.projectId) {
+          <tr>
+            <td>{{ row.projectName }}</td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.totalTasks }}</td>
+            <td>{{ row.openTasks }}</td>
+            <td>{{ row.closedTasks }}</td>
+            <td>{{ row.overdueTasks }}</td>
+            <td>{{ row.completionPercent | number: '1.0-2' }}%</td>
+            <td>{{ row.projectedCompletion ?? '—' }}</td>
+          </tr>
+        }
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="6">{{ data.totals.projects }} project(s)</td>
+          <td colspan="2">avg {{ data.totals.avgCompletionPercent | number: '1.0-2' }}%</td>
+        </tr>
+      </tfoot>
+    </table>
+  }
+}

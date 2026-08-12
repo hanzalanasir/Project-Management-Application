@@ -1,0 +1,51 @@
+<h1>Activity</h1>
+
+@if (loading()) {
+  <p>Loading…</p>
+} @else if (tooLarge()) {
+  <p class="narrow-prompt">
+    This window has too much activity to display. <strong>Narrow the date range</strong> (or add an
+    entity type / actor filter) and try again.
+  </p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else if (report(); as data) {
+  <p class="meta">
+    {{ data.window.from }} – {{ data.window.to }} ({{ data.timeZone }}) · scope: {{ data.scope }} ·
+    {{ data.totalCount }} total
+  </p>
+
+  <div class="export-controls">
+    <button type="button" [disabled]="exporting()" (click)="exportPdf()">Export PDF</button>
+    <button type="button" [disabled]="exporting()" (click)="exportCsv()">Export CSV</button>
+  </div>
+
+  @if (data.items.length === 0) {
+    <p>No activity in this window.</p>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Actor</th>
+          <th>Action</th>
+          <th>Entity</th>
+          <th>Summary</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of data.items; track item.id) {
+          <tr>
+            <td>{{ item.timestamp }}</td>
+            <td>{{ item.actorName ?? 'System' }}</td>
+            <td>{{ item.action }}</td>
+            <td>{{ item.entityType }}</td>
+            <td>{{ item.changeSummary }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <p class="paging">Page {{ data.page }} of {{ data.totalPages }}</p>
+  }
+}

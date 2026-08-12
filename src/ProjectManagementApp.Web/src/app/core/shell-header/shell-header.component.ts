@@ -26,6 +26,7 @@ import { AuthActions } from '../store/auth/auth.actions';
           <a mat-button routerLink="/dashboard" routerLinkActive="active-link">Dashboard</a>
           <a mat-button routerLink="/projects" routerLinkActive="active-link">Projects</a>
           <a mat-button routerLink="/tasks" routerLinkActive="active-link">Tasks</a>
+          <a mat-button routerLink="/reports" routerLinkActive="active-link">Reports</a>
           @if (u.role === 'Admin') {
             <a mat-button routerLink="/auth/admin-users" routerLinkActive="active-link">Users</a>
           }

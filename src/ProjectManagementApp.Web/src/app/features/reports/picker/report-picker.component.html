@@ -1,0 +1,43 @@
+<h1>Reports</h1>
+
+@if (loading()) {
+  <p>Loading the report catalog…</p>
+} @else if (error()) {
+  <p class="error">{{ error() }}</p>
+} @else {
+  <div class="catalog">
+    @for (descriptor of descriptors(); track descriptor.type) {
+      <mat-card class="descriptor" [class.selected]="selected()?.type === descriptor.type">
+        <button type="button" class="descriptor-select" (click)="selectReport(descriptor)">
+          <h2>{{ descriptor.title }}</h2>
+          @if (descriptor.note) {
+            <span class="note">{{ descriptor.note }}</span>
+          }
+        </button>
+      </mat-card>
+    }
+  </div>
+
+  @if (selected() && form) {
+    <mat-card class="param-form">
+      <h2>{{ selected()!.title }} parameters</h2>
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        @for (parameter of selected()!.parameters; track parameter.name) {
+          <mat-form-field appearance="outline">
+            <mat-label>{{ parameter.name }}{{ parameter.required ? ' *' : '' }}</mat-label>
+            @if (optionsFor(parameter.type); as options) {
+              <mat-select [formControlName]="parameter.name">
+                @for (option of options; track option) {
+                  <mat-option [value]="option">{{ option }}</mat-option>
+                }
+              </mat-select>
+            } @else {
+              <input matInput [type]="inputTypeFor(parameter.type)" [formControlName]="parameter.name" />
+            }
+          </mat-form-field>
+        }
+        <button mat-flat-button color="primary" type="submit">Run report</button>
+      </form>
+    </mat-card>
+  }
+}
