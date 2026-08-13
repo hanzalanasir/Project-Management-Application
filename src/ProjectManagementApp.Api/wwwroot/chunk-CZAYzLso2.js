@@ -1,0 +1,197 @@
+import{n as s,t as r}from"./chunk-C9yOwMO6.js";import{C as Gc,Cr as tw,Ct as TE,D as HD,E as Gv,Gr as zE,Hr as ye,I as JD,K as ME,Kr as zc,Mn as iy,Mr as wE,Mt as Up,Nr as wi$1,On as ih,Pt as Wa,Rn as kn,S as GD,Sn as gr,Sr as tu,St as T$1,Tn as hg,Un as mh,Vn as mD,Wt as Yt$1,Xt as Zp,a as AE,ar as qe,dn as e1,dr as rD,dt as Q,fr as rs,ft as QE,h as Dv,hn as fg,ht as RI,i as A,jt as Uo,kn as ir,kt as Uc,l as Bp,m as Dr,n as $p,nn as ae,nt as Nu,o as Ae,ot as Op,pr as rw,qr as zp,rt as OI,s as Ag,un as dh,ut as Pp,v as Er,vn as gD,wr as uD,xn as gh,xt as Su,zt as Xp}from"./chunk-CXUl5D6b.js";import{_ as je,a as Ea,g as ir$1,l as Xo,x as we$1}from"./chunk-BO_m31o8.js";import"./chunk-CUUqB6nv.js";import{s as Z}from"./chunk-CH_E2COh.js";import{B as z,D as kn$1,F as nr,N as mn,O as l,R as vn,S as ar,V as ze,_ as Yn,d as St,j as lt,m as Ve,r as Dt,t as Bt}from"./chunk-DUInHNO1.js";import{D as re,I as Ye,S as j,_ as Vt,d as $,f as $t$1,g as M,h as Kt$1,l as ni$1,m as Ht,p as B,q as f,s as We,t as G,u as vt,w as pe,x as gt,y as at}from"./main-OOXSKVU2.js";import{_ as yn,a as He,c as Vn,d as bn,f as fe$1,l as Zt$1,m as vn$1,n as Cn,o as Kt$2,p as rt,r as Dn,t as $t$2}from"./chunk-DMCvKZKI.js";import{n as Pe,t as Be}from"./chunk-CuNzQJKo.js";import{t as _}from"./chunk-oJWvu22Q.js";import{t as c}from"./chunk-CTn-n7jY.js";import"./chunk-D5fGMIDn.js";import{a as Ut,c as Xt$1,d as qt$1,i as Qt$1,l as Yt$2,n as Gt,o as Vt$1,r as Kt$3,s as Wt$1,t as $t$3,u as Zt$2}from"./chunk-DI2SXHlY.js";import{t as A$1}from"./chunk--wYASGyN.js";function ti(t,n){}var T=class{viewContainerRef;injector;id;role=`dialog`;panelClass=``;hasBackdrop=!0;backdropClass=``;disableClose=!1;closePredicate;width=``;height=``;minWidth;minHeight;maxWidth;maxHeight;positionStrategy;data=null;direction;ariaDescribedBy=null;ariaLabelledBy=null;ariaLabel=null;ariaModal=!1;autoFocus=`first-tabbable`;restoreFocus=!0;scrollStrategy;closeOnNavigation=!0;closeOnDestroy=!0;closeOnOverlayDetachments=!0;disableAnimations=!1;providers;container;templateContext;bindings};var we=(()=>{class t extends j{_elementRef=T$1(Dr);_focusTrapFactory=T$1(ze);_config;_interactivityChecker=T$1(vn);_ngZone=T$1(Ae);_focusMonitor=T$1(lt);_renderer=T$1(Wa);_changeDetectorRef=T$1(e1);_injector=T$1(ye);_platform=T$1(l);_document=T$1(ir);_portalOutlet;_focusTrapped=new Q;_focusTrap=null;_elementFocusedBeforeDialogWasOpened=null;_closeInteractionType=null;_ariaLabelledByQueue=[];_isDestroyed=!1;constructor(){super(),this._config=T$1(T,{optional:!0})||new T,this._config.ariaLabelledBy&&this._ariaLabelledByQueue.push(this._config.ariaLabelledBy)}_addAriaLabelledBy(e){this._ariaLabelledByQueue.push(e),this._changeDetectorRef.markForCheck()}_removeAriaLabelledBy(e){let i=this._ariaLabelledByQueue.indexOf(e);i>-1&&(this._ariaLabelledByQueue.splice(i,1),this._changeDetectorRef.markForCheck())}_contentAttached(){this._initializeFocusTrap(),this._captureInitialFocus()}_captureInitialFocus(){this._trapFocus()}ngOnDestroy(){this._focusTrapped.complete(),this._isDestroyed=!0,this._restoreFocus()}attachComponentPortal(e){this._portalOutlet.hasAttached();let i=this._portalOutlet.attachComponentPortal(e);return this._contentAttached(),i}attachTemplatePortal(e){this._portalOutlet.hasAttached();let i=this._portalOutlet.attachTemplatePortal(e);return this._contentAttached(),i}attachDomPortal=e=>{this._portalOutlet.hasAttached();let i=this._portalOutlet.attachDomPortal(e);return this._contentAttached(),i};_recaptureFocus(){this._containsFocus()||this._trapFocus()}_forceFocus(e,i){this._interactivityChecker.isFocusable(e)||(e.tabIndex=-1,this._ngZone.runOutsideAngular(()=>{let o=()=>{r(),p(),e.removeAttribute(`tabindex`)},r=this._renderer.listen(e,`blur`,o),p=this._renderer.listen(e,`mousedown`,o)})),e.focus(i)}_focusByCssSelector(e,i){let o=this._elementRef.nativeElement.querySelector(e);o&&this._forceFocus(o,i)}_trapFocus(e){this._isDestroyed||Dv(()=>{let i=this._elementRef.nativeElement;switch(this._config.autoFocus){case!1:case`dialog`:this._containsFocus()||i.focus(e);break;case!0:case`first-tabbable`:this._focusTrap?.focusInitialElement(e)||this._focusDialogContainer(e);break;case`first-heading`:this._focusByCssSelector(`h1, h2, h3, h4, h5, h6, [role="heading"]`,e);break;default:this._focusByCssSelector(this._config.autoFocus,e);break}this._focusTrapped.next()},{injector:this._injector})}_restoreFocus(){let e=this._config.restoreFocus,i=null;if(typeof e==`string`?i=this._document.querySelector(e):typeof e==`boolean`?i=e?this._elementFocusedBeforeDialogWasOpened:null:e&&(i=e),this._config.restoreFocus&&i&&typeof i.focus==`function`){let o=Dt(),r=this._elementRef.nativeElement;(!o||o===this._document.body||o===r||r.contains(o))&&(this._focusMonitor?(this._focusMonitor.focusVia(i,this._closeInteractionType),this._closeInteractionType=null):i.focus())}this._focusTrap&&this._focusTrap.destroy()}_focusDialogContainer(e){this._elementRef.nativeElement.focus?.(e)}_containsFocus(){let e=this._elementRef.nativeElement,i=Dt();return e===i||e.contains(i)}_initializeFocusTrap(){this._platform.isBrowser&&(this._focusTrap=this._focusTrapFactory.create(this._elementRef.nativeElement),this._document&&(this._elementFocusedBeforeDialogWasOpened=Dt()))}static ɵfac=function(i){return new(i||t)};static ɵcmp=wE({type:t,selectors:[[`cdk-dialog-container`]],viewQuery:function(i,o){if(i&1&&Xp(pe,7),i&2){let r;gD(r=mD())&&(o._portalOutlet=r.first)}},hostAttrs:[`tabindex`,`-1`,1,`cdk-dialog-container`],hostVars:6,hostBindings:function(i,o){i&2&&Bp(`id`,o._config.id||null)(`role`,o._config.role)(`aria-modal`,o._config.ariaModal)(`aria-labelledby`,o._config.ariaLabel?null:o._ariaLabelledByQueue[0])(`aria-label`,o._config.ariaLabel)(`aria-describedby`,o._config.ariaDescribedBy||null)},features:[Op],decls:1,vars:0,consts:[[`cdkPortalOutlet`,``]],template:function(i,o){i&1&&Pp(0,ti,0,0,`ng-template`,0)},dependencies:[pe],styles:[`.cdk-dialog-container {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  max-height: inherit;
+}
+`],encapsulation:2,changeDetection:1})}return t})();var E=class{overlayRef;config;componentInstance=null;componentRef=null;containerInstance;disableClose;closed=new Q;backdropClick;keydownEvents;outsidePointerEvents;id;_detachSubscription;constructor(n,e){this.overlayRef=n,this.config=e,this.disableClose=e.disableClose,this.backdropClick=n.backdropClick(),this.keydownEvents=n.keydownEvents(),this.outsidePointerEvents=n.outsidePointerEvents(),this.id=e.id,this.keydownEvents.subscribe(i=>{i.keyCode===27&&!this.disableClose&&!Ve(i)&&(i.preventDefault(),this.close(void 0,{focusOrigin:`keyboard`}))}),this.backdropClick.subscribe(()=>{!this.disableClose&&this._canClose()?this.close(void 0,{focusOrigin:`mouse`}):this.containerInstance._recaptureFocus?.()}),this._detachSubscription=n.detachments().subscribe(()=>{e.closeOnOverlayDetachments!==!1&&this.close()})}close(n,e){if(this._canClose(n)){let i=this.closed;this.containerInstance._closeInteractionType=e?.focusOrigin||`program`,this._detachSubscription.unsubscribe(),this.overlayRef.dispose(),i.next(n),i.complete(),this.componentInstance=this.containerInstance=null}}updatePosition(){return this.overlayRef.updatePosition(),this}updateSize(n=``,e=``){return this.overlayRef.updateSize({width:n,height:e}),this}addPanelClass(n){return this.overlayRef.addPanelClass(n),this}removePanelClass(n){return this.overlayRef.removePanelClass(n),this}_canClose(n){let e=this.config;return!!this.containerInstance&&(!e.closePredicate||e.closePredicate(n,e,this.componentInstance))}};var ii=new A(`DialogScrollStrategy`,{providedIn:`root`,factory:()=>{let t=T$1(ye);return()=>Ht(t)}});var ni=new A(`DialogData`);var oi=new A(`DefaultDialogConfig`);function ai(t){let n=Uo(t),e=new qe;return{valueSignal:n,get value(){return n()},change:e,ngOnDestroy(){e.complete()}}}var Ee=(()=>{class t{_injector=T$1(ye);_defaultOptions=T$1(oi,{optional:!0});_parentDialog=T$1(t,{optional:!0,skipSelf:!0});_overlayContainer=T$1(Kt$1);_idGenerator=T$1(Bt);_openDialogsAtThisLevel=[];_afterAllClosedAtThisLevel=new Q;_afterOpenedAtThisLevel=new Q;_ariaHiddenElements=new Map;_scrollStrategy=T$1(ii);get openDialogs(){return this._parentDialog?this._parentDialog.openDialogs:this._openDialogsAtThisLevel}get afterOpened(){return this._parentDialog?this._parentDialog.afterOpened:this._afterOpenedAtThisLevel}afterAllClosed=fg(()=>this.openDialogs.length?this._getAfterAllClosed():this._getAfterAllClosed().pipe(Ag(void 0)));open(e,i){i=r(r({},this._defaultOptions||new T),i),i.id=i.id||this._idGenerator.getId(`cdk-dialog-`),i.id&&this.getDialogById(i.id);let r$1=this._getOverlayConfig(i),p=gt(this._injector,r$1),c=new E(p,i),f=this._attachContainer(p,c,i);if(c.containerInstance=f,!this.openDialogs.length){let be=this._overlayContainer.getContainerElement();f._focusTrapped?f._focusTrapped.pipe(rs(1)).subscribe(()=>{this._hideNonDialogContentFromAssistiveTechnology(be)}):this._hideNonDialogContentFromAssistiveTechnology(be)}return this._attachDialogContent(e,c,f,i),this.openDialogs.push(c),c.closed.subscribe(()=>this._removeOpenDialog(c,!0)),this.afterOpened.next(c),c}closeAll(){Me(this.openDialogs,e=>e.close())}getDialogById(e){return this.openDialogs.find(i=>i.id===e)}ngOnDestroy(){Me(this._openDialogsAtThisLevel,e=>{e.config.closeOnDestroy===!1&&this._removeOpenDialog(e,!1)}),Me(this._openDialogsAtThisLevel,e=>e.close()),this._afterAllClosedAtThisLevel.complete(),this._afterOpenedAtThisLevel.complete(),this._openDialogsAtThisLevel=[]}_getOverlayConfig(e){let i=new B({positionStrategy:e.positionStrategy||$t$1().centerHorizontally().centerVertically(),scrollStrategy:e.scrollStrategy||this._scrollStrategy(),panelClass:e.panelClass,hasBackdrop:e.hasBackdrop,direction:e.direction,minWidth:e.minWidth,minHeight:e.minHeight,maxWidth:e.maxWidth,maxHeight:e.maxHeight,width:e.width,height:e.height,disposeOnNavigation:e.closeOnNavigation,disableAnimations:e.disableAnimations});return e.backdropClass&&(i.backdropClass=e.backdropClass),i}_attachContainer(e,i,o){let r=o.injector||o.viewContainerRef?.injector,p=[{provide:T,useValue:o},{provide:E,useValue:i},{provide:$,useValue:e}],c;o.container?typeof o.container==`function`?c=o.container:(c=o.container.type,p.push(...o.container.providers(o))):c=we;let f=new at(c,o.viewContainerRef,ye.create({parent:r||this._injector,providers:p}));return e.attach(f).instance}_attachDialogContent(e,i,o,r$2){if(e instanceof gr){let p=this._createInjector(r$2,i,o,void 0),c={$implicit:r$2.data,dialogRef:i};r$2.templateContext&&(c=r(r({},c),typeof r$2.templateContext==`function`?r$2.templateContext():r$2.templateContext)),o.attachTemplatePortal(new M(e,null,c,p))}else{let p=this._createInjector(r$2,i,o,this._injector),c=o.attachComponentPortal(new at(e,r$2.viewContainerRef,p,null,r$2.bindings));i.componentRef=c,i.componentInstance=c.instance}}_createInjector(e,i,o,r){let p=e.injector||e.viewContainerRef?.injector,c=[{provide:ni,useValue:e.data},{provide:E,useValue:i}];return e.providers&&(typeof e.providers==`function`?c.push(...e.providers(i,e,o)):c.push(...e.providers)),e.direction&&(!p||!p.get(Yn,null,{optional:!0}))&&c.push({provide:Yn,useValue:ai(e.direction)}),ye.create({parent:p||r,providers:c})}_removeOpenDialog(e,i){let o=this.openDialogs.indexOf(e);o>-1&&(this.openDialogs.splice(o,1),this.openDialogs.length||(this._ariaHiddenElements.forEach((r,p)=>{r?p.setAttribute(`aria-hidden`,r):p.removeAttribute(`aria-hidden`)}),this._ariaHiddenElements.clear(),i&&this._getAfterAllClosed().next()))}_hideNonDialogContentFromAssistiveTechnology(e){if(e.parentElement){let i=e.parentElement.children;for(let o=i.length-1;o>-1;o--){let r=i[o];r!==e&&r.nodeName!==`SCRIPT`&&r.nodeName!==`STYLE`&&!r.hasAttribute(`aria-live`)&&!r.hasAttribute(`popover`)&&(this._ariaHiddenElements.set(r,r.getAttribute(`aria-hidden`)),r.setAttribute(`aria-hidden`,`true`))}}}_getAfterAllClosed(){let e=this._parentDialog;return e?e._getAfterAllClosed():this._afterAllClosedAtThisLevel}static ɵfac=function(i){return new(i||t)};static ɵprov=Er({token:t,factory:t.ɵfac})}return t})();function Me(t,n){let e=t.length;for(;e--;)n(t[e])}var Wt=(()=>{class t{static ɵfac=function(i){return new(i||t)};static ɵmod=TE({type:t});static ɵinj=tu({providers:[Ee],imports:[re,Vt,kn$1,Vt]})}return t})();function ri(t,n){}var he=class{viewContainerRef;injector;id;role=`dialog`;panelClass=``;hasBackdrop=!0;backdropClass=``;disableClose=!1;closePredicate;width=``;height=``;minWidth;minHeight;maxWidth;maxHeight;position;data=null;direction;ariaDescribedBy=null;ariaLabelledBy=null;ariaLabel=null;ariaModal=!1;autoFocus=`first-tabbable`;restoreFocus=!0;delayFocusTrap=!0;scrollStrategy;closeOnNavigation=!0;enterAnimationDuration;exitAnimationDuration;bindings};var Re=`mdc-dialog--open`;var qt=`mdc-dialog--opening`;var $t=`mdc-dialog--closing`;var si=150;var li=75;var di=(()=>{class t extends we{_animationStateChanged=new qe;_animationsEnabled=!z();_actionSectionCount=0;_hostElement=this._elementRef.nativeElement;_enterAnimationDuration=this._animationsEnabled?Yt(this._config.enterAnimationDuration)??si:0;_exitAnimationDuration=this._animationsEnabled?Yt(this._config.exitAnimationDuration)??li:0;_animationTimer=null;_contentAttached(){super._contentAttached(),this._startOpenAnimation()}_startOpenAnimation(){this._animationStateChanged.emit({state:`opening`,totalTime:this._enterAnimationDuration}),this._animationsEnabled?(this._hostElement.style.setProperty(Qt,`${this._enterAnimationDuration}ms`),this._requestAnimationFrame(()=>this._hostElement.classList.add(qt,Re)),this._waitForAnimationToComplete(this._enterAnimationDuration,this._finishDialogOpen)):(this._hostElement.classList.add(Re),Promise.resolve().then(()=>this._finishDialogOpen()))}_startExitAnimation(){this._animationStateChanged.emit({state:`closing`,totalTime:this._exitAnimationDuration}),this._hostElement.classList.remove(Re),this._animationsEnabled?(this._hostElement.style.setProperty(Qt,`${this._exitAnimationDuration}ms`),this._requestAnimationFrame(()=>this._hostElement.classList.add($t)),this._waitForAnimationToComplete(this._exitAnimationDuration,this._finishDialogClose)):Promise.resolve().then(()=>this._finishDialogClose())}_updateActionSectionCount(e){this._actionSectionCount+=e,this._changeDetectorRef.markForCheck()}_finishDialogOpen=()=>{this._clearAnimationClasses(),this._openAnimationDone(this._enterAnimationDuration)};_finishDialogClose=()=>{this._clearAnimationClasses(),this._animationStateChanged.emit({state:`closed`,totalTime:this._exitAnimationDuration})};_clearAnimationClasses(){this._hostElement.classList.remove(qt,$t)}_waitForAnimationToComplete(e,i){this._animationTimer!==null&&clearTimeout(this._animationTimer),this._animationTimer=setTimeout(i,e)}_requestAnimationFrame(e){this._ngZone.runOutsideAngular(()=>{typeof requestAnimationFrame==`function`?requestAnimationFrame(e):e()})}_captureInitialFocus(){this._config.delayFocusTrap||this._trapFocus()}_openAnimationDone(e){this._config.delayFocusTrap&&this._trapFocus(),this._animationStateChanged.next({state:`opened`,totalTime:e})}ngOnDestroy(){super.ngOnDestroy(),this._animationTimer!==null&&clearTimeout(this._animationTimer)}attachComponentPortal(e){let i=super.attachComponentPortal(e);return i.location.nativeElement.classList.add(`mat-mdc-dialog-component-host`),i}static ɵfac=(()=>{let e;return function(o){return(e||(e=iy(t)))(o||t)}})();static ɵcmp=wE({type:t,selectors:[[`mat-dialog-container`]],hostAttrs:[`tabindex`,`-1`,1,`mat-mdc-dialog-container`,`mdc-dialog`],hostVars:10,hostBindings:function(i,o){i&2&&(zp(`id`,o._config.id),Bp(`aria-modal`,o._config.ariaModal)(`role`,o._config.role)(`aria-labelledby`,o._config.ariaLabel?null:o._ariaLabelledByQueue[0])(`aria-label`,o._config.ariaLabel)(`aria-describedby`,o._config.ariaDescribedBy||null),ih(`_mat-animation-noopable`,!o._animationsEnabled)(`mat-mdc-dialog-container-with-actions`,o._actionSectionCount>0))},features:[Op],decls:3,vars:0,consts:[[1,`mat-mdc-dialog-inner-container`,`mdc-dialog__container`],[1,`mat-mdc-dialog-surface`,`mdc-dialog__surface`],[`cdkPortalOutlet`,``]],template:function(i,o){i&1&&(wi$1(0,`div`,0)(1,`div`,1),Pp(2,ri,0,0,`ng-template`,2),Uc()())},dependencies:[pe],styles:[`.mat-mdc-dialog-container {
+  width: 100%;
+  height: 100%;
+  display: block;
+  box-sizing: border-box;
+  max-height: inherit;
+  min-height: inherit;
+  min-width: inherit;
+  max-width: inherit;
+  outline: 0;
+}
+
+.cdk-overlay-pane.mat-mdc-dialog-panel {
+  max-width: var(--%NS%mat-dialog-container-max-width, 560px);
+  min-width: var(--%NS%mat-dialog-container-min-width, 280px);
+}
+@media (max-width: 599px) {
+  .cdk-overlay-pane.mat-mdc-dialog-panel {
+    max-width: var(--%NS%mat-dialog-container-small-max-width, calc(100vw - 32px));
+  }
+}
+
+.mat-mdc-dialog-inner-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  box-sizing: border-box;
+  height: 100%;
+  opacity: 0;
+  transition: opacity linear var(--%NS%mat-dialog-transition-duration, 0ms);
+  max-height: inherit;
+  min-height: inherit;
+  min-width: inherit;
+  max-width: inherit;
+}
+.mdc-dialog--closing .mat-mdc-dialog-inner-container {
+  transition: opacity 75ms linear;
+  transform: none;
+}
+.mdc-dialog--open .mat-mdc-dialog-inner-container {
+  opacity: 1;
+}
+._mat-animation-noopable .mat-mdc-dialog-inner-container {
+  transition: none;
+}
+
+.mat-mdc-dialog-surface {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow-y: auto;
+  outline: 0;
+  transform: scale(0.8);
+  transition: transform var(--%NS%mat-dialog-transition-duration, 0ms) cubic-bezier(0, 0, 0.2, 1);
+  max-height: inherit;
+  min-height: inherit;
+  min-width: inherit;
+  max-width: inherit;
+  box-shadow: var(--%NS%mat-dialog-container-elevation-shadow, none);
+  border-radius: var(--%NS%mat-dialog-container-shape, var(--%NS%mat-sys-corner-extra-large, 4px));
+  background-color: var(--%NS%mat-dialog-container-color, var(--%NS%mat-sys-surface, white));
+}
+[dir=rtl] .mat-mdc-dialog-surface {
+  text-align: right;
+}
+.mdc-dialog--open .mat-mdc-dialog-surface, .mdc-dialog--closing .mat-mdc-dialog-surface {
+  transform: none;
+}
+._mat-animation-noopable .mat-mdc-dialog-surface {
+  transition: none;
+}
+.mat-mdc-dialog-surface::before {
+  position: absolute;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  border: 2px solid transparent;
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
+.mat-mdc-dialog-title {
+  display: block;
+  position: relative;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin: 0 0 1px;
+  padding: var(--%NS%mat-dialog-headline-padding, 6px 24px 13px);
+}
+.mat-mdc-dialog-title::before {
+  display: inline-block;
+  width: 0;
+  height: 40px;
+  content: "";
+  vertical-align: 0;
+}
+[dir=rtl] .mat-mdc-dialog-title {
+  text-align: right;
+}
+.mat-mdc-dialog-container .mat-mdc-dialog-title {
+  color: var(--%NS%mat-dialog-subhead-color, var(--%NS%mat-sys-on-surface, rgba(0, 0, 0, 0.87)));
+  font-family: var(--%NS%mat-dialog-subhead-font, var(--%NS%mat-sys-headline-small-font, inherit));
+  line-height: var(--%NS%mat-dialog-subhead-line-height, var(--%NS%mat-sys-headline-small-line-height, 1.5rem));
+  font-size: var(--%NS%mat-dialog-subhead-size, var(--%NS%mat-sys-headline-small-size, 1rem));
+  font-weight: var(--%NS%mat-dialog-subhead-weight, var(--%NS%mat-sys-headline-small-weight, 400));
+  letter-spacing: var(--%NS%mat-dialog-subhead-tracking, var(--%NS%mat-sys-headline-small-tracking, 0.03125em));
+}
+
+.mat-mdc-dialog-content {
+  display: block;
+  flex-grow: 1;
+  box-sizing: border-box;
+  margin: 0;
+  overflow: auto;
+  max-height: 65vh;
+}
+.mat-mdc-dialog-content > :first-child {
+  margin-top: 0;
+}
+.mat-mdc-dialog-content > :last-child {
+  margin-bottom: 0;
+}
+.mat-mdc-dialog-container .mat-mdc-dialog-content {
+  color: var(--%NS%mat-dialog-supporting-text-color, var(--%NS%mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6)));
+  font-family: var(--%NS%mat-dialog-supporting-text-font, var(--%NS%mat-sys-body-medium-font, inherit));
+  line-height: var(--%NS%mat-dialog-supporting-text-line-height, var(--%NS%mat-sys-body-medium-line-height, 1.5rem));
+  font-size: var(--%NS%mat-dialog-supporting-text-size, var(--%NS%mat-sys-body-medium-size, 1rem));
+  font-weight: var(--%NS%mat-dialog-supporting-text-weight, var(--%NS%mat-sys-body-medium-weight, 400));
+  letter-spacing: var(--%NS%mat-dialog-supporting-text-tracking, var(--%NS%mat-sys-body-medium-tracking, 0.03125em));
+}
+.mat-mdc-dialog-container .mat-mdc-dialog-content {
+  padding: var(--%NS%mat-dialog-content-padding, 20px 24px);
+}
+.mat-mdc-dialog-container-with-actions .mat-mdc-dialog-content {
+  padding: var(--%NS%mat-dialog-with-actions-content-padding, 20px 24px 0);
+}
+.mat-mdc-dialog-container .mat-mdc-dialog-title + .mat-mdc-dialog-content {
+  padding-top: 0;
+}
+
+.mat-mdc-dialog-actions {
+  display: flex;
+  position: relative;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 52px;
+  margin: 0;
+  border-top: 1px solid transparent;
+  padding: var(--%NS%mat-dialog-actions-padding, 16px 24px);
+  justify-content: var(--%NS%mat-dialog-actions-alignment, flex-end);
+}
+@media (forced-colors: active) {
+  .mat-mdc-dialog-actions {
+    border-top-color: CanvasText;
+  }
+}
+.mat-mdc-dialog-actions.mat-mdc-dialog-actions-align-start, .mat-mdc-dialog-actions[align=start] {
+  justify-content: start;
+}
+.mat-mdc-dialog-actions.mat-mdc-dialog-actions-align-center, .mat-mdc-dialog-actions[align=center] {
+  justify-content: center;
+}
+.mat-mdc-dialog-actions.mat-mdc-dialog-actions-align-end, .mat-mdc-dialog-actions[align=end] {
+  justify-content: flex-end;
+}
+.mat-mdc-dialog-actions .mat-button-base + .mat-button-base,
+.mat-mdc-dialog-actions .mat-mdc-button-base + .mat-mdc-button-base {
+  margin-left: 8px;
+}
+[dir=rtl] .mat-mdc-dialog-actions .mat-button-base + .mat-button-base,
+[dir=rtl] .mat-mdc-dialog-actions .mat-mdc-button-base + .mat-mdc-button-base {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+.mat-mdc-dialog-component-host {
+  display: contents;
+}
+`],encapsulation:2,changeDetection:1})}return t})();var Qt=`--mat-dialog-transition-duration`;function Yt(t){return t==null?null:typeof t==`number`?t:t.endsWith(`ms`)?mn(t.substring(0,t.length-2)):t.endsWith(`s`)?mn(t.substring(0,t.length-1))*1e3:t===`0`?0:null}var ue=(function(t){return t[t.OPEN=0]=`OPEN`,t[t.CLOSING=1]=`CLOSING`,t[t.CLOSED=2]=`CLOSED`,t})(ue||{});var F=class{_ref;_config;_containerInstance;componentInstance;componentRef=null;disableClose;id;_afterOpened=new kn(1);_beforeClosed=new kn(1);_result;_closeFallbackTimeout;_state=ue.OPEN;_closeInteractionType;constructor(n,e,i){this._ref=n,this._config=e,this._containerInstance=i,this.disableClose=e.disableClose,this.id=n.id,n.addPanelClass(`mat-mdc-dialog-panel`),i._animationStateChanged.pipe(Yt$1(o=>o.state===`opened`),rs(1)).subscribe(()=>{this._afterOpened.next(),this._afterOpened.complete()}),i._animationStateChanged.pipe(Yt$1(o=>o.state===`closed`),rs(1)).subscribe(()=>{clearTimeout(this._closeFallbackTimeout),this._finishDialogClose()}),n.overlayRef.detachments().subscribe(()=>{this._beforeClosed.next(this._result),this._beforeClosed.complete(),this._finishDialogClose()}),hg(this.backdropClick(),this.keydownEvents().pipe(Yt$1(o=>o.keyCode===27&&!this.disableClose&&!Ve(o)))).subscribe(o=>{this.disableClose||(o.preventDefault(),ci(this,o.type===`keydown`?`keyboard`:`mouse`))})}close(n){let e=this._config.closePredicate;e&&!e(n,this._config,this.componentInstance)||(this._result=n,this._containerInstance._animationStateChanged.pipe(Yt$1(i=>i.state===`closing`),rs(1)).subscribe(i=>{this._beforeClosed.next(n),this._beforeClosed.complete(),this._ref.overlayRef.detachBackdrop(),this._closeFallbackTimeout=setTimeout(()=>this._finishDialogClose(),i.totalTime+100)}),this._state=ue.CLOSING,this._containerInstance._startExitAnimation())}afterOpened(){return this._afterOpened}afterClosed(){return this._ref.closed}beforeClosed(){return this._beforeClosed}backdropClick(){return this._ref.backdropClick}keydownEvents(){return this._ref.keydownEvents}updatePosition(n){let e=this._ref.config.positionStrategy;return n&&(n.left||n.right)?n.left?e.left(n.left):e.right(n.right):e.centerHorizontally(),n&&(n.top||n.bottom)?n.top?e.top(n.top):e.bottom(n.bottom):e.centerVertically(),this._ref.updatePosition(),this}updateSize(n=``,e=``){return this._ref.updateSize(n,e),this}addPanelClass(n){return this._ref.addPanelClass(n),this}removePanelClass(n){return this._ref.removePanelClass(n),this}getState(){return this._state}_finishDialogClose(){this._state=ue.CLOSED,this._ref.close(this._result,{focusOrigin:this._closeInteractionType}),this.componentInstance=null}};function ci(t,n,e){return t._closeInteractionType=n,t.close(e)}var ke=new A(`MatMdcDialogData`);var mi=new A(`mat-mdc-dialog-default-options`);var pi=new A(`mat-mdc-dialog-scroll-strategy`,{providedIn:`root`,factory:()=>{let t=T$1(ye);return()=>Ht(t)}});var fe=(()=>{class t{_defaultOptions=T$1(mi,{optional:!0});_scrollStrategy=T$1(pi);_parentDialog=T$1(t,{optional:!0,skipSelf:!0});_idGenerator=T$1(Bt);_injector=T$1(ye);_dialog=T$1(Ee);_animationsDisabled=z();_openDialogsAtThisLevel=[];_afterAllClosedAtThisLevel=new Q;_afterOpenedAtThisLevel=new Q;dialogConfigClass=he;_dialogRefConstructor;_dialogContainerType;_dialogDataToken;get openDialogs(){return this._parentDialog?this._parentDialog.openDialogs:this._openDialogsAtThisLevel}get afterOpened(){return this._parentDialog?this._parentDialog.afterOpened:this._afterOpenedAtThisLevel}_getAfterAllClosed(){let e=this._parentDialog;return e?e._getAfterAllClosed():this._afterAllClosedAtThisLevel}afterAllClosed=fg(()=>this.openDialogs.length?this._getAfterAllClosed():this._getAfterAllClosed().pipe(Ag(void 0)));constructor(){this._dialogRefConstructor=F,this._dialogContainerType=di,this._dialogDataToken=ke}open(e,i){let o;i=r(r({},this._defaultOptions||new he),i),i.id=i.id||this._idGenerator.getId(`mat-mdc-dialog-`),i.scrollStrategy=i.scrollStrategy||this._scrollStrategy();let r$3=this._dialog.open(e,s(r({},i),{positionStrategy:$t$1(this._injector).centerHorizontally().centerVertically(),disableClose:!0,closePredicate:void 0,closeOnDestroy:!1,closeOnOverlayDetachments:!1,disableAnimations:this._animationsDisabled||i.enterAnimationDuration?.toLocaleString()===`0`||i.exitAnimationDuration?.toString()===`0`,container:{type:this._dialogContainerType,providers:()=>[{provide:this.dialogConfigClass,useValue:i},{provide:T,useValue:i}]},templateContext:()=>({dialogRef:o}),providers:(p,c,f)=>(o=new this._dialogRefConstructor(p,i,f),o.updatePosition(i?.position),[{provide:this._dialogContainerType,useValue:f},{provide:this._dialogDataToken,useValue:c.data},{provide:this._dialogRefConstructor,useValue:o},{provide:E,useValue:null}])}));return o.componentRef=r$3.componentRef,o.componentInstance=r$3.componentInstance,this.openDialogs.push(o),this.afterOpened.next(o),o.afterClosed().subscribe(()=>{let p=this.openDialogs.indexOf(o);p>-1&&(this.openDialogs.splice(p,1),this.openDialogs.length||this._getAfterAllClosed().next())}),o}closeAll(){this._closeDialogs(this.openDialogs)}getDialogById(e){return this.openDialogs.find(i=>i.id===e)}ngOnDestroy(){this._closeDialogs(this._openDialogsAtThisLevel),this._afterAllClosedAtThisLevel.complete(),this._afterOpenedAtThisLevel.complete()}_closeDialogs(e){let i=e.length;for(;i--;)e[i].close()}static ɵfac=function(i){return new(i||t)};static ɵprov=Er({token:t,factory:t.ɵfac})}return t})();var Zt=(()=>{class t{_dialogRef=T$1(F,{optional:!0});_elementRef=T$1(Dr);_dialog=T$1(fe);ngOnInit(){this._dialogRef||(this._dialogRef=ui(this._elementRef,this._dialog.openDialogs)),this._dialogRef&&Promise.resolve().then(()=>{this._onAdd()})}ngOnDestroy(){this._dialogRef?._containerInstance&&Promise.resolve().then(()=>{this._onRemove()})}static ɵfac=function(i){return new(i||t)};static ɵdir=ME({type:t})}return t})();var Kt=(()=>{class t extends Zt{id=T$1(Bt).getId(`mat-mdc-dialog-title-`);_onAdd(){this._dialogRef._containerInstance?._addAriaLabelledBy?.(this.id)}_onRemove(){this._dialogRef?._containerInstance?._removeAriaLabelledBy?.(this.id)}static ɵfac=(()=>{let e;return function(o){return(e||(e=iy(t)))(o||t)}})();static ɵdir=ME({type:t,selectors:[[``,`mat-dialog-title`,``],[``,`matDialogTitle`,``]],hostAttrs:[1,`mat-mdc-dialog-title`,`mdc-dialog__title`],hostVars:1,hostBindings:function(i,o){i&2&&zp(`id`,o.id)},inputs:{id:`id`},exportAs:[`matDialogTitle`],features:[Op]})}return t})();var Xt=(()=>{class t{static ɵfac=function(i){return new(i||t)};static ɵdir=ME({type:t,selectors:[[``,`mat-dialog-content`,``],[`mat-dialog-content`],[``,`matDialogContent`,``]],hostAttrs:[1,`mat-mdc-dialog-content`,`mdc-dialog__content`],features:[AE([Ye])]})}return t})();var Jt=(()=>{class t extends Zt{align;_onAdd(){this._dialogRef._containerInstance?._updateActionSectionCount?.(1)}_onRemove(){this._dialogRef._containerInstance?._updateActionSectionCount?.(-1)}static ɵfac=(()=>{let e;return function(o){return(e||(e=iy(t)))(o||t)}})();static ɵdir=ME({type:t,selectors:[[``,`mat-dialog-actions`,``],[`mat-dialog-actions`],[``,`matDialogActions`,``]],hostAttrs:[1,`mat-mdc-dialog-actions`,`mdc-dialog__actions`],hostVars:6,hostBindings:function(i,o){i&2&&ih(`mat-mdc-dialog-actions-align-start`,o.align===`start`)(`mat-mdc-dialog-actions-align-center`,o.align===`center`)(`mat-mdc-dialog-actions-align-end`,o.align===`end`)},inputs:{align:`align`},features:[Op]})}return t})();function ui(t,n){let e=t.nativeElement.parentElement;for(;e&&!e.classList.contains(`mat-mdc-dialog-container`);)e=e.parentElement;return e?n.find(i=>i.id===e.id):null}var ge=(()=>{class t{static ɵfac=function(i){return new(i||t)};static ɵmod=TE({type:t});static ɵinj=tu({providers:[fe],imports:[Wt,re,Vt,St]})}return t})();var L=class t{http=T$1(Xo);list(n){return this.http.get(`/api/projects/${n}/team`)}add(n,e){return this.http.post(`/api/projects/${n}/team`,e)}remove(n,e){return this.http.delete(`/api/projects/${n}/team/${e}`)}static ɵfac=function(e){return new(e||t)};static ɵprov=ae({token:t,factory:t.ɵfac,providedIn:`root`})};function bi(t,n){if(t&1){let e=rD();HD(0,` You can copy it from the `),wi$1(1,`button`,9),Zp(`click`,function(){Nu(e);return Su(uD().openUsersPage())}),HD(2,`Users page`),Uc(),HD(3,`. `)}}function yi(t,n){t&1&&HD(0,` Ask an Admin to copy it from the Users page. `)}function Ci(t,n){t&1&&(wi$1(0,`mat-error`),HD(1,`A user must be selected.`),Uc())}function vi(t,n){t&1&&(wi$1(0,`mat-error`),HD(1,`That's not a valid user ID (UUID) — check the Users page.`),Uc())}var _e=class t{fb=T$1(bn);teamService=T$1(L);dialogRef=T$1(F);router=T$1(je);store=T$1(Z);data=T$1(ke);isAdmin=this.store.selectSignal(f.selectUser)()?.role===`Admin`;submitting=Uo(!1);serverErrors=Uo(null);form=this.fb.nonNullable.group({userId:[``,[fe$1.required,fe$1.pattern(A$1)]]});submit(){if(this.form.invalid){this.form.markAllAsTouched();return}this.submitting.set(!0),this.serverErrors.set(null);let{userId:n}=this.form.getRawValue();this.teamService.add(this.data.projectId,{userId:n}).subscribe({next:e=>{this.submitting.set(!1),this.dialogRef.close(e)},error:e=>{this.submitting.set(!1);let i=e.error?.errors;this.serverErrors.set(i?Object.values(i).flat():[e.error?.detail??e.error?.title??`Could not add member.`])}})}cancel(){this.dialogRef.close()}openUsersPage(){this.dialogRef.close(),this.router.navigateByUrl(`/auth/admin-users`)}static ɵfac=function(e){return new(e||t)};static ɵcmp=wE({type:t,selectors:[[`app-add-member-dialog`]],decls:20,vars:5,consts:[[`mat-dialog-title`,``],[3,`ngSubmit`,`formGroup`],[1,`picker-note`],[`appearance`,`outline`,1,`full-width`],[`matInput`,``,`formControlName`,`userId`,`required`,``,`placeholder`,`e.g. 217dd066-d938-4970-bf69-07072d18dbb6`],[3,`errors`],[`align`,`end`],[`mat-button`,``,`type`,`button`,3,`click`],[`mat-flat-button`,``,`color`,`primary`,`type`,`submit`,3,`disabled`],[`type`,`button`,1,`link-button`,3,`click`]],template:function(e,i){e&1&&(wi$1(0,`h2`,0),HD(1,`Add team member`),Uc(),wi$1(2,`form`,1),Zp(`ngSubmit`,function(){return i.submit()}),wi$1(3,`mat-dialog-content`)(4,`p`,2),HD(5,` There is no user search here yet — enter the target user's account ID (a UUID, not a number). `),zE(6,bi,4,0)(7,yi,1,0),Uc(),wi$1(8,`mat-form-field`,3)(9,`mat-label`),HD(10,`User ID`),Uc(),Up(11,`input`,4),RI(),zE(12,Ci,2,0,`mat-error`)(13,vi,2,0,`mat-error`),Uc(),Up(14,`app-error-display`,5),Uc(),wi$1(15,`mat-dialog-actions`,6)(16,`button`,7),Zp(`click`,function(){return i.cancel()}),HD(17,`Cancel`),Uc(),wi$1(18,`button`,8),HD(19,`Add`),Uc()()()),e&2&&(Gv(2),$p(`formGroup`,i.form),Gv(4),QE(i.isAdmin?6:7),Gv(5),OI(),Gv(),QE(i.form.get(`userId`)?.touched&&i.form.get(`userId`)?.hasError(`required`)?12:i.form.get(`userId`)?.touched&&i.form.get(`userId`)?.hasError(`pattern`)?13:-1),Gv(2),$p(`errors`,i.serverErrors()),Gv(4),$p(`disabled`,i.submitting()))},dependencies:[Dn,Cn,He,vn$1,yn,rt,Kt$2,Zt$1,ge,Kt,Jt,Xt,ni$1,We,G,vt,Be,Pe,ar,nr,_],styles:[`.full-width[_ngcontent-%COMP%]{display:block;width:100%}.picker-note[_ngcontent-%COMP%]{color:var(--%NS%pma-text-600);font-size:13px;margin:0 0 12px}.link-button[_ngcontent-%COMP%]{background:none;border:none;padding:0;color:var(--%NS%pma-primary-700);text-decoration:underline;cursor:pointer;font:inherit}`]})};var Di=t=>[`/projects`,t];function Ai(t,n){if(t&1){let e=rD();wi$1(0,`button`,8),Zp(`click`,function(){Nu(e);return Su(uD().openAddMemberDialog())}),HD(1,`Add member`),Uc()}}function Si(t,n){if(t&1&&(wi$1(0,`p`,4),HD(1),Uc()),t&2){let e=uD();Gv(),dh(e.removeError())}}function xi(t,n){t&1&&(wi$1(0,`p`,5),HD(1,`Loading…`),Uc())}function Ti(t,n){t&1&&(wi$1(0,`p`,6),HD(1,`You do not have access to view this project's team.`),Uc())}function Mi(t,n){if(t&1&&(wi$1(0,`p`,4),HD(1),Uc()),t&2){let e=uD();Gv(),dh(e.error())}}function wi(t,n){t&1&&(wi$1(0,`p`,5),HD(1,`No team members yet.`),Uc())}function Ei(t,n){t&1&&(wi$1(0,`th`,19),HD(1,`Name`),Uc())}function Ri(t,n){t&1&&(wi$1(0,`span`,22),HD(1,`Deactivated`),Uc())}function ki(t,n){if(t&1&&(wi$1(0,`td`,20)(1,`span`,21),HD(2),Uc(),zE(3,Ri,2,0,`span`,22),Uc()),t&2){let e=n.$implicit;Gv(2),dh(e.fullName),Gv(),QE(e.isActive?-1:3)}}function Ii(t,n){t&1&&(wi$1(0,`th`,19),HD(1,`Email`),Uc())}function Oi(t,n){if(t&1&&(wi$1(0,`td`,20),HD(1),Uc()),t&2){let e=n.$implicit;Gv(),dh(e.email)}}function Ni(t,n){t&1&&(wi$1(0,`th`,19),HD(1,`Role`),Uc())}function Fi(t,n){if(t&1&&(wi$1(0,`td`,20)(1,`span`,23),HD(2),Uc()()),t&2){let e=n.$implicit;Gv(),Bp(`data-role`,e.role),Gv(),dh(e.role)}}function Li(t,n){t&1&&(wi$1(0,`th`,19),HD(1,`Added`),Uc())}function Pi(t,n){if(t&1&&(wi$1(0,`td`,20),HD(1),tw(2,`date`),Uc()),t&2){let e=n.$implicit;Gv(),dh(rw(2,1,e.addedAt,`short`))}}function ji(t,n){t&1&&Up(0,`th`,19)}function Bi(t,n){if(t&1){let e=rD();wi$1(0,`td`,20)(1,`button`,24),Zp(`click`,function(){let o=Nu(e).$implicit;return Su(uD(3).removeMember(o))}),HD(2,`Remove`),Uc()()}}function Vi(t,n){t&1&&(Gc(0,16),Pp(1,ji,1,0,`th`,11)(2,Bi,3,0,`td`,12),zc())}function Hi(t,n){t&1&&Up(0,`tr`,25)}function Gi(t,n){t&1&&Up(0,`tr`,26)}function zi(t,n){if(t&1&&(wi$1(0,`div`,7)(1,`table`,9),Gc(2,10),Pp(3,Ei,2,0,`th`,11)(4,ki,4,2,`td`,12),zc(),Gc(5,13),Pp(6,Ii,2,0,`th`,11)(7,Oi,2,1,`td`,12),zc(),Gc(8,14),Pp(9,Ni,2,0,`th`,11)(10,Fi,3,2,`td`,12),zc(),Gc(11,15),Pp(12,Li,2,0,`th`,11)(13,Pi,3,4,`td`,12),zc(),zE(14,Vi,3,0,`ng-container`,16),Pp(15,Hi,1,0,`tr`,17)(16,Gi,1,0,`tr`,18),Uc()()),t&2){let e=uD();Gv(),$p(`dataSource`,e.filteredMembers),Gv(13),QE(e.canManage()?14:-1),Gv(),$p(`matHeaderRowDef`,e.displayedColumns),Gv(),$p(`matRowDefColumns`,e.displayedColumns)}}var ei=class t{route=T$1(we$1);teamService=T$1(L);projectsService=T$1(c);dialog=T$1(fe);store=T$1(Z);projectId=this.route.snapshot.paramMap.get(`projectId`)??``;currentUser=this.store.selectSignal(f.selectUser);members=Uo([]);loading=Uo(!0);error=Uo(null);forbidden=Uo(!1);canManage=Uo(!1);removeError=Uo(null);search=``;get displayedColumns(){return this.canManage()?[`fullName`,`email`,`role`,`addedAt`,`actions`]:[`fullName`,`email`,`role`,`addedAt`]}constructor(){this.refresh(),this.loadOwnership()}get filteredMembers(){let n=this.search.trim().toLowerCase();return n?this.members().filter(e=>e.fullName.toLowerCase().includes(n)||e.email.toLowerCase().includes(n)):this.members()}refresh(){this.loading.set(!0),this.error.set(null),this.forbidden.set(!1),this.teamService.list(this.projectId).subscribe({next:n=>{this.members.set(n),this.loading.set(!1)},error:n=>{this.loading.set(!1),n.status===403?this.forbidden.set(!0):this.error.set(n.error?.detail??n.error?.title??`Could not load the team.`)}})}openAddMemberDialog(){this.dialog.open(_e,{data:{projectId:this.projectId}}).afterClosed().subscribe(e=>{e&&this.refresh()})}removeMember(n){confirm(`Remove ${n.fullName} from this project's team? They will lose access immediately.`)&&(this.removeError.set(null),this.teamService.remove(this.projectId,n.userId).subscribe({next:()=>this.refresh(),error:e=>{this.removeError.set(e.status===409?e.error?.detail??`Cannot remove: this member has open tasks assigned in this project. Reassign or close them first.`:e.error?.detail??e.error?.title??`Could not remove this member.`)}}))}loadOwnership(){let n=this.currentUser();if(n){if(n.role===`Admin`){this.canManage.set(!0);return}n.role===`ProjectManager`&&this.projectsService.getById(this.projectId).subscribe({next:({detail:e})=>this.canManage.set(e.owner.id===n.id),error:()=>this.canManage.set(!1)})}}static ɵfac=function(e){return new(e||t)};static ɵcmp=wE({type:t,selectors:[[`app-team-roster`]],decls:13,vars:7,consts:[[3,`routerLink`],[1,`toolbar`],[`type`,`text`,`placeholder`,`Search by name or email`,3,`ngModelChange`,`ngModel`],[`mat-flat-button`,``,`color`,`primary`,`type`,`button`],[1,`error`],[1,`state-message`],[1,`forbidden`],[1,`table-container`],[`mat-flat-button`,``,`color`,`primary`,`type`,`button`,3,`click`],[`mat-table`,``,1,`roster-table`,3,`dataSource`],[`matColumnDef`,`fullName`],[`mat-header-cell`,``,4,`matHeaderCellDef`],[`mat-cell`,``,4,`matCellDef`],[`matColumnDef`,`email`],[`matColumnDef`,`role`],[`matColumnDef`,`addedAt`],[`matColumnDef`,`actions`],[`mat-header-row`,``,4,`matHeaderRowDef`],[`mat-row`,``,4,`matRowDef`,`matRowDefColumns`],[`mat-header-cell`,``],[`mat-cell`,``],[1,`member-name`],[`data-active`,`false`,1,`chip`],[1,`chip`],[`mat-button`,``,`color`,`warn`,`type`,`button`,3,`click`],[`mat-header-row`,``],[`mat-row`,``]],template:function(e,i){e&1&&(wi$1(0,`a`,0),HD(1,`← Back to project`),Uc(),wi$1(2,`h2`),HD(3,`Team`),Uc(),wi$1(4,`div`,1)(5,`input`,2),mh(`ngModelChange`,function(r){return GD(i.search,r)||(i.search=r),r}),Uc(),RI(),zE(6,Ai,2,0,`button`,3),Uc(),zE(7,Si,2,1,`p`,4),zE(8,xi,2,0,`p`,5)(9,Ti,2,0,`p`,6)(10,Mi,2,1,`p`,4)(11,wi,2,0,`p`,5)(12,zi,17,4,`div`,7)),e&2&&($p(`routerLink`,JD(5,Di,i.projectId)),Gv(5),gh(`ngModel`,i.search),OI(),Gv(),QE(i.canManage()?6:-1),Gv(),QE(i.removeError()?7:-1),Gv(),QE(i.loading()?8:i.forbidden()?9:i.error()?10:i.members().length===0?11:12))},dependencies:[ir$1,Vn,He,vn$1,$t$2,ge,ar,nr,Zt$2,Ut,Qt$1,Kt$3,Wt$1,Vt$1,Xt$1,$t$3,qt$1,Gt,Yt$2,Ea],styles:[`.member-name[_ngcontent-%COMP%]{margin-right:8px}`]})};export{ei as RosterComponent};

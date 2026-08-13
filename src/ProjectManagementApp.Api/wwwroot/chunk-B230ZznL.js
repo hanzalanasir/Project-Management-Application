@@ -1,1 +1,0 @@
-import{bt as T}from"./chunk-Y3Rex7eH.js";import{s as Z}from"./chunk-B4datuBc.js";import{L as f}from"./main-U5MLHSYC.js";function a(n){return(m,s)=>{let e=T(Z).selectSignal(f.selectUser)()?.role;return!!e&&n.includes(e)}}export{a as t};

@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
 import { AuthActions } from '../../../core/store/auth/auth.actions';
 import { ErrorDisplayComponent } from '../../../shared/error-display/error-display.component';
 
@@ -19,6 +20,7 @@ import { ErrorDisplayComponent } from '../../../shared/error-display/error-displ
     MatInputModule,
     MatButtonModule,
     MatCardModule,
+    MatIconModule,
     ErrorDisplayComponent,
   ],
   templateUrl: './login.component.html',

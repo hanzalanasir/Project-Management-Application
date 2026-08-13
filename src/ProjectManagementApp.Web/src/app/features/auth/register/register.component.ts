@@ -5,6 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../../core/services/auth.service';
 import { ErrorDisplayComponent } from '../../../shared/error-display/error-display.component';
@@ -30,6 +31,7 @@ const PASSWORD_COMPLEXITY_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-
     MatInputModule,
     MatButtonModule,
     MatCardModule,
+    MatIconModule,
     ErrorDisplayComponent,
   ],
   templateUrl: './register.component.html',

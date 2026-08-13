@@ -1,4 +1,4 @@
-# ProjectManagementApp
+# Flowrithm
 
 A full-stack project management application: Angular 22 (standalone, NgRx) + .NET 10 Web API
 (vertical-slice + Clean Architecture, MediatR) + PostgreSQL 18, with JWT/RBAC authentication.

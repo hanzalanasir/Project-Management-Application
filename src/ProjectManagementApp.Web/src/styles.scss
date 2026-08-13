@@ -72,11 +72,35 @@ a {
 // ---------------------------------------------------------------------------
 .mat-mdc-card {
   margin-bottom: 16px;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+  transition: box-shadow 0.15s ease;
+}
+
+.mat-mdc-unelevated-button,
+.mat-mdc-raised-button {
+  border-radius: 8px !important;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.mat-mdc-unelevated-button:hover,
+.mat-mdc-raised-button:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
 .form-card {
   max-width: 640px;
   margin: 0 auto 24px;
+}
+
+// mat-form-field defaults to `display: inline-block`, which is fine on its own but easy to forget
+// to override per-component — a form with no explicit block/spacing rule can end up with stacked
+// fields sitting too close together (label/hint areas visually colliding). Making every form field
+// block-level with breathing room by default here means no individual form (present or future) can
+// reintroduce that bug by omission.
+.mat-mdc-form-field {
+  display: block;
+  margin-bottom: 8px;
 }
 
 // ---------------------------------------------------------------------------

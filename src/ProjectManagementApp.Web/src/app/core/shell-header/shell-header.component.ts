@@ -18,8 +18,8 @@ import { AuthActions } from '../store/auth/auth.actions';
     @if (user(); as u) {
       <mat-toolbar color="primary" class="shell-toolbar">
         <a class="brand" routerLink="/dashboard">
-          <mat-icon>dashboard</mat-icon>
-          <span>ProjectManagementApp</span>
+          <mat-icon>bolt</mat-icon>
+          <span>Flowrithm</span>
         </a>
 
         <nav class="shell-nav">
@@ -61,7 +61,13 @@ import { AuthActions } from '../store/auth/auth.actions';
       color: inherit;
       text-decoration: none;
       font-weight: 700;
+      font-size: 20px;
+      letter-spacing: 0.2px;
       white-space: nowrap;
+    }
+
+    .brand mat-icon {
+      color: #ffd54f;
     }
 
     .shell-nav {

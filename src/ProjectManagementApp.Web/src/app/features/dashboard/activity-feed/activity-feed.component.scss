@@ -19,6 +19,24 @@
   background: var(--pma-white);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   align-items: baseline;
+
+  // Four max-content/1fr columns on one row can crowd or overlap once actor/action/timestamp text
+  // no longer fits the viewport width — collapse to a single stacked column instead of clipping.
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "actor"
+      "action"
+      "entity"
+      "timestamp"
+      "summary";
+    align-items: start;
+
+    .activity-entity,
+    .activity-timestamp {
+      justify-self: start;
+    }
+  }
 }
 
 .activity-actor {
