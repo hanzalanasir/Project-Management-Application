@@ -47,7 +47,9 @@
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Due date (optional)</mat-label>
-        <input matInput type="date" formControlName="dueDate" />
+        <input matInput [matDatepicker]="duePicker" formControlName="dueDate" />
+        <mat-datepicker-toggle matIconSuffix [for]="duePicker"></mat-datepicker-toggle>
+        <mat-datepicker #duePicker></mat-datepicker>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">

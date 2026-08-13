@@ -7,10 +7,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ProjectsService } from '../../../core/services/projects.service';
 import { ErrorDisplayComponent } from '../../../shared/error-display/error-display.component';
 import { authFeature } from '../../../core/store/auth/auth.feature';
+import { toDateOnlyString } from '../../../core/utils/date-only.util';
 
 // Cross-field date-order validator (Constitution VII.6, ADR-0005) — mirrors the server-side rule
 // in CreateProjectCommandValidator; the server is authoritative, this is UX only.
@@ -32,6 +34,7 @@ function dateOrderValidator(group: AbstractControl): ValidationErrors | null {
     MatSelectModule,
     MatButtonModule,
     MatCardModule,
+    MatDatepickerModule,
     ErrorDisplayComponent,
   ],
   templateUrl: './create-project.component.html',
@@ -53,8 +56,8 @@ export class CreateProjectComponent {
     {
       name: ['', [Validators.required, Validators.maxLength(200)]],
       description: ['', [Validators.maxLength(2000)]],
-      startDate: ['', [Validators.required]],
-      endDate: [''],
+      startDate: [null as Date | null, [Validators.required]],
+      endDate: [null as Date | null],
       status: ['Planning'],
       ownerId: [''],
     },
@@ -75,8 +78,8 @@ export class CreateProjectComponent {
       .create({
         name,
         description: description || null,
-        startDate,
-        endDate: endDate || null,
+        startDate: toDateOnlyString(startDate),
+        endDate: endDate ? toDateOnlyString(endDate) : null,
         status: status as 'Planning' | 'Active' | 'OnHold' | 'Completed' | 'Cancelled',
         ownerId: this.isAdmin && ownerId ? ownerId : null,
       })

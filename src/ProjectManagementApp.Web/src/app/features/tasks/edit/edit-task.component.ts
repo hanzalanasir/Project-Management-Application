@@ -6,9 +6,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TasksService } from '../../../core/services/tasks.service';
 import { ErrorDisplayComponent } from '../../../shared/error-display/error-display.component';
+import { fromDateOnlyString, toDateOnlyString } from '../../../core/utils/date-only.util';
 
 // Mirrors EditProjectComponent's unsaved-changes-guard / 409-conflict pattern. Not reachable for a
 // TeamMember (roleGuard in tasks.routes.ts) — the API refuses them regardless via CanMutateAsync.
@@ -21,6 +23,7 @@ import { ErrorDisplayComponent } from '../../../shared/error-display/error-displ
     MatSelectModule,
     MatButtonModule,
     MatCardModule,
+    MatDatepickerModule,
     ErrorDisplayComponent,
   ],
   templateUrl: './edit-task.component.html',
@@ -47,7 +50,7 @@ export class EditTaskComponent {
     title: ['', [Validators.required, Validators.maxLength(200)]],
     description: ['', [Validators.maxLength(2000)]],
     priority: ['Medium'],
-    dueDate: [''],
+    dueDate: [null as Date | null],
   });
 
   constructor() {
@@ -58,7 +61,7 @@ export class EditTaskComponent {
           title: detail.title,
           description: detail.description ?? '',
           priority: detail.priority,
-          dueDate: detail.dueDate ?? '',
+          dueDate: fromDateOnlyString(detail.dueDate),
         });
         this.form.markAsPristine();
         this.loading.set(false);
@@ -96,7 +99,7 @@ export class EditTaskComponent {
           title,
           description: description || null,
           priority: priority as 'Low' | 'Medium' | 'High' | 'Critical',
-          dueDate: dueDate || null,
+          dueDate: dueDate ? toDateOnlyString(dueDate) : null,
         },
         this.etag
       )
@@ -131,7 +134,7 @@ export class EditTaskComponent {
         title: detail.title,
         description: detail.description ?? '',
         priority: detail.priority,
-        dueDate: detail.dueDate ?? '',
+        dueDate: fromDateOnlyString(detail.dueDate),
       });
       this.form.markAsPristine();
       this.loading.set(false);

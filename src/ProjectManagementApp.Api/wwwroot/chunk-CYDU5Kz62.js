@@ -1,0 +1,1 @@
+var t=[{path:`:projectId`,loadComponent:()=>import(`./chunk-CHpbZVhX2.js`).then(o=>o.RosterComponent)}];export{t as teamRoutes};

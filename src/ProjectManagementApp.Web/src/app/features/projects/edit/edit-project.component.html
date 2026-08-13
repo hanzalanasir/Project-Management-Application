@@ -29,7 +29,9 @@
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Start date</mat-label>
-          <input matInput type="date" formControlName="startDate" required />
+          <input matInput [matDatepicker]="startPicker" formControlName="startDate" required />
+          <mat-datepicker-toggle matIconSuffix [for]="startPicker"></mat-datepicker-toggle>
+          <mat-datepicker #startPicker></mat-datepicker>
           @if (form.get('startDate')?.touched && form.get('startDate')?.hasError('required')) {
             <mat-error>Start date is required.</mat-error>
           }
@@ -37,7 +39,9 @@
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>End date (optional)</mat-label>
-          <input matInput type="date" formControlName="endDate" />
+          <input matInput [matDatepicker]="endPicker" formControlName="endDate" />
+          <mat-datepicker-toggle matIconSuffix [for]="endPicker"></mat-datepicker-toggle>
+          <mat-datepicker #endPicker></mat-datepicker>
           @if (form.hasError('dateOrder')) {
             <mat-error>End date must not precede start date.</mat-error>
           }

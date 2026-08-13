@@ -5,6 +5,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { provideNativeDateAdapter } from '@angular/material/core';
 import { ReportPickerComponent } from './report-picker.component';
 
 @Component({ template: '' })
@@ -47,6 +48,7 @@ describe('ReportPickerComponent', () => {
         provideHttpClientTesting(),
         provideRouter([{ path: 'reports/project-progress', component: BlankComponent }]),
         provideAnimationsAsync(),
+        provideNativeDateAdapter(),
       ],
     }).compileComponents();
 
@@ -89,7 +91,7 @@ describe('ReportPickerComponent', () => {
 
     component['selectReport'](catalog[0] as never);
     fixture.detectChanges();
-    component['form']!.setValue({ from: '2026-07-01', to: '2026-07-31', projectScope: '' });
+    component['form']!.setValue({ from: new Date(2026, 6, 1), to: new Date(2026, 6, 31), projectScope: '' });
     component['submit']();
     await fixture.whenStable();
 

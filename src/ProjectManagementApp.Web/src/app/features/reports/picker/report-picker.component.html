@@ -25,7 +25,10 @@
         @for (parameter of selected()!.parameters; track parameter.name) {
           <mat-form-field appearance="outline">
             <mat-label>{{ parameter.name }}{{ parameter.required ? ' *' : '' }}</mat-label>
-            @if (optionsFor(parameter.type); as options) {
+            <mat-datepicker #picker></mat-datepicker>
+            @if (isDateParam(parameter.type)) {
+              <input matInput [matDatepicker]="picker" [formControlName]="parameter.name" />
+            } @else if (optionsFor(parameter.type); as options) {
               <mat-select [formControlName]="parameter.name">
                 @for (option of options; track option) {
                   <mat-option [value]="option">{{ option }}</mat-option>
@@ -33,6 +36,9 @@
               </mat-select>
             } @else {
               <input matInput [type]="inputTypeFor(parameter.type)" [formControlName]="parameter.name" />
+            }
+            @if (isDateParam(parameter.type)) {
+              <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
             }
           </mat-form-field>
         }

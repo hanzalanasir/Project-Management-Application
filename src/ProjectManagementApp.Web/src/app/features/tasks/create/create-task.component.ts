@@ -6,11 +6,13 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { HttpErrorResponse } from '@angular/common/http';
 import { TasksService } from '../../../core/services/tasks.service';
 import { ProjectsService } from '../../../core/services/projects.service';
 import { ErrorDisplayComponent } from '../../../shared/error-display/error-display.component';
 import { GUID_PATTERN } from '../../../shared/validators/guid.validator';
+import { toDateOnlyString } from '../../../core/utils/date-only.util';
 import type { components } from '../../../core/api/generated/projects.v1';
 
 type ProjectSummary = components['schemas']['ProjectSummary'];
@@ -33,6 +35,7 @@ function requiredFieldsPresentValidator(group: AbstractControl): ValidationError
     MatSelectModule,
     MatButtonModule,
     MatCardModule,
+    MatDatepickerModule,
     ErrorDisplayComponent,
   ],
   templateUrl: './create-task.component.html',
@@ -71,7 +74,7 @@ export class CreateTaskComponent {
       title: ['', [Validators.required, Validators.maxLength(200)]],
       description: ['', [Validators.maxLength(2000)]],
       priority: ['Medium'],
-      dueDate: [''],
+      dueDate: [null as Date | null],
       assigneeId: ['', [Validators.pattern(GUID_PATTERN)]],
     },
     { validators: requiredFieldsPresentValidator }
@@ -117,7 +120,7 @@ export class CreateTaskComponent {
         title,
         description: description || null,
         priority: priority as 'Low' | 'Medium' | 'High' | 'Critical',
-        dueDate: dueDate || null,
+        dueDate: dueDate ? toDateOnlyString(dueDate) : null,
         assigneeId: assigneeId || null,
       })
       .subscribe({

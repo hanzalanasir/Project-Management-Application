@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { provideStore } from '@ngrx/store';
 import { provideState } from '@ngrx/store';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { provideNativeDateAdapter } from '@angular/material/core';
 import { authFeature } from '../../../core/store/auth/auth.feature';
 import { CreateProjectComponent } from './create-project.component';
 
@@ -19,6 +20,7 @@ describe('CreateProjectComponent', () => {
         provideStore(),
         provideState(authFeature),
         provideAnimationsAsync(),
+        provideNativeDateAdapter(),
       ],
     }).compileComponents();
 
@@ -49,7 +51,7 @@ describe('CreateProjectComponent', () => {
     const fixture = await createComponent();
     const form = fixture.componentInstance['form'];
 
-    form.patchValue({ startDate: '2026-08-01', endDate: '2026-01-01' });
+    form.patchValue({ startDate: new Date(2026, 7, 1), endDate: new Date(2026, 0, 1) });
 
     expect(form.hasError('dateOrder')).toBe(true);
   });
@@ -58,7 +60,7 @@ describe('CreateProjectComponent', () => {
     const fixture = await createComponent();
     const form = fixture.componentInstance['form'];
 
-    form.patchValue({ startDate: '2026-08-01', endDate: '2026-11-30' });
+    form.patchValue({ startDate: new Date(2026, 7, 1), endDate: new Date(2026, 10, 30) });
 
     expect(form.hasError('dateOrder')).toBe(false);
   });
@@ -67,7 +69,7 @@ describe('CreateProjectComponent', () => {
     const fixture = await createComponent();
     const form = fixture.componentInstance['form'];
 
-    form.patchValue({ startDate: '2026-08-01', endDate: '' });
+    form.patchValue({ startDate: new Date(2026, 7, 1), endDate: null });
 
     expect(form.hasError('dateOrder')).toBe(false);
   });
@@ -76,7 +78,7 @@ describe('CreateProjectComponent', () => {
     const fixture = await createComponent();
     const startDateControl = fixture.componentInstance['form'].get('startDate')!;
 
-    startDateControl.setValue('');
+    startDateControl.setValue(null);
 
     expect(startDateControl.hasError('required')).toBe(true);
   });

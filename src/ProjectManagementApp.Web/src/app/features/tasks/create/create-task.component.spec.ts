@@ -3,13 +3,20 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { provideNativeDateAdapter } from '@angular/material/core';
 import { CreateTaskComponent } from './create-task.component';
 
 describe('CreateTaskComponent', () => {
   async function createComponent() {
     await TestBed.configureTestingModule({
       imports: [CreateTaskComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideAnimationsAsync()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        provideAnimationsAsync(),
+        provideNativeDateAdapter(),
+      ],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(CreateTaskComponent);

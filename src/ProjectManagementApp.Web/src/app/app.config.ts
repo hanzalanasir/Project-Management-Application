@@ -3,6 +3,7 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
+import { provideNativeDateAdapter } from '@angular/material/core';
 import { provideStore } from '@ngrx/store';
 import { provideState } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
@@ -35,5 +36,6 @@ export const appConfig: ApplicationConfig = {
     // into the next field below it (found on the register password hint). Applied globally so no
     // future multi-line hint/error anywhere in the app can repeat that overlap.
     { provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { subscriptSizing: 'dynamic' } },
+    provideNativeDateAdapter(),
   ]
 };

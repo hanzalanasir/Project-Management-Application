@@ -5,6 +5,7 @@ import { provideRouter, ActivatedRoute } from '@angular/router';
 import { provideStore } from '@ngrx/store';
 import { provideState } from '@ngrx/store';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { provideNativeDateAdapter } from '@angular/material/core';
 import { convertToParamMap } from '@angular/router';
 import { authFeature } from '../../../core/store/auth/auth.feature';
 import { EditProjectComponent } from './edit-project.component';
@@ -20,6 +21,7 @@ describe('EditProjectComponent', () => {
         provideStore(),
         provideState(authFeature),
         provideAnimationsAsync(),
+        provideNativeDateAdapter(),
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ id: 'p1' }) } },

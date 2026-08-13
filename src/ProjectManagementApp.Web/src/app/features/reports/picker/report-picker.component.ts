@@ -7,7 +7,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { ReportsService } from '../../../core/services/reports.service';
+import { toDateOnlyString } from '../../../core/utils/date-only.util';
 import type { components } from '../../../core/api/generated/reports.v1';
 
 type ReportDescriptor = components['schemas']['ReportDescriptor'];
@@ -26,7 +28,15 @@ const ROUTE_BY_TYPE: Record<ReportType, string> = {
 
 @Component({
   selector: 'app-report-picker',
-  imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonModule, MatCardModule],
+  imports: [
+    ReactiveFormsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatButtonModule,
+    MatCardModule,
+    MatDatepickerModule,
+  ],
   templateUrl: './report-picker.component.html',
   styleUrl: './report-picker.component.scss',
 })
@@ -62,13 +72,17 @@ export class ReportPickerComponent {
 
     const controls: Record<string, unknown> = {};
     for (const parameter of descriptor.parameters) {
-      controls[parameter.name] = ['', parameter.required ? [Validators.required] : []];
+      const initialValue = parameter.type === 'date' ? null : '';
+      controls[parameter.name] = [initialValue, parameter.required ? [Validators.required] : []];
     }
     this.form = this.fb.group(controls);
   }
 
+  protected isDateParam(parameterType: string): boolean {
+    return parameterType === 'date';
+  }
+
   protected inputTypeFor(parameterType: string): string {
-    if (parameterType === 'date') return 'date';
     if (parameterType === 'uuid') return 'text';
     if (parameterType === 'integer') return 'number';
     return 'text';
@@ -92,11 +106,11 @@ export class ReportPickerComponent {
       return;
     }
 
+    const dateParamNames = new Set(descriptor.parameters.filter(p => p.type === 'date').map(p => p.name));
     const queryParams: Record<string, string> = {};
-    for (const [key, value] of Object.entries(this.form.getRawValue() as Record<string, string>)) {
-      if (value !== '' && value !== null && value !== undefined) {
-        queryParams[key] = value;
-      }
+    for (const [key, value] of Object.entries(this.form.getRawValue() as Record<string, unknown>)) {
+      if (value === '' || value === null || value === undefined) continue;
+      queryParams[key] = dateParamNames.has(key) ? toDateOnlyString(value as Date) : (value as string);
     }
 
     void this.router.navigate(['/reports', ROUTE_BY_TYPE[descriptor.type]], { queryParams });
